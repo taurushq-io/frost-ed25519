@@ -2,76 +2,94 @@ package zk
 
 import (
 	"crypto/rand"
-	"fmt"
-	common "github.com/taurusgroup/tg-tss/pkg/helpers"
+	"errors"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/curve"
 	"math/big"
 
 	"golang.org/x/crypto/sha3"
 )
 
-type ZKSchnorr struct {
-	partyID int
-	params string
-	commitment *common.ECPoint
+var (
+	ErrNonce = errors.New("failed to generate nonce for Schnorr proof")
+)
+
+type Schnorr struct {
+	// commitment = v•G for random v
+	commitment curve.ECPoint
+
+	// response = v - privateInput * challenge
 	response *big.Int
 }
 
-// NewZKSchnorr is generates a ZK proof of knowledge of privateInput.
+// NewSchnorr is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func NewZKSchnorr(privateInput *big.Int, partyID int, params string) (*common.ECPoint, ZKSchnorr, error) {
-	v, err := rand.Int(rand.Reader, common.Modulus())
-	if err != nil {
-		return nil, ZKSchnorr{}, fmt.Errorf("failed to generate random nonce for schnorr proof")
-	}
-	G := common.NewECPointBase()
-	V := G.ScalarMult(v.Bytes())
-	A := G.ScalarMult(privateInput.Bytes())
+func NewSchnorr(privateInput *big.Int, partyID common.Party, params string) (public curve.ECPoint, proof Schnorr, err error) {
+	// Base point
+	G := curve.NewECPointBase()
 
-	// H(G | V | A | partyID | params)
+	// public = privateInput•G
+	public = G.ScalarMult(privateInput.Bytes())
+
+	// Compute commitment for random nonce
+	// V = v•G
+	v, err := rand.Int(rand.Reader, curve.Modulus())
+	if err != nil {
+		return curve.ECPoint{}, Schnorr{}, ErrNonce
+	}
+	V := G.ScalarMult(v.Bytes())
+
+	// Compute challenge
+	// c = H(G || V || public || partyID || params)
 	h := sha3.New256()
-	h.Write(G.Bytes())
-	h.Write(V.Bytes())
-	h.Write(A.Bytes())
-	h.Write(common.IntToBytes(partyID))
-	h.Write([]byte(params))
-	// h = H(G | V | A | partyID | params)
+	_, _ = h.Write(G.Bytes())
+	_, _ = h.Write(V.Bytes())
+	_, _ = h.Write(public.Bytes())
+	_, _ = h.Write(common.BytesFromUInt32(partyID))
+	_, _ = h.Write([]byte(params))
+
+	// c = H(G | V | public | partyID | params)
 	c := new(big.Int).SetBytes(h.Sum(nil))
 
+	// Compute response
 	// r = v - privateInput * c
 	r := c.Mul(c, privateInput)
 	r = r.Neg(r)
 	r = r.Add(r, v)
-	r = r.Mod(r, common.Modulus())
+	r = r.Mod(r, curve.Modulus())
 
-	proof := ZKSchnorr{
-		partyID:   partyID,
-		params:    params,
+	proof = Schnorr{
 		commitment: V,
-		response:  r,
+		response:   r,
 	}
-	return A, proof, nil
+
+	return
 }
 
-func CheckZKSchnorr(public *common.ECPoint, proof ZKSchnorr) bool {
+// Schnorr.Verify verifies that the zero knowledge proof is valid.
+// Follows https://tools.ietf.org/html/rfc8235#section-3
+func (proof Schnorr) Verify(public curve.ECPoint, partyID common.Party, params string) bool {
 	if !public.IsOnCurve() {
 		return false
 	}
 
-	G := common.NewECPointBase()
+	G := curve.NewECPointBase()
 
 	h := sha3.New256()
-	h.Write(G.Bytes())
-	h.Write(proof.commitment.Bytes())
-	h.Write(public.Bytes())
-	h.Write(common.IntToBytes(proof.partyID))
-	h.Write([]byte(proof.params))
+	_, _ = h.Write(G.Bytes())
+	_, _ = h.Write(proof.commitment.Bytes())
+	_, _ = h.Write(public.Bytes())
+	_, _ = h.Write(common.BytesFromUInt32(partyID))
+	_, _ = h.Write([]byte(params))
+
 	// h = H(G | V | A | partyID | params)
 	c := new(big.Int).SetBytes(h.Sum(nil))
 
+	cA := public.ScalarMult(c.Bytes())
+	rG := G.ScalarMult(proof.response.Bytes())
 
-	Ac := public.ScalarMult(c.Bytes())
-	Gr := common.NewECPointBaseMult(proof.response.Bytes())
+	// V = c • A + r • G
+	V := cA.Add(rG)
 
-	V := Ac.Add(Gr)
 	return V.Equals(proof.commitment)
 }
