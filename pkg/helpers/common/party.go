@@ -1,16 +1,25 @@
 package common
 
-import "github.com/taurusgroup/tg-tss/pkg/helpers/curve"
 
-type Party = uint32
+type Party uint32
 
-func BytesFromUInt32(i uint32) []byte {
+func (p Party) Bytes() []byte {
+	i := uint32(p)
 	return []byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
 }
 
-type (
-	PublicKeyShare struct {
-		Party     Party
-		PublicKey curve.ECPoint
-	}
-)
+func (p Party) UInt32() uint32 {
+	return uint32(p)
+}
+
+func (p Party) Int64() int64 {
+	return int64(p)
+}
+
+
+//type (
+//	PublicKeyShare struct {
+//		Party     Party
+//		PublicKey curve.ECPoint
+//	}
+//)

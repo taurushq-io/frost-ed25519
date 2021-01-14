@@ -2,75 +2,97 @@ package vss
 
 import (
 	"errors"
+	"filippo.io/edwards25519"
 	"fmt"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/curve"
-	"math/big"
 )
 
 type (
-	Share struct {
-		partyId      common.Party
-		threshold    uint32
-		PrivateShare *big.Int
+	VSS struct {
+		Threshold, ShareCount uint32
+		Commitments           []*edwards25519.Point
 	}
-
-	Commitments = PolynomialExp
+	Shares map[common.Party]*edwards25519.Scalar
 )
 
-// vss.New generates a Feldman VSS shares, and commitments for a given secret value a0.
-// If a0 is nil, then the secret is chosen randomly.
-func New(secret *big.Int, threshold uint32, parties []common.Party) ([]Share, Commitments, error) {
-	n := uint32(len(parties))
-	if threshold >= n {
-		return nil, nil, errors.New("wrong threshold")
-	}
-
-	polynomial, err := NewRandomPolynomial(threshold, secret)
+func NewVSS(t uint32, secret *edwards25519.Scalar, parties []common.Party) (vss *VSS, shares Shares, err error) {
+	polynomial, err := samplePolynomial(t, secret)
 	if err != nil {
-		return nil, nil, errors.New("failed to generate polynomial")
+		return nil, nil, err
 	}
-	polynomialExp := ConvertPolynomial(polynomial)
 
-	// for each party, generate their Share as f(partyId)
-	shares := make([]Share, n)
-	for i, id := range parties {
-		if id == 0 {
-			return nil, nil, errors.New("a party cannot have index 0")
-		}
-		Id := new(big.Int).SetInt64(int64(id))
-		shares[i] = Share{
-			partyId:      id,
-			threshold:    threshold,
-			PrivateShare: polynomial.Evaluate(Id),
-		}
+	shares, err = generateShares(polynomial, parties)
+	if err != nil {
+		return nil, nil, err
 	}
-	return shares, polynomialExp, nil
+
+	n := uint32(len(parties))
+
+	commitment := computeCommitments(polynomial)
+
+	vss = &VSS{
+		Threshold:   t,
+		ShareCount:  n,
+		Commitments: commitment,
+	}
+
+	return vss, shares, nil
 }
 
-func (s Share) Verify(party common.Party, commitments Commitments) bool {
-	if party != s.partyId {
+func (vss *VSS) Verify(t, n uint32) {
+
+}
+
+// VerifyShare performs the Feldman verification of the received share, using the commitments.
+func (vss *VSS) VerifyShare(share *edwards25519.Scalar, index common.Party) bool {
+	err := verifyCommitments(vss.Commitments, share, index)
+	if err != nil {
+		fmt.Println(err)
 		return false
 	}
-	shareExp := curve.NewECPointBaseMult(s.PrivateShare.Bytes())
-	otherShareExp := commitments.Evaluate(new(big.Int).SetInt64(int64(s.partyId)))
-	return shareExp.Equals(otherShareExp)
+	return true
 }
 
-// GetPublicKeys generates all public key shares using the commitments from the n VSS rounds.
-// The commitments represent the individual Shamir polynomials, so we add them up to obtain the Shamir polynomial
-// of the final shared secret. We can then evaluate this polynomial (in the exponent) for each party and generate their public key.
-func GetPublicKeys(parties []common.Party, commitments []Commitments) ([]common.PublicKeyShare, error) {
-	polynomialSum, err := SumPolynomialExp(commitments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to sum polynomials: %w", err)
+// PublicKey returns the public key associated to the VSS. It is simply the f(0)•G.
+func (vss *VSS) PublicKey() *edwards25519.Point {
+	return vss.Commitments[0]
+}
+
+// SumVSS takes a map (party, VSS) and sums the commitments in order to obtain the VSS of the final key
+// It is assumed that this party's VSS is included in the map.
+// Returns an error if anything is wrong.
+func SumVSS(vssMap map[common.Party]*VSS, threshold, parties uint32) (*VSS, error) {
+	if len(vssMap) != int(parties) {
+		return nil, errors.New("invalid number of vss structs given")
 	}
-	publicKeys := make([]common.PublicKeyShare, len(parties))
-	for i, party := range parties {
-		publicKeys[i] = common.PublicKeyShare{
-			Party:     party,
-			PublicKey: polynomialSum.Evaluate(new(big.Int).SetInt64(int64(party))),
+	newVSS := &VSS{
+		Threshold:   threshold,
+		ShareCount:  parties,
+		Commitments: make([]*edwards25519.Point, threshold + 1),
+	}
+
+	infinity := edwards25519.NewIdentityPoint()
+	// set all commitments to ∞ initially
+	for i := range newVSS.Commitments {
+		newVSS.Commitments[i] = new(edwards25519.Point).Set(infinity)
+	}
+
+	for index, otherVss := range vssMap {
+		if otherVss.ShareCount != parties || otherVss.Threshold != threshold {
+			// TODO make proper error
+			return nil, fmt.Errorf("SumVSS: index=%d invalid params n=%d, t=%d", index.UInt32(), otherVss.ShareCount, otherVss.Threshold)
+		}
+		if len(otherVss.Commitments) != int(threshold) + 1 {
+			// TODO make proper error
+			return nil, fmt.Errorf("SumVSS: index=%d wrong number of commitments", index.UInt32())
+		}
+
+		// Add the commitments
+		for deg, coef := range newVSS.Commitments {
+			coef.Add(coef, otherVss.Commitments[deg])
 		}
 	}
-	return publicKeys, nil
+
+	return newVSS, nil
+
 }

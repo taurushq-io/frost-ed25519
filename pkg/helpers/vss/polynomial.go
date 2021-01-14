@@ -1,105 +1,107 @@
 package vss
 
 import (
-	"crypto/rand"
 	"errors"
+	"filippo.io/edwards25519"
 	"fmt"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/curve"
-	"math/big"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
-type (
-	Polynomial    []*big.Int
-	PolynomialExp []curve.ECPoint
-)
+// samplePolynomial generates the coefficients of a polynomial f(X) = secret + a1*X + ... + at*X^t,
+// with coefficients in Z_q.
+func samplePolynomial(t uint32, secret *edwards25519.Scalar) ([]*edwards25519.Scalar, error) {
+	polynomial := make([]*edwards25519.Scalar, t+1) // polynomials are indexed starting at 0
 
-// NewRandomPolynomial generates the coefficients of a Polynomial f(X) = a0 + a1*X + ... + at*X^t,
-// with coefficients in Z_q. The constant coefficient a0 can be nil, in which case it is samples uniformly.
-// All other coefficients are sampled uniformly from Z_q as well.
-func NewRandomPolynomial(degree uint32, a0 *big.Int) (Polynomial, error) {
-	polynomial := make(Polynomial, degree+1)
-	i := uint32(0)
-	if a0 != nil {
-		polynomial[0].Mod(a0, curve.Modulus())
-		i = 1
-	}
+	// Set the constant term to the secret
+	polynomial[0] = new(edwards25519.Scalar).Set(secret)
+
 	var err error
-	for ; i <= degree; i++ {
-		polynomial[i], err = rand.Int(rand.Reader, curve.Modulus())
+	for i := uint32(1); i <= t; i++ {
+		polynomial[i], err = common.NewScalarRandom()
 		if err != nil {
-			return nil, fmt.Errorf("failed to sample polynomial")
+			return nil, fmt.Errorf("failed to sample polynomial: %w", err)
 		}
 	}
 
 	return polynomial, nil
 }
 
-// ConvertPolynomial takes a Polynomial over Z_q and applies the transformation ai -> Ai = ai • G to all the coefficients.
-// The result is a PolynomialExp which can be seen as f(X)•G.
-func ConvertPolynomial(p Polynomial) PolynomialExp {
-	pExp := make(PolynomialExp, len(p))
-	for i, c := range p {
-		pExp[i] = curve.NewECPointBaseMult(c.Bytes())
+// computeCommitments returns the VSS commitments for a polynomial given by its coefficients
+func computeCommitments(polynomial []*edwards25519.Scalar) []*edwards25519.Point {
+	commitments := make([]*edwards25519.Point, len(polynomial))
+	for i, c := range polynomial {
+		commitments[i] = new(edwards25519.Point).ScalarBaseMult(c)
 	}
-	return pExp
+	return commitments
 }
 
-// Evaluate evaluates a Polynomial in a given variable x
-// We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
-func (p Polynomial) Evaluate(x *big.Int) *big.Int {
-	result := new(big.Int)
-	for i := len(p) - 1; i >= 0; i-- {
-		// b_n-1 = a_n-1 + b_n * x
-		result.Mul(result, x)
-		result.Add(result, p[i])
-		result.Mod(result, curve.Modulus())
-	}
-	return result
-}
-
-// Evaluate evaluates a PolynomialExp in a given variable x
-// We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
-func (pe PolynomialExp) Evaluate(x *big.Int) curve.ECPoint {
-	result := curve.NewECPointInfinity()
-	xBytes := x.Bytes()
-	for i := len(pe) - 1; i >= 0; i-- {
-		// b_n-1•G = a_n-1•G + X.b_n•G
-		result = result.ScalarMult(xBytes).Add(pe[i])
-	}
-	return result
-}
-
-// PolynomialExp.Bytes creates a byte slice which is the concatenation of all coefficients
-func (pe PolynomialExp) Bytes() []byte {
-	var flat []byte
-	for _, point := range pe {
-		flat = append(flat, point.Bytes()...)
-	}
-	return flat
-}
-
-// SumPolynomialExp returns a PolynomialExp which is the sum of all PolynomialExp given as argument.
-// The degree of the coefficients must all be the same.
-func SumPolynomialExp(polynomials []PolynomialExp) (PolynomialExp, error) {
-	if len(polynomials) == 0 {
-		return PolynomialExp{}, errors.New("no polynomials given")
-	}
-	degree := len(polynomials[0])
-	newPolynomial := make([]curve.ECPoint, degree)
+func generateShares(polynomial []*edwards25519.Scalar, indices []common.Party) (Shares, error) {
+	shares := make(Shares, len(indices))
 	var err error
-	for i, coefficient := range polynomials[0] {
-		newPolynomial[i], err = curve.NewECPoint(coefficient.X(), coefficient.Y())
+	for _, index := range indices {
+		shares[index], err = evaluatePolynomial(polynomial, index.UInt32())
 		if err != nil {
-			return PolynomialExp{}, fmt.Errorf("failed to create point: %w", err)
+			return nil, fmt.Errorf("generateShares: index=%d: %w", index, err)
 		}
 	}
-	for _, p := range polynomials[1:] {
-		if len(p) != degree {
-			return PolynomialExp{}, errors.New("degree mismatch")
-		}
-		for i, coefficient := range p {
-			newPolynomial[i].Add(coefficient)
-		}
+	return shares, nil
+}
+
+
+// evaluatePolynomial evaluates a polynomial in a given variable index
+// We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
+func evaluatePolynomial(polynomial []*edwards25519.Scalar, index uint32) (*edwards25519.Scalar, error) {
+	result := edwards25519.NewScalar()
+	x, err := common.NewScalarUInt32(index)
+	if err != nil {
+		return nil, fmt.Errorf("evaluate polynomial, index=%d: %w", index, err)
 	}
-	return newPolynomial, nil
+	// revers order
+	for i := len(polynomial) - 1; i >= 0; i-- {
+		// b_n-1 = b_n * x + a_n-1
+		result.MultiplyAdd(result, x, polynomial[i])
+	}
+	return result, nil
+}
+
+// verifyCommitments evaluates the polynomial f(index)•G and verifies that it equals share•G
+// We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
+func verifyCommitments(commitments []*edwards25519.Point, share *edwards25519.Scalar, index common.Party) error {
+	public := new(edwards25519.Point).ScalarBaseMult(share)
+
+	//x0, err := common.NewScalarUInt32(index.UInt32())
+	//if err != nil {
+	//	return err
+	//}
+	//x := new(edwards25519.Scalar).Set(x0)
+	//
+	//tmp := new(edwards25519.Point)
+	//result := new(edwards25519.Point).Set(commitments[0])
+	//
+	//for i := 1; i < len(commitments); i++ {
+	//	tmp.ScalarMult(x, commitments[i])
+	//	result.Add(result, tmp)
+	//	x.Multiply(x, x0)
+	//}
+
+
+	n := len(commitments)
+
+	result := new(edwards25519.Point).Set(commitments[n-1])
+	identity := edwards25519.NewIdentityPoint()
+	x, err := common.NewScalarUInt32(index.UInt32())
+	if err != nil {
+		return err
+	}
+	for i := len(commitments) - 2; i >= 0; i-- {
+		result.
+		// b_n-1•G = a_n-1•G + X.b_n•G
+		result.ScalarMult(x, result)
+		result.Add(result, commitments[i])
+	}
+
+	if public.Equal(result) != 1 {
+		return errors.New("share is invalid")
+	}
+	return nil
 }
