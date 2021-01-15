@@ -8,6 +8,10 @@ func (p Party) Bytes() []byte {
 	return []byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
 }
 
+func (p Party) Int() int {
+	return int(p)
+}
+
 func (p Party) UInt32() uint32 {
 	return uint32(p)
 }

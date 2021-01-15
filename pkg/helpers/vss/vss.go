@@ -39,15 +39,18 @@ func NewVSS(t uint32, secret *edwards25519.Scalar, parties []common.Party) (vss 
 	return vss, shares, nil
 }
 
-func (vss *VSS) Verify(t, n uint32) {
+func (vss *VSS) Verify(threshold, partyCount uint32) bool {
+	if vss.Threshold != threshold || vss.ShareCount != partyCount {
+		return false
+	}
 
+	return true
 }
 
 // VerifyShare performs the Feldman verification of the received share, using the commitments.
 func (vss *VSS) VerifyShare(share *edwards25519.Scalar, index common.Party) bool {
 	err := verifyCommitments(vss.Commitments, share, index)
 	if err != nil {
-		fmt.Println(err)
 		return false
 	}
 	return true
@@ -56,6 +59,17 @@ func (vss *VSS) VerifyShare(share *edwards25519.Scalar, index common.Party) bool
 // PublicKey returns the public key associated to the VSS. It is simply the f(0)•G.
 func (vss *VSS) PublicKey() *edwards25519.Point {
 	return vss.Commitments[0]
+}
+
+// PublicKey returns the public key associated to the VSS. It is simply the f(0)•G.
+func (vss *VSS) PublicKeys(parties []common.Party) map[common.Party]*edwards25519.Point {
+	keys := make(map[common.Party]*edwards25519.Point, len(parties))
+
+	for _, party := range parties {
+		keys[party] = evaluatePolynomialExponent(vss.Commitments, party)
+	}
+
+	return keys
 }
 
 // SumVSS takes a map (party, VSS) and sums the commitments in order to obtain the VSS of the final key

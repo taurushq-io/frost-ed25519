@@ -13,6 +13,21 @@ type Schnorr struct {
 	response *edwards25519.Scalar	// response = v - privateInput * challenge
 }
 
+func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, partyID common.Party, params string) *edwards25519.Scalar {
+	// Compute challenge
+	// c = H(G || V || public || partyID || params)
+	hash512 := sha512.New()
+	_, _ = hash512.Write(generator.Bytes())
+	_, _ = hash512.Write(commitmentPublic.Bytes())
+	_, _ = hash512.Write(public.Bytes())
+	_, _ = hash512.Write(partyID.Bytes())
+	_, _ = hash512.Write([]byte(params))
+
+	challenge := new(edwards25519.Scalar).SetUniformBytes(hash512.Sum(nil))
+
+	return challenge
+}
+
 
 // NewSchnorr is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
@@ -31,16 +46,7 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID common.Party, params 
 
 	generator := edwards25519.NewGeneratorPoint()
 
-	// Compute challenge
-	// c = H(G || V || public || partyID || params)
-	hash512 := sha512.New()
-	_, _ = hash512.Write(generator.Bytes())
-	_, _ = hash512.Write(commitmentPublic.Bytes())
-	_, _ = hash512.Write(public.Bytes())
-	_, _ = hash512.Write(partyID.Bytes())
-	_, _ = hash512.Write([]byte(params))
-
-	challenge := new(edwards25519.Scalar).SetUniformBytes(hash512.Sum(nil))
+	challenge := computeChallenge(generator, commitmentPublic, public, partyID, params)
 
 	challengeMulPrivate := new(edwards25519.Scalar).Multiply(challenge, private)  // = c•private
 	response := new(edwards25519.Scalar).Subtract(commitmentSecret, challengeMulPrivate) // r = v - c•private
@@ -66,16 +72,7 @@ func (proof *Schnorr) Verify(public *edwards25519.Point, partyID common.Party, p
 
 	generator := edwards25519.NewGeneratorPoint()
 
-	// Compute challenge
-	// c = H(G || V || public || partyID || params)
-	hash512 := sha512.New()
-	_, _ = hash512.Write(generator.Bytes())
-	_, _ = hash512.Write(proof.commitment.Bytes())
-	_, _ = hash512.Write(public.Bytes())
-	_, _ = hash512.Write(partyID.Bytes())
-	_, _ = hash512.Write([]byte(params))
-
-	challenge := new(edwards25519.Scalar).SetUniformBytes(hash512.Sum(nil))
+	challenge := computeChallenge(generator, proof.commitment, public, partyID, params)
 
 	commitmentComputed := new(edwards25519.Point).VarTimeDoubleScalarBaseMult(challenge, public, proof.response) // = r•G + c•Public
 
