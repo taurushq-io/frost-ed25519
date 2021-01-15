@@ -148,7 +148,7 @@ func (r3 *round3) Update(party common.Party, input *InputRound3) error {
 
 func (r3 *round3) Finish() (*KeyGenOutput, error) {
 	if len(r3.ReceivedShares) != len(r3.Parties)-1 {
-		return nil, fmt.Errorf("round3: finsish: %w", ErrMissingValues)
+		return nil, fmt.Errorf("round3: finish: %w", ErrMissingValues)
 	}
 	for party, share := range r3.ReceivedShares {
 		if share == nil {
@@ -162,7 +162,7 @@ func (r3 *round3) Finish() (*KeyGenOutput, error) {
 	}
 	publicKeys, err := vss.GetPublicKeys(r3.Parties, allVSSCommitments)
 	if err != nil {
-		return nil, fmt.Errorf("round3: finsish: get public keys: %w", err)
+		return nil, fmt.Errorf("round3: finish: get public keys: %w", err)
 	}
 
 	privateKeyShare := new(big.Int)
