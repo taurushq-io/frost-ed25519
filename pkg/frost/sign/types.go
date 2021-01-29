@@ -1,7 +1,5 @@
 package sign
 
-import "github.com/taurusgroup/tg-tss/pkg/frost"
-
 type (
 	//KeyGenMessage struct {
 	//	//Message1 *keygen.KeyGenMessage1
@@ -13,8 +11,8 @@ type (
 	MessageContainer struct {
 		To, From uint32
 		//KeyGen *KeyGenMessage
-		Sign *Message
-		Signature *frost.Signature
+		//Sign *Message
+		Signature *Signature
 	}
 )
 

@@ -16,9 +16,12 @@ type round1 struct {
 func (r *round1) CanProcess() bool {
 	if len(r.msgs1) == len(r.AllParties)-1 {
 		for id := range r.Parties {
+			if id == r.PartySelf {
+				continue
+			}
 			if _, ok := r.msgs1[id]; !ok {
 
-				r.canProceed = false
+				//r.canProceed = false
 
 				return false
 			}
@@ -28,9 +31,9 @@ func (r *round1) CanProcess() bool {
 }
 
 func (r *round1) ProcessRound() ([][]byte, error) {
-	if r.canProceed {
-		return nil, ErrRoundProcessed
-	}
+	//if r.canProceed {
+	//	return nil, ErrRoundProcessed
+	//}
 	var err error
 
 	partyCount := len(r.AllParties)
@@ -41,19 +44,17 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 
 	for _, id := range r.AllParties {
 		party := r.Parties[id]
-		party.CommitmentD, err = new(edwards25519.Point).SetBytes(r.msgs1[id].CommitmentD)
-		if err != nil {
-			return nil, err
+		if id != r.PartySelf {
+			party.CommitmentD = r.msgs1[id].CommitmentD
+			party.CommitmentE = r.msgs1[id].CommitmentE
 		}
-		party.CommitmentE, err = new(edwards25519.Point).SetBytes(r.msgs1[id].CommitmentE)
-		if err != nil {
-			return nil, err
-		}
+
+
 
 		binary.Write(B, binary.BigEndian, id)
 
-		B.Write(r.msgs1[id].CommitmentD)
-		B.Write(r.msgs1[id].CommitmentE)
+		B.Write(party.CommitmentD.Bytes())
+		B.Write(party.CommitmentE.Bytes())
 	}
 
 	R := edwards25519.NewIdentityPoint()
@@ -88,7 +89,7 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 
 	r.R = R
 
-	c := frost.ComputeChallenge(r.Message, r.GroupKey, R)
+	c := ComputeChallenge(r.Message, r.GroupKey, R)
 	r.Commitment = c
 
 
@@ -109,26 +110,26 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 
 	r.Parties[r.PartySelf].SigShare = sigShare
 
-	zero := edwards25519.NewScalar()
-	r.e.Set(zero)
-	r.d.Set(zero)
+	//zero := edwards25519.NewScalar()
+	//r.e.Set(zero)
+	//r.d.Set(zero)
 
+	msg := Msg2{
+		SignatureShare: sigShare,
+	}
 
-
-	msg := make([]byte, 0, 4 + 1 + 32)
-	binary.BigEndian.PutUint32(msg, r.PartySelf)
-	msg = append(msg, byte(MessageTypeSign2))
-	msg = append(msg, sigShare.Bytes()...)
-
-	r.canProceed = true
-	return [][]byte{msg}, nil
-	//msg := &Message{
-	//	From:   r.PartySelf,
-	//	Sign:   &Message{
-	//		Msg2: &Msg2{SignatureShare: sigShare.Bytes()},
-	//	},
-	//}
+	msgBytes, err := msg.Encode(r.PartySelf)
+	if err != nil {
+		return nil, err
+	}
 	//r.canProceed = true
-	//return []*Message{msg}, nil
-
+	return [][]byte{msgBytes}, nil
+}
+func (r *round1) NextRound() frost.Round {
+	//if r.canProceed {
+	//	r.canProceed = false
+	//	return &round1{r}
+	//}
+	//return r
+	return &round2{r}
 }

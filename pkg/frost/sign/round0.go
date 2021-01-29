@@ -2,7 +2,6 @@ package sign
 
 import (
 	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
@@ -40,31 +39,31 @@ type round0 struct {
 	msgs1 map[uint32]*Msg1
 	msgs2 map[uint32]*Msg2
 
-	canProceed bool
+	//canProceed bool
 }
 
 func (r *round0) StoreMessage(message []byte) error {
-	from := binary.BigEndian.Uint32(message[0:])
-	msgType := MessageType(message[2])
-	content := message[3:]
-
+	from, msgType, content := DecodeBytes(message)
 
 	if from == r.PartySelf {
-		return ErrMessageNotForSelf
+		return nil
+		//return ErrMessageNotForSelf
 	}
 
 	if !r.IsOtherParticipant(from) {
 		return ErrInvalidSender
 	}
 
+
 	switch msgType {
 	case MessageTypeSign1:
 		if _, ok := r.msgs1[from]; ok {
 			return ErrDuplicateMessage
 		}
-		msg := new(Msg1)
-		copy(msg.CommitmentD, content[:32])
-		copy(msg.CommitmentE, content[32:])
+		msg, err := new(Msg1).Decode(content)
+		if err != nil {
+			return err
+		}
 		r.msgs1[from] = msg
 		return nil
 
@@ -73,8 +72,11 @@ func (r *round0) StoreMessage(message []byte) error {
 			return ErrDuplicateMessage
 		}
 
-		msg := new(Msg2)
-		copy(msg.SignatureShare, content[:32])
+		msg, err := new(Msg2).Decode(content)
+		if err != nil {
+			return err
+		}
+
 		r.msgs2[from] = msg
 		return nil
 	}
@@ -88,9 +90,9 @@ func (r *round0) CanProcess() bool {
 }
 
 func (r *round0) ProcessRound() ([][]byte, error) {
-	if r.canProceed {
-		return nil, ErrRoundProcessed
-	}
+	//if r.canProceed {
+	//	return nil, ErrRoundProcessed
+	//}
 	buf := make([]byte, 64)
 	_, err := rand.Read(buf)
 	if err != nil {
@@ -108,22 +110,26 @@ func (r *round0) ProcessRound() ([][]byte, error) {
 	party.CommitmentE = new(edwards25519.Point).ScalarBaseMult(r.e)
 
 
-	msg := make([]byte, 0, 4 + 1 + 32 + 32)
-	binary.BigEndian.PutUint32(msg, r.PartySelf)
-	msg = append(msg, byte(MessageTypeSign1))
-	msg = append(msg, party.CommitmentD.Bytes()...)
-	msg = append(msg, party.CommitmentE.Bytes()...)
+	msg := Msg1{
+		CommitmentD: party.CommitmentD,
+		CommitmentE: party.CommitmentE,
+	}
+	msgByte, err := msg.Encode(r.PartySelf)
+	if err != nil {
+		return nil, err
+	}
 
-	r.canProceed = true
-	return [][]byte{msg}, nil
+	//r.canProceed = true
+	return [][]byte{msgByte}, nil
 }
 
 func (r *round0) NextRound() frost.Round {
-	if r.canProceed {
-		r.canProceed = false
-		return &round1{r}
-	}
-	return r
+	//if r.canProceed {
+	//	r.canProceed = false
+	//	return &round1{r}
+	//}
+	//return r
+	return &round1{r}
 }
 
 func (r *round0) IsOtherParticipant(p uint32) bool {
@@ -139,4 +145,37 @@ func (r *round0) Reset() {
 	//zero := edwards25519.NewScalar()
 	//identity := edwards25519.NewIdentityPoint()
 
+}
+
+
+func NewRound(selfID uint32, parties map[uint32]*frost.Party, partyIDs []uint32, secret *frost.PartySecret, message []byte) frost.Round {
+	N := len(partyIDs)
+	r := &round0{
+		PartySelf:  selfID,
+		Secret:     secret,
+		AllParties: partyIDs,
+		Parties:    make(map[uint32]*Signer, N),
+		GroupKey:   edwards25519.NewIdentityPoint(),
+		e:          edwards25519.NewScalar(),
+		d:          edwards25519.NewScalar(),
+		Message:    message,
+		Commitment: edwards25519.NewScalar(),
+		R:          edwards25519.NewIdentityPoint(),
+		msgs1:      make(map[uint32]*Msg1, N),
+		msgs2:      make(map[uint32]*Msg2, N),
+		//canProceed: true,
+	}
+
+	//partiesTmp := make(map[uint32]*frost.Party, N)
+	for _, id := range partyIDs {
+		r.Parties[id] = NewSigner(parties[id])
+		//partiesTmp[id] = parties[id]
+	}
+
+	pk, err := frost.ComputeGroupKey(parties)
+	if err != nil {
+		panic(err)
+	}
+	r.GroupKey = pk
+	return r
 }

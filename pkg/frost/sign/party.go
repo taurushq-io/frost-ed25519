@@ -27,3 +27,21 @@ func (s *Signer) Reset() {
 	s.Rho.Set(zero)
 	s.SigShare.Set(zero)
 }
+
+func NewSigner(p *frost.Party) *Signer {
+	s := &Signer{
+		//Party:       p,
+		//CommitmentD: edwards25519.NewIdentityPoint(),
+		//CommitmentE: edwards25519.NewIdentityPoint(),
+		//Rho:         edwards25519.NewScalar(),
+		//R:           edwards25519.NewIdentityPoint(),
+		//SigShare:    edwards25519.NewScalar(),
+		Party:       p,
+		CommitmentD: new(edwards25519.Point),
+		CommitmentE: new(edwards25519.Point),
+		Rho:         new(edwards25519.Scalar),
+		R:           new(edwards25519.Point),
+		SigShare:    new(edwards25519.Scalar),
+	}
+	return s
+}
