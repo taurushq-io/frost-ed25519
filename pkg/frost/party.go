@@ -8,22 +8,20 @@ import (
 )
 
 type Party struct {
-	Index uint32
+	Index  uint32
 	Public *edwards25519.Point
 }
 
 type PartySecret struct {
-	Index uint32
+	Index  uint32
 	Secret *edwards25519.Scalar
 }
-
 
 // ComputeLagrange computes the coefficient l_j(x)
 //
 // We assume that others does not contain any duplicates or self.
 func ComputeLagrange(self uint32, allParties []uint32) (*edwards25519.Scalar, error) {
 	//return common.NewScalarUInt32(uint32(1))
-
 
 	var xJ, xM *edwards25519.Scalar
 	var err error
@@ -59,7 +57,6 @@ func ComputeLagrange(self uint32, allParties []uint32) (*edwards25519.Scalar, er
 	return num, nil
 }
 
-
 func ComputeGroupKey(parties map[uint32]*Party) (*edwards25519.Point, error) {
 
 	allPartyIDs := make([]uint32, 0, len(parties))
@@ -68,6 +65,7 @@ func ComputeGroupKey(parties map[uint32]*Party) (*edwards25519.Point, error) {
 	}
 
 	groupKey := edwards25519.NewIdentityPoint()
+	// TODO investigate this bug
 	//publicKeyShare := edwards25519.NewIdentityPoint()
 	for _, party := range parties {
 		coef, err := ComputeLagrange(party.Index, allPartyIDs)

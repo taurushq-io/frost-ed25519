@@ -39,7 +39,7 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 	partyCount := len(r.AllParties)
 
 	// We allocate a new buffer which contains a sorted list of triples (i, B_i, E_i) for each party i
-	buf := make([]byte, 0, partyCount * (4 + 32 + 32))
+	buf := make([]byte, 0, partyCount*(4+32+32))
 	B := bytes.NewBuffer(buf)
 
 	for _, id := range r.AllParties {
@@ -48,8 +48,6 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 			party.CommitmentD = r.msgs1[id].CommitmentD
 			party.CommitmentE = r.msgs1[id].CommitmentE
 		}
-
-
 
 		binary.Write(B, binary.BigEndian, id)
 
@@ -76,7 +74,6 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 		// Write list B
 		B.WriteTo(h)
 
-
 		h.Write(r.Message)
 
 		party.Rho = new(edwards25519.Scalar).SetUniformBytes(h.Sum(nil))
@@ -91,7 +88,6 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 
 	c := ComputeChallenge(r.Message, r.GroupKey, R)
 	r.Commitment = c
-
 
 	lagrange, err := frost.ComputeLagrange(r.PartySelf, r.AllParties)
 	if err != nil {

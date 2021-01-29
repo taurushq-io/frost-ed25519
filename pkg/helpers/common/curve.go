@@ -23,4 +23,3 @@ func NewScalarUInt32(x uint32) (*edwards25519.Scalar, error) {
 	bytes[3] = byte(x >> 24)
 	return new(edwards25519.Scalar).SetCanonicalBytes(bytes)
 }
-

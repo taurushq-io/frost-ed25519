@@ -47,7 +47,6 @@ func generateShares(polynomial []*edwards25519.Scalar, indices []common.Party) (
 	return shares, nil
 }
 
-
 // evaluatePolynomial evaluates a polynomial in a given variable index
 // We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
 func evaluatePolynomial(polynomial []*edwards25519.Scalar, index uint32) (*edwards25519.Scalar, error) {

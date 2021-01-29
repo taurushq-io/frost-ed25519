@@ -6,8 +6,6 @@ type (
 	//	//Message2 *keygen.KeyGenMessage2
 	//}
 
-
-
 	MessageContainer struct {
 		To, From uint32
 		//KeyGen *KeyGenMessage
@@ -15,4 +13,3 @@ type (
 		Signature *Signature
 	}
 )
-

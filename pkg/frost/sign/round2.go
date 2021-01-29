@@ -20,9 +20,6 @@ func (r *round2) CanProcess() bool {
 				continue
 			}
 			if _, ok := r.msgs2[id]; !ok {
-
-				//r.canProceed = false
-
 				return false
 			}
 		}
@@ -31,14 +28,10 @@ func (r *round2) CanProcess() bool {
 }
 
 func (r *round2) ProcessRound() ([][]byte, error) {
-	//if r.canProceed {
-	//	return nil, ErrRoundProcessed
-	//}
-
 	sig := edwards25519.NewScalar()
 
-	//lhs := new(edwards25519.Point)
-	//rhs := new(edwards25519.Point)
+	lhs := new(edwards25519.Point)
+	rhs := new(edwards25519.Point)
 
 	for _, id := range r.AllParties {
 		party := r.Parties[id]
@@ -53,8 +46,8 @@ func (r *round2) ProcessRound() ([][]byte, error) {
 
 		lagrange.Multiply(lagrange, r.Commitment)
 
-		lhs := new(edwards25519.Point).ScalarBaseMult(party.SigShare)
-		rhs := new(edwards25519.Point).ScalarMult(lagrange, party.Public)
+		lhs.ScalarBaseMult(party.SigShare)
+		rhs.ScalarMult(lagrange, party.Public)
 		rhs.Add(rhs, party.R)
 
 		if lhs.Equal(rhs) != 1 {
@@ -73,15 +66,9 @@ func (r *round2) ProcessRound() ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	//r.canProceed = true
 	return [][]byte{sigBytes}, nil
 }
 
 func (r *round2) NextRound() frost.Round {
-	//if r.canProceed {
-	//	r.canProceed = false
-	//	return &round1{r}
-	//}
-	//return r
 	return r
 }

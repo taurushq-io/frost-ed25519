@@ -24,6 +24,7 @@ type (
 )
 
 type MessageType uint8
+
 const (
 	MessageTypeSign1 MessageType = iota
 	MessageTypeSign2
@@ -31,18 +32,17 @@ const (
 )
 
 const (
-	HeaderLength   = 4 + 1
-	MessageLength1 = 32 + 32
-	MessageLength2 = 32
+	HeaderLength     = 4 + 1
+	MessageLength1   = 32 + 32
+	MessageLength2   = 32
 	MessageLengthSig = 32 + 32
-
 )
 
 func (m *Msg1) Encode(from uint32) ([]byte, error) {
 	if m.CommitmentD == nil || m.CommitmentE == nil {
 		return nil, fmt.Errorf("msg1: %w", ErrInvalidMessage)
 	}
-	buf := make([]byte, 0, HeaderLength +MessageLength1)
+	buf := make([]byte, 0, HeaderLength+MessageLength1)
 	Buf := bytes.NewBuffer(buf)
 	Buf.Write([]byte{byte(MessageTypeSign1)})
 	binary.Write(Buf, binary.BigEndian, from)
@@ -77,7 +77,7 @@ func (m *Msg2) Encode(from uint32) ([]byte, error) {
 	if m.SignatureShare == nil {
 		return nil, fmt.Errorf("msg2: %w", ErrInvalidMessage)
 	}
-	buf := make([]byte, 0, HeaderLength +MessageLength2)
+	buf := make([]byte, 0, HeaderLength+MessageLength2)
 	Buf := bytes.NewBuffer(buf)
 	Buf.Write([]byte{byte(MessageTypeSign2)})
 	binary.Write(Buf, binary.BigEndian, from)

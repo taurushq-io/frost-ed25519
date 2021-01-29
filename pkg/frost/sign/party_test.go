@@ -12,8 +12,8 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint3
 	allParties := make([]uint32, n)
 	allPartiesT := make([]common.Party, n)
 	for i := uint32(0); i < n; i++ {
-		allParties[i] = i+1
-		allPartiesT[i] = common.Party(i+1)
+		allParties[i] = i + 1
+		allPartiesT[i] = common.Party(i + 1)
 	}
 
 	secret, _ := common.NewScalarRandom()
@@ -38,7 +38,7 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint3
 func generateFakePartiesAdditive(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint32]*frost.Party, map[uint32]*frost.PartySecret) {
 	allParties := make([]uint32, n)
 	for i := uint32(0); i < n; i++ {
-		allParties[i] = i+1
+		allParties[i] = i + 1
 	}
 
 	secrets := map[uint32]*frost.PartySecret{}

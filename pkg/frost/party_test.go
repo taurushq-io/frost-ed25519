@@ -21,7 +21,7 @@ func TestComputeGroupKey(t *testing.T) {
 	parties := map[uint32]*Party{1: p1, 2: p2}
 
 	sk := edwards25519.NewScalar()
-	sk.Add(s1,s2)
+	sk.Add(s1, s2)
 	pk, err := ComputeGroupKey(parties)
 	assert.NoError(t, err)
 	pk2 := new(edwards25519.Point).ScalarBaseMult(sk)
@@ -30,9 +30,6 @@ func TestComputeGroupKey(t *testing.T) {
 	assert.Equal(t, 1, pk.Equal(pk3))
 	assert.Equal(t, 1, pk2.Equal(pk3))
 
-
-
-
 }
 
 func TestComputeLagrange(t *testing.T) {
@@ -40,7 +37,6 @@ func TestComputeLagrange(t *testing.T) {
 	one, _ := ComputeLagrange(0, nil)
 	g := new(edwards25519.Point).ScalarBaseMult(one)
 	assert.Equal(t, 1, g.Equal(edwards25519.NewGeneratorPoint()))
-
 
 	s, _ := common.NewScalarRandom()
 	p := new(edwards25519.Point).ScalarBaseMult(s)

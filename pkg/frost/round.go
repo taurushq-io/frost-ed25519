@@ -7,4 +7,3 @@ type Round interface {
 	NextRound() Round
 	Reset()
 }
-

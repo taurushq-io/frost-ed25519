@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"filippo.io/edwards25519"
 	"fmt"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
 type Signature struct {
@@ -31,7 +32,7 @@ func (s *Signature) Encode(from uint32) ([]byte, error) {
 	if s.S == nil || s.R == nil {
 		return nil, fmt.Errorf("sig: %w", ErrInvalidMessage)
 	}
-	buf := make([]byte, 0, HeaderLength + MessageLengthSig)
+	buf := make([]byte, 0, HeaderLength+MessageLengthSig)
 	Buf := bytes.NewBuffer(buf)
 	Buf.Write([]byte{byte(MessageTypeSignature)})
 	binary.Write(Buf, binary.BigEndian, from)
@@ -40,29 +41,27 @@ func (s *Signature) Encode(from uint32) ([]byte, error) {
 	return Buf.Bytes(), nil
 }
 
-
 func (s *Signature) Decode(in []byte) (*Signature, error) {
 	var err error
 	if len(in) != MessageLengthSig {
 		s = nil
 		return nil, fmt.Errorf("sig: %w", ErrInvalidMessage)
 	}
-	s.S, err = new(edwards25519.Scalar).SetCanonicalBytes(in[:32])
-	if err != nil {
-		s = nil
-		return nil, fmt.Errorf("sig.S: %w", err)
-	}
 	s.R, err = new(edwards25519.Point).SetBytes(in[:32])
 	if err != nil {
 		s = nil
 		return nil, fmt.Errorf("sig.R: %w", err)
 	}
+	s.S, err = new(edwards25519.Scalar).SetCanonicalBytes(in[32:])
+	if err != nil {
+		s = nil
+		return nil, fmt.Errorf("sig.S: %w", err)
+	}
 
 	return s, nil
 }
 
-
-// Compute the SHA 512
+// Compute the SHA 512 of the message
 func ComputeMessageHash(context []byte, message []byte) []byte {
 	h := sha512.New()
 	h.Write(context)
@@ -82,4 +81,15 @@ func ComputeChallenge(messageHash []byte, groupKey, R *edwards25519.Point) *edwa
 	return k
 }
 
-
+func NewSignature(message []byte, secretKey *edwards25519.Scalar, publicKey *edwards25519.Point) *Signature {
+	hashedM := ComputeMessageHash(nil, message)
+	r, _ := common.NewScalarRandom()
+	R := new(edwards25519.Point).ScalarBaseMult(r)
+	c := ComputeChallenge(hashedM, publicKey, R)
+	s := new(edwards25519.Scalar).Multiply(secretKey, c)
+	s.Add(s, r)
+	return &Signature{
+		R: R,
+		S: s,
+	}
+}

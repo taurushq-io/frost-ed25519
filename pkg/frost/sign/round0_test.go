@@ -28,7 +28,6 @@ func TestRound(t *testing.T) {
 	pkcomp := new(edwards25519.Point).ScalarBaseMult(secret)
 	assert.Equal(t, 1, rTmp.GroupKey.Equal(pkcomp))
 
-
 	msgsOut1 := make([][]byte, 0, N*N)
 	msgsOut2 := make([][]byte, 0, N*N)
 	for _, id := range partyIDs {
@@ -100,7 +99,6 @@ func TestRound(t *testing.T) {
 	}
 
 	assert.True(t, m1.Verify(message, pkcomp))
-
 
 	print("")
 }

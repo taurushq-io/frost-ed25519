@@ -26,7 +26,6 @@ func Test_evaluatePolynomial_Constant(t *testing.T) {
 	require.Equal(t, 1, eval3.Equal(cst))
 }
 
-
 func Test_evaluatePolynomial_x2plus1(t *testing.T) {
 	polynomial := make([]*edwards25519.Scalar, 3)
 	var err error
@@ -40,10 +39,10 @@ func Test_evaluatePolynomial_x2plus1(t *testing.T) {
 
 	for index := uint32(0); index < 100; index++ {
 		x := rand.Uint32()
-		if x > 1 << 16 {
+		if x > 1<<16 {
 			continue
 		}
-		result := 1 + x * x
+		result := 1 + x*x
 		computedRestult, err := evaluatePolynomial(polynomial, result)
 		require.NoError(t, err)
 		expectedResult, err := common.NewScalarUInt32(result)
