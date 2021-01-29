@@ -1,8 +1,9 @@
-package frost
+package keygen
 
 import (
 	"errors"
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/tg-tss/pkg/frost"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/vss"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/zk"
@@ -60,7 +61,7 @@ func (params *KeyGenParameters) PartyCount() uint32 {
 	return uint32(len(params.OtherPartyIDs) + 1)
 }
 
-func (r *KeyGenRound1) GetMessagesOut() (messages *Message, round *KeyGenRound2, err error) {
+func (r *KeyGenRound1) GetMessagesOut() (messages *frost.Message, round *KeyGenRound2, err error) {
 	secret, err := common.NewScalarRandom()
 	if err != nil {
 		return nil, nil, err
@@ -74,8 +75,8 @@ func (r *KeyGenRound1) GetMessagesOut() (messages *Message, round *KeyGenRound2,
 		return nil, nil, err
 	}
 
-	messages = &Message{
-		KeyGen: &KeyGenMessage{
+	messages = &frost.Message{
+		KeyGen: &frost.KeyGenMessage{
 			Message1: &KeyGenMessage1{
 				VSS:   commitments,
 				Proof: proof,
@@ -92,12 +93,13 @@ func (r *KeyGenRound1) GetMessagesOut() (messages *Message, round *KeyGenRound2,
 }
 
 
-func (r *KeyGenRound2) ProcessMessage(from common.Party, msg *Message) error {
+func (r *KeyGenRound2) ProcessMessage(from common.Party, msg *frost.Message) error {
 	found := false
 	for _, otherParty := range r.OtherPartyIDs {
 		found = found || (otherParty == from)
 	}
-	if !found { return ErrPartyNotValid}
+	if !found { return ErrPartyNotValid
+	}
 	if msg == nil || msg.KeyGen == nil || msg.KeyGen.Message1 == nil {
 		return ErrMissingValues
 	}
@@ -119,12 +121,13 @@ func (r *KeyGenRound2) ProcessMessage(from common.Party, msg *Message) error {
 	return nil
 }
 
-func (r *KeyGenRoundFinal) ProcessMessage(from common.Party, msg *Message) error {
+func (r *KeyGenRoundFinal) ProcessMessage(from common.Party, msg *frost.Message) error {
 	found := false
 	for _, otherParty := range r.OtherPartyIDs {
 		found = found || (otherParty == from)
 	}
-	if !found { return ErrPartyNotValid}
+	if !found { return ErrPartyNotValid
+	}
 
 
 	if msg == nil || msg.KeyGen == nil || msg.KeyGen.Message2 == nil {

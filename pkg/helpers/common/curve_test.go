@@ -15,7 +15,14 @@ func TestNewScalarUInt32(t *testing.T) {
 
 	tests := []uint32{1, 2, 200,499, 1025}
 
+
 	for _, test := range tests {
+		//if test == 200 {
+		//	a := big.NewInt(1 << 12 + 1 << 30)
+		//	ab := a.Bytes()
+		//	c, _ := NewScalarUInt32(1 << 12 + 1 << 30)
+		//	print(a, c, ab)
+		//}
 		computed, err := NewScalarUInt32(test)
 		require.NoError(t, err, "create", test)
 		real := edwards25519.NewScalar()
