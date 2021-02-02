@@ -19,14 +19,14 @@ func TestSignatureEncode_Decode(t *testing.T) {
 	pk := sk.PublicKey()
 
 	sig := NewSignature(m, sk, pk)
-	fromReal := uint32(42)
-	sigBytes, err := sig.Encode(fromReal)
+	//fromReal := uint32(42)
+	sigBytes, err := sig.MarshalBinary()
 	assert.NoError(t, err)
-	from, msgType, c := DecodeBytes(sigBytes)
+	msgType, _ := DecodeBytes(sigBytes)
 	assert.Equal(t, MessageTypeSignature, msgType)
-	assert.Equal(t, fromReal, from, "from not decoded")
-
-	sig2, err := new(Signature).Decode(c)
+	//assert.Equal(t, fromReal, from, "from not decoded")
+	sig2 := new(Signature)
+	err = sig2.UnmarshalBinary(sigBytes)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, sig.R.Equal(sig2.R))

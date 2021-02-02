@@ -87,12 +87,16 @@ func TestRound(t *testing.T) {
 		}
 	}
 
-	_, _, c := frost.DecodeBytes(outMsgs[0])
-	m1, _ := new(frost.Signature).Decode(c)
+	//_, _, c := frost.DecodeBytes(outMsgs[0])
+	m1 := new(frost.Signature)
+	err := m1.UnmarshalBinary(outMsgs[0])
+	assert.NoError(t, err)
 	for _, m := range outMsgs {
-		_, msgType, content := frost.DecodeBytes(m)
+		msgType, _ := frost.DecodeBytes(m)
 		assert.Equal(t, frost.MessageTypeSignature, msgType)
-		msg, err := new(frost.Signature).Decode(content)
+		msg := new(frost.Signature)
+
+		err = msg.UnmarshalBinary(m)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, msg.R.Equal(m1.R))
 		assert.Equal(t, 1, msg.S.Equal(m1.S))

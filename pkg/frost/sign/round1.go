@@ -103,10 +103,11 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 	r.Parties[r.PartySelf].SigShare = sigShare
 
 	msg := Msg2{
+		From: r.PartySelf,
 		SignatureShare: sigShare,
 	}
 
-	msgBytes, err := msg.Encode(r.PartySelf)
+	msgBytes, err := msg.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}

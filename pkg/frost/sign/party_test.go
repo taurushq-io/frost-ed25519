@@ -2,10 +2,11 @@ package sign
 
 import (
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
+
 	//"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/vss"
 )
 
 func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint32]*frost.Party, map[uint32]*frost.PartySecret) {
@@ -15,7 +16,8 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint3
 	}
 
 	secret := common.NewScalarRandom()
-	_, shares := vss.NewVSS(t, secret, allParties)
+	poly := polynomial.NewPolynomial(t, secret)
+	shares := poly.EvaluateMultiple(allParties)
 
 	secrets := map[uint32]*frost.PartySecret{}
 	parties := map[uint32]*frost.Party{}

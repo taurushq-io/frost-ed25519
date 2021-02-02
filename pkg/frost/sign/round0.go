@@ -44,7 +44,11 @@ type round0 struct {
 }
 
 func (r *round0) StoreMessage(message []byte) error {
-	from, msgType, content := frost.DecodeBytes(message)
+	msgType, from := frost.DecodeBytes(message)
+
+	if msgType == frost.MessageTypeSignature {
+		return nil
+	}
 
 	if from == r.PartySelf {
 		// TODO
@@ -56,12 +60,14 @@ func (r *round0) StoreMessage(message []byte) error {
 		return ErrInvalidSender
 	}
 
+	var err error
 	switch msgType {
 	case frost.MessageTypeSign1:
 		if _, ok := r.msgs1[from]; ok {
 			return ErrDuplicateMessage
 		}
-		msg, err := new(Msg1).Decode(content)
+		msg := new(Msg1)
+		err = msg.UnmarshalBinary(message)
 		if err != nil {
 			return err
 		}
@@ -73,7 +79,8 @@ func (r *round0) StoreMessage(message []byte) error {
 			return ErrDuplicateMessage
 		}
 
-		msg, err := new(Msg2).Decode(content)
+		msg := new(Msg2)
+		err = msg.UnmarshalBinary(message)
 		if err != nil {
 			return err
 		}
@@ -107,10 +114,11 @@ func (r *round0) ProcessRound() ([][]byte, error) {
 	party.CommitmentE = new(edwards25519.Point).ScalarBaseMult(r.e)
 
 	msg := Msg1{
+		From: r.PartySelf,
 		CommitmentD: party.CommitmentD,
 		CommitmentE: party.CommitmentE,
 	}
-	msgByte, err := msg.Encode(r.PartySelf)
+	msgByte, err := msg.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}

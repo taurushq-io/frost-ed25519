@@ -12,8 +12,7 @@ func TestSchnorrProof(t *testing.T) {
 	partyID := uint32(1)
 
 	private := common.NewScalarRandom()
-	proof, public, err := NewSchnorrProof(private, partyID, params)
-	require.NoError(t, err, "proof generation failed")
+	proof, public := NewSchnorrProof(private, partyID, params)
 	publicComputed := new(edwards25519.Point).ScalarBaseMult(private)
 	require.True(t, publicComputed.Equal(public) == 1)
 	require.True(t, proof.Verify(public, partyID, params))
@@ -24,8 +23,7 @@ func TestSchnorrProofFail(t *testing.T) {
 	partyID := uint32(1)
 
 	private := edwards25519.NewScalar()
-	proof, public, err := NewSchnorrProof(private, partyID, params)
-	require.NoError(t, err, "proof generation failed")
+	proof, public := NewSchnorrProof(private, partyID, params)
 	publicComputed := new(edwards25519.Point).ScalarBaseMult(private)
 	require.True(t, publicComputed.Equal(public) == 1)
 	require.False(t, proof.Verify(public, partyID, params))

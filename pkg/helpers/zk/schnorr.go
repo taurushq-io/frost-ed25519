@@ -1,8 +1,10 @@
 package zk
 
 import (
+	"bytes"
 	"encoding/binary"
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/tg-tss/pkg/frost"
 
 	"crypto/sha512"
 
@@ -10,70 +12,91 @@ import (
 )
 
 type Schnorr struct {
-	commitment *edwards25519.Point  // commitment = v•G for random v
-	response   *edwards25519.Scalar // response = v - privateInput * challenge
+	commitment edwards25519.Point  // commitment = v•G for random v
+	response   edwards25519.Scalar // response = v - privateInput * challenge
 }
 
-func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
+var (
+	edwards25519Identity = edwards25519.NewIdentityPoint()
+	edwards25519GeneratorBytes = edwards25519.NewGeneratorPoint().Bytes()
+)
+
+func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
 
 	partyIDBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(partyIDBytes, partyID)
 
 	// Compute challenge
 	// c = H(G || V || public || partyID || params)
-	hash512 := sha512.New()
-	_, _ = hash512.Write(generator.Bytes())
-	_, _ = hash512.Write(commitmentPublic.Bytes())
-	_, _ = hash512.Write(public.Bytes())
-	_, _ = hash512.Write(partyIDBytes)
-	_, _ = hash512.Write([]byte(params))
+	h := sha512.New()
+	h.Write(edwards25519GeneratorBytes)
+	h.Write(commitmentPublic.Bytes())
+	h.Write(public.Bytes())
+	h.Write(partyIDBytes)
+	h.Write([]byte(params))
 
-	challenge := new(edwards25519.Scalar).SetUniformBytes(hash512.Sum(nil))
+	challenge := new(edwards25519.Scalar).SetUniformBytes(h.Sum(nil))
 
 	return challenge
 }
 
 // NewSchnorr is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (proof *Schnorr, public *edwards25519.Point, err error) {
+func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (proof *Schnorr, public *edwards25519.Point) {
+	proof = new(Schnorr)
+
 	// public = x•G
 	public = new(edwards25519.Point).ScalarBaseMult(private)
 
 	// Compute commitment for random nonce
 	// V = v•G
-	commitmentSecret := common.NewScalarRandom()                                 // = v
-	commitmentPublic := new(edwards25519.Point).ScalarBaseMult(commitmentSecret) // V = v•G
+	commitmentSecret := common.NewScalarRandom()      // = v
+	proof.commitment.ScalarBaseMult(commitmentSecret) // V = v•G
 
-	generator := edwards25519.NewGeneratorPoint()
+	challenge := computeChallenge(&proof.commitment, public, partyID, params)
 
-	challenge := computeChallenge(generator, commitmentPublic, public, partyID, params)
+	proof.response.Multiply(challenge, private)        		   // = c•private
+	proof.response.Subtract(commitmentSecret, &proof.response) // r = v - c•private
 
-	challengeMulPrivate := new(edwards25519.Scalar).Multiply(challenge, private)         // = c•private
-	response := new(edwards25519.Scalar).Subtract(commitmentSecret, challengeMulPrivate) // r = v - c•private
-
-	proof = &Schnorr{
-		commitment: commitmentPublic,
-		response:   response,
-	}
-
-	return proof, public, nil
+	return proof, public
 }
 
 // Schnorr.Verify verifies that the zero knowledge proof is valid.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
 func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params string) bool {
-	identity := edwards25519.NewIdentityPoint()
 	// Check that the public point is not the identity
-	if public.Equal(identity) == 1 {
+	if public.Equal(edwards25519Identity) == 1 {
 		return false
 	}
 	// TODO: Check cofactor?
 
-	generator := edwards25519.NewGeneratorPoint()
+	challenge := computeChallenge(&proof.commitment, public, partyID, params)
 
-	challenge := computeChallenge(generator, proof.commitment, public, partyID, params)
+	commitmentComputed := new(edwards25519.Point).VarTimeDoubleScalarBaseMult(challenge, public, &proof.response) // = r•G + c•Public
 
-	commitmentComputed := new(edwards25519.Point).VarTimeDoubleScalarBaseMult(challenge, public, proof.response) // = r•G + c•Public
+	return commitmentComputed.Equal(&proof.commitment) == 1
+}
 
-	return commitmentComputed.Equal(proof.commitment) == 1
+func (proof *Schnorr) MarshalBinary() (data []byte, err error) {
+	var buf [64]byte
+	Buf := bytes.NewBuffer(buf[:0])
+	Buf.Write(proof.commitment.Bytes())
+	Buf.Write(proof.response.Bytes())
+	return Buf.Bytes(), nil
+}
+
+func (proof *Schnorr) UnmarshalBinary(data []byte) error {
+	if len(data) != 64 {
+		return frost.ErrInvalidMessage
+	}
+	var err error
+	_, err = proof.commitment.SetBytes(data[:32])
+	if err != nil {
+		return err
+	}
+	_, err = proof.response.SetCanonicalBytes(data[32:])
+	if err != nil {
+		return err
+	}
+	return nil
 }

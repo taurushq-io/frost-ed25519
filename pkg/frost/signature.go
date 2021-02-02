@@ -10,7 +10,7 @@ import (
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
-const MessageLengthSig = 32 + 32
+const MessageLengthSig = 1 + 4 + 32 + 32
 
 type Signature struct {
 	R *edwards25519.Point
@@ -39,36 +39,34 @@ func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	return RPrime.Equal(s.R) == 1
 }
 
-func (s *Signature) Encode(from uint32) ([]byte, error) {
+func (s *Signature) MarshalBinary() ([]byte, error)  {
 	if s.S == nil || s.R == nil {
 		return nil, fmt.Errorf("sig: %w", ErrInvalidMessage)
 	}
 	buf := make([]byte, 0, HeaderLength+MessageLengthSig)
 	Buf := bytes.NewBuffer(buf)
 	Buf.Write([]byte{byte(MessageTypeSignature)})
-	binary.Write(Buf, binary.BigEndian, from)
+	binary.Write(Buf, binary.BigEndian, uint32(3))
 	Buf.Write(s.ToEdDSA())
 	return Buf.Bytes(), nil
 }
 
-func (s *Signature) Decode(in []byte) (*Signature, error) {
+func (s *Signature) UnmarshalBinary(data []byte) error {
 	var err error
-	if len(in) != MessageLengthSig {
-		s = nil
-		return nil, fmt.Errorf("sig: %w", ErrInvalidMessage)
+	if len(data) != MessageLengthSig {
+		return fmt.Errorf("sig: %w", ErrInvalidMessage)
 	}
-	s.R, err = new(edwards25519.Point).SetBytes(in[:32])
+	data = data[5:]
+	s.R, err = new(edwards25519.Point).SetBytes(data[:32])
 	if err != nil {
-		s = nil
-		return nil, fmt.Errorf("sig.R: %w", err)
+		return fmt.Errorf("sig.R: %w", err)
 	}
-	s.S, err = new(edwards25519.Scalar).SetCanonicalBytes(in[32:])
+	s.S, err = new(edwards25519.Scalar).SetCanonicalBytes(data[32:])
 	if err != nil {
-		s = nil
-		return nil, fmt.Errorf("sig.S: %w", err)
+		return fmt.Errorf("sig.S: %w", err)
 	}
 
-	return s, nil
+	return nil
 }
 
 // Compute the SHA 512 of the message

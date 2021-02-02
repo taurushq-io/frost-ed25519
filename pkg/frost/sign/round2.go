@@ -58,7 +58,7 @@ func (r *round2) ProcessRound() ([][]byte, error) {
 		S: sig,
 	}
 
-	sigBytes, err := sigFull.Encode(r.PartySelf)
+	sigBytes, err := sigFull.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
