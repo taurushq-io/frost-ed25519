@@ -51,37 +51,20 @@ func evaluatePolynomial(polynomial []*edwards25519.Scalar, index uint32) *edward
 	return result
 }
 
-func evaluatePolynomialExponent(commitments []*edwards25519.Point, index common.Party) *edwards25519.Point {
-	x0, err := common.NewScalarUInt32(index.UInt32())
-	if err != nil {
-		panic(err)
-		return nil
-	}
-	x := new(edwards25519.Scalar).Set(x0)
+// evaluatePolynomial evaluates a polynomial in a given variable index
+// We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
+func evaluatePolynomialExponent(commitments []*edwards25519.Point, index uint32) *edwards25519.Point {
+	x := common.NewScalarUInt32(index)
+	result := edwards25519.NewIdentityPoint()
 
 	tmp := new(edwards25519.Point)
-	result := new(edwards25519.Point).Set(commitments[0])
 
-	for i := 1; i < len(commitments); i++ {
-		tmp.ScalarMult(x, commitments[i])
+	for i := len(commitments) - 1; i >= 0; i-- {
+		// B_n-1 = [x]B_n  + A_n-1
+		tmp.ScalarMult(x, result)
+		tmp.Add(tmp, commitments[i])
 		result.Add(result, tmp)
-		x.Multiply(x, x0)
 	}
-	// This is an attempt at using horner, but it is more tricky.
-	//n := len(commitments)
-	//result := new(edwards25519.Point).Set(commitments[n-1])
-	//identity := edwards25519.NewIdentityPoint()
-	//x, err := common.NewScalarUInt32(index.UInt32())
-	//if err != nil {
-	//	return err
-	//}
-	//for i := len(commitments) - 2; i >= 0; i-- {
-	//	result.
-	//	// b_n-1•G = a_n-1•G + X.b_n•G
-	//	result.ScalarMult(x, result)
-	//	result.Add(result, commitments[i])
-	//}
-
 	return result
 }
 
