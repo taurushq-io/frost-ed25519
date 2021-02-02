@@ -1,6 +1,7 @@
 package zk
 
 import (
+	"encoding/binary"
 	"filippo.io/edwards25519"
 
 	"crypto/sha512"
@@ -13,14 +14,18 @@ type Schnorr struct {
 	response   *edwards25519.Scalar // response = v - privateInput * challenge
 }
 
-func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, partyID common.Party, params string) *edwards25519.Scalar {
+func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
+
+	partyIDBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(partyIDBytes, partyID)
+
 	// Compute challenge
 	// c = H(G || V || public || partyID || params)
 	hash512 := sha512.New()
 	_, _ = hash512.Write(generator.Bytes())
 	_, _ = hash512.Write(commitmentPublic.Bytes())
 	_, _ = hash512.Write(public.Bytes())
-	_, _ = hash512.Write(partyID.Bytes())
+	_, _ = hash512.Write(partyIDBytes)
 	_, _ = hash512.Write([]byte(params))
 
 	challenge := new(edwards25519.Scalar).SetUniformBytes(hash512.Sum(nil))
@@ -30,16 +35,13 @@ func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, p
 
 // NewSchnorr is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func NewSchnorrProof(private *edwards25519.Scalar, partyID common.Party, params string) (proof *Schnorr, public *edwards25519.Point, err error) {
+func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (proof *Schnorr, public *edwards25519.Point, err error) {
 	// public = x•G
 	public = new(edwards25519.Point).ScalarBaseMult(private)
 
 	// Compute commitment for random nonce
 	// V = v•G
-	commitmentSecret, err := common.NewScalarRandom() // = v
-	if err != nil {
-		return nil, nil, err
-	}
+	commitmentSecret := common.NewScalarRandom()                                 // = v
 	commitmentPublic := new(edwards25519.Point).ScalarBaseMult(commitmentSecret) // V = v•G
 
 	generator := edwards25519.NewGeneratorPoint()
@@ -59,7 +61,7 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID common.Party, params 
 
 // Schnorr.Verify verifies that the zero knowledge proof is valid.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func (proof *Schnorr) Verify(public *edwards25519.Point, partyID common.Party, params string) bool {
+func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params string) bool {
 	identity := edwards25519.NewIdentityPoint()
 	// Check that the public point is not the identity
 	if public.Equal(identity) == 1 {

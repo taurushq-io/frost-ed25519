@@ -4,7 +4,6 @@ import (
 	"errors"
 	"filippo.io/edwards25519"
 	"fmt"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
 type (
@@ -12,19 +11,13 @@ type (
 		Threshold, ShareCount uint32
 		Commitments           []*edwards25519.Point
 	}
-	Shares map[common.Party]*edwards25519.Scalar
+	Shares map[uint32]*edwards25519.Scalar
 )
 
-func NewVSS(t uint32, secret *edwards25519.Scalar, parties []common.Party) (vss *VSS, shares Shares, err error) {
-	polynomial, err := samplePolynomial(t, secret)
-	if err != nil {
-		return nil, nil, err
-	}
+func NewVSS(t uint32, secret *edwards25519.Scalar, parties []uint32) (vss *VSS, shares Shares) {
+	polynomial := samplePolynomial(t, secret)
 
-	shares, err = generateShares(polynomial, parties)
-	if err != nil {
-		return nil, nil, err
-	}
+	shares = generateShares(polynomial, parties)
 
 	n := uint32(len(parties))
 
@@ -36,7 +29,7 @@ func NewVSS(t uint32, secret *edwards25519.Scalar, parties []common.Party) (vss 
 		Commitments: commitment,
 	}
 
-	return vss, shares, nil
+	return vss, shares
 }
 
 func (vss *VSS) Verify(threshold, partyCount uint32) bool {
@@ -48,7 +41,7 @@ func (vss *VSS) Verify(threshold, partyCount uint32) bool {
 }
 
 // VerifyShare performs the Feldman verification of the received share, using the commitments.
-func (vss *VSS) VerifyShare(share *edwards25519.Scalar, index common.Party) bool {
+func (vss *VSS) VerifyShare(share *edwards25519.Scalar, index uint32) bool {
 	err := verifyCommitments(vss.Commitments, share, index)
 	if err != nil {
 		return false
@@ -62,8 +55,8 @@ func (vss *VSS) PublicKey() *edwards25519.Point {
 }
 
 // PublicKey returns the public key associated to the VSS. It is simply the f(0)•G.
-func (vss *VSS) PublicKeys(parties []common.Party) map[common.Party]*edwards25519.Point {
-	keys := make(map[common.Party]*edwards25519.Point, len(parties))
+func (vss *VSS) PublicKeys(parties []uint32) map[uint32]*edwards25519.Point {
+	keys := make(map[uint32]*edwards25519.Point, len(parties))
 
 	for _, party := range parties {
 		keys[party] = evaluatePolynomialExponent(vss.Commitments, party)
@@ -75,7 +68,7 @@ func (vss *VSS) PublicKeys(parties []common.Party) map[common.Party]*edwards2551
 // SumVSS takes a map (party, VSS) and sums the commitments in order to obtain the VSS of the final key
 // It is assumed that this party's VSS is included in the map.
 // Returns an error if anything is wrong.
-func SumVSS(vssMap map[common.Party]*VSS, threshold, parties uint32) (*VSS, error) {
+func SumVSS(vssMap map[uint32]*VSS, threshold, parties uint32) (*VSS, error) {
 	if len(vssMap) != int(parties) {
 		return nil, errors.New("invalid number of vss structs given")
 	}
@@ -94,11 +87,11 @@ func SumVSS(vssMap map[common.Party]*VSS, threshold, parties uint32) (*VSS, erro
 	for index, otherVss := range vssMap {
 		if otherVss.ShareCount != parties || otherVss.Threshold != threshold {
 			// TODO make proper error
-			return nil, fmt.Errorf("SumVSS: index=%d invalid params n=%d, t=%d", index.UInt32(), otherVss.ShareCount, otherVss.Threshold)
+			return nil, fmt.Errorf("SumVSS: index=%d invalid params n=%d, t=%d", index, otherVss.ShareCount, otherVss.Threshold)
 		}
 		if len(otherVss.Commitments) != int(threshold)+1 {
 			// TODO make proper error
-			return nil, fmt.Errorf("SumVSS: index=%d wrong number of commitments", index.UInt32())
+			return nil, fmt.Errorf("SumVSS: index=%d wrong number of commitments", index)
 		}
 
 		// Add the commitments

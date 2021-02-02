@@ -9,11 +9,11 @@ import (
 )
 
 func TestSumVSS(t *testing.T) {
-	parties := []common.Party{common.Party(1), common.Party(4), common.Party(100)}
+	parties := []uint32{1, 4, 100}
 	thresh := uint32(1)
 	n := uint32(len(parties))
 	secrets := make([]*edwards25519.Scalar, n)
-	vss := make(map[common.Party]*VSS)
+	vss := make(map[uint32]*VSS)
 	finalShares := make(Shares)
 
 	for _, party := range parties {
@@ -23,11 +23,9 @@ func TestSumVSS(t *testing.T) {
 	var err error
 	var shares Shares
 	for i, p := range parties {
-		secrets[i], err = common.NewScalarRandom()
-		require.NoError(t, err)
+		secrets[i] = common.NewScalarRandom()
 
-		vss[p], shares, err = NewVSS(thresh, secrets[i], parties)
-		require.NoError(t, err)
+		vss[p], shares = NewVSS(thresh, secrets[i], parties)
 
 		for _, otherParty := range parties {
 			fmt.Println(otherParty)

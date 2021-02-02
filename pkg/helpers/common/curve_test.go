@@ -22,12 +22,11 @@ func TestNewScalarUInt32(t *testing.T) {
 		//	c, _ := NewScalarUInt32(1 << 12 + 1 << 30)
 		//	print(a, c, ab)
 		//}
-		computed, err := NewScalarUInt32(test)
-		require.NoError(t, err, "create", test)
-		real := edwards25519.NewScalar()
+		computed := NewScalarUInt32(test)
+		newScalar := edwards25519.NewScalar()
 		for i := uint32(0); i < test; i++ {
-			real.Add(real, one)
+			newScalar.Add(newScalar, one)
 		}
-		require.Equal(t, 1, computed.Equal(real))
+		require.Equal(t, 1, computed.Equal(newScalar))
 	}
 }

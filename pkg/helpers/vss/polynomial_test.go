@@ -9,31 +9,24 @@ import (
 )
 
 func Test_evaluatePolynomial_Constant(t *testing.T) {
-	cst, err := common.NewScalarRandom()
-	require.NoError(t, err)
-	p, err := samplePolynomial(0, cst)
+	cst := common.NewScalarRandom()
+	p := samplePolynomial(0, cst)
 
-	eval1, err := evaluatePolynomial(p, 0)
-	require.NoError(t, err)
+	eval1 := evaluatePolynomial(p, 0)
 	require.Equal(t, 1, eval1.Equal(cst))
 
-	eval2, err := evaluatePolynomial(p, 10)
-	require.NoError(t, err)
+	eval2 := evaluatePolynomial(p, 10)
 	require.Equal(t, 1, eval2.Equal(cst))
 
-	eval3, err := evaluatePolynomial(p, 3000)
-	require.NoError(t, err)
+	eval3 := evaluatePolynomial(p, 3000)
 	require.Equal(t, 1, eval3.Equal(cst))
 }
 
 func Test_evaluatePolynomial_x2plus1(t *testing.T) {
 	polynomial := make([]*edwards25519.Scalar, 3)
-	var err error
-	polynomial[0], err = common.NewScalarUInt32(1)
-	require.NoError(t, err)
+	polynomial[0] = common.NewScalarUInt32(1)
 	polynomial[1] = edwards25519.NewScalar()
-	polynomial[2], err = common.NewScalarUInt32(1)
-	require.NoError(t, err)
+	polynomial[2] = common.NewScalarUInt32(1)
 
 	// TODO more finite field tests (more than uint 32)
 
@@ -43,10 +36,8 @@ func Test_evaluatePolynomial_x2plus1(t *testing.T) {
 			continue
 		}
 		result := 1 + x*x
-		computedRestult, err := evaluatePolynomial(polynomial, result)
-		require.NoError(t, err)
-		expectedResult, err := common.NewScalarUInt32(result)
-		require.NoError(t, err)
+		computedRestult := evaluatePolynomial(polynomial, result)
+		expectedResult := common.NewScalarUInt32(result)
 		require.Equal(t, 1, expectedResult.Equal(computedRestult))
 	}
 }

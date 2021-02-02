@@ -9,10 +9,9 @@ import (
 
 func TestSchnorrProof(t *testing.T) {
 	params := ""
-	partyID := common.Party(1)
+	partyID := uint32(1)
 
-	private, err := common.NewScalarRandom()
-	require.NoError(t, err, "failed to generate random private scalar")
+	private := common.NewScalarRandom()
 	proof, public, err := NewSchnorrProof(private, partyID, params)
 	require.NoError(t, err, "proof generation failed")
 	publicComputed := new(edwards25519.Point).ScalarBaseMult(private)
@@ -22,7 +21,7 @@ func TestSchnorrProof(t *testing.T) {
 
 func TestSchnorrProofFail(t *testing.T) {
 	params := ""
-	partyID := common.Party(1)
+	partyID := uint32(1)
 
 	private := edwards25519.NewScalar()
 	proof, public, err := NewSchnorrProof(private, partyID, params)
