@@ -30,12 +30,6 @@ func (s *Signer) Reset() {
 
 func NewSigner(p *frost.Party) *Signer {
 	s := &Signer{
-		//Party:       p,
-		//CommitmentD: edwards25519.NewIdentityPoint(),
-		//CommitmentE: edwards25519.NewIdentityPoint(),
-		//Rho:         edwards25519.NewScalar(),
-		//R:           edwards25519.NewIdentityPoint(),
-		//SigShare:    edwards25519.NewScalar(),
 		Party:       p,
 		CommitmentD: new(edwards25519.Point),
 		CommitmentE: new(edwards25519.Point),

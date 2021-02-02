@@ -5,7 +5,6 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"filippo.io/edwards25519"
-	"fmt"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
 )
 
@@ -86,13 +85,10 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 
 	r.R = R
 
-	c := ComputeChallenge(r.Message, r.GroupKey, R)
+	c := frost.ComputeChallenge(r.Message, r.GroupKey, R)
 	r.Commitment = c
 
-	lagrange, err := frost.ComputeLagrange(r.PartySelf, r.AllParties)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute own Lagrange: %w", err)
-	}
+	lagrange := frost.ComputeLagrange(r.PartySelf, r.AllParties)
 
 	sigShare := edwards25519.NewScalar()
 	sigShare.Multiply(lagrange, r.Secret.Secret)
@@ -106,10 +102,6 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 
 	r.Parties[r.PartySelf].SigShare = sigShare
 
-	//zero := edwards25519.NewScalar()
-	//r.e.Set(zero)
-	//r.d.Set(zero)
-
 	msg := Msg2{
 		SignatureShare: sigShare,
 	}
@@ -118,14 +110,8 @@ func (r *round1) ProcessRound() ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	//r.canProceed = true
 	return [][]byte{msgBytes}, nil
 }
 func (r *round1) NextRound() frost.Round {
-	//if r.canProceed {
-	//	r.canProceed = false
-	//	return &round1{r}
-	//}
-	//return r
 	return &round2{r}
 }

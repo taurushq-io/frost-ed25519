@@ -26,7 +26,7 @@ func TestRound(t *testing.T) {
 
 	rTmp := rounds[1].(*round0)
 	pkcomp := new(edwards25519.Point).ScalarBaseMult(secret)
-	assert.Equal(t, 1, rTmp.GroupKey.Equal(pkcomp))
+	assert.Equal(t, 1, rTmp.GroupKey.Point().Equal(pkcomp))
 
 	msgsOut1 := make([][]byte, 0, N*N)
 	msgsOut2 := make([][]byte, 0, N*N)
@@ -87,18 +87,18 @@ func TestRound(t *testing.T) {
 		}
 	}
 
-	_, _, c := DecodeBytes(outMsgs[0])
-	m1, _ := new(Signature).Decode(c)
+	_, _, c := frost.DecodeBytes(outMsgs[0])
+	m1, _ := new(frost.Signature).Decode(c)
 	for _, m := range outMsgs {
-		_, msgType, content := DecodeBytes(m)
-		assert.Equal(t, MessageTypeSignature, msgType)
-		msg, err := new(Signature).Decode(content)
+		_, msgType, content := frost.DecodeBytes(m)
+		assert.Equal(t, frost.MessageTypeSignature, msgType)
+		msg, err := new(frost.Signature).Decode(content)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, msg.R.Equal(m1.R))
 		assert.Equal(t, 1, msg.S.Equal(m1.S))
 	}
 
-	assert.True(t, m1.Verify(message, pkcomp))
+	assert.True(t, m1.Verify(message, rTmp.GroupKey))
 
 	print("")
 }

@@ -30,8 +30,7 @@ func (r *round2) CanProcess() bool {
 func (r *round2) ProcessRound() ([][]byte, error) {
 	sig := edwards25519.NewScalar()
 
-	lhs := new(edwards25519.Point)
-	rhs := new(edwards25519.Point)
+	RPrime := new(edwards25519.Point)
 
 	for _, id := range r.AllParties {
 		party := r.Parties[id]
@@ -39,25 +38,22 @@ func (r *round2) ProcessRound() ([][]byte, error) {
 			party.SigShare = r.msgs2[id].SignatureShare
 		}
 
-		lagrange, err := frost.ComputeLagrange(id, r.AllParties)
-		if err != nil {
-			return nil, err
-		}
+		lagrange := frost.ComputeLagrange(id, r.AllParties)
 
-		lagrange.Multiply(lagrange, r.Commitment)
+		lagrange.Multiply(lagrange, r.Commitment) // lambda * c
+		lagrange.Negate(lagrange)                 // - lambda * c
 
-		lhs.ScalarBaseMult(party.SigShare)
-		rhs.ScalarMult(lagrange, party.Public)
-		rhs.Add(rhs, party.R)
-
-		if lhs.Equal(rhs) != 1 {
+		// RPrime = [-lambda * c]A + [s] B
+		// RPrime = [s - sk*lambda * c]B
+		RPrime.VarTimeDoubleScalarBaseMult(lagrange, party.Public, party.SigShare)
+		if RPrime.Equal(party.R) != 1 {
 			return nil, fmt.Errorf("party %d: %w", id, ErrValidateSigShare)
 		}
 
 		sig.Add(sig, party.SigShare)
 	}
 
-	sigFull := &Signature{
+	sigFull := &frost.Signature{
 		R: new(edwards25519.Point).Set(r.R),
 		S: sig,
 	}

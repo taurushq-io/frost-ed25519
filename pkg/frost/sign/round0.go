@@ -25,7 +25,8 @@ type round0 struct {
 
 	// Parties maps IDs to a struct containing all intermediary data for each Signer
 	Parties  map[uint32]*Signer
-	GroupKey *edwards25519.Point
+	GroupKey *frost.PublicKey
+	//GroupKey *edwards25519.Point
 
 	// e and d are the scalars committed to in the first round
 	e, d *edwards25519.Scalar
@@ -43,7 +44,7 @@ type round0 struct {
 }
 
 func (r *round0) StoreMessage(message []byte) error {
-	from, msgType, content := DecodeBytes(message)
+	from, msgType, content := frost.DecodeBytes(message)
 
 	if from == r.PartySelf {
 		// TODO
@@ -56,7 +57,7 @@ func (r *round0) StoreMessage(message []byte) error {
 	}
 
 	switch msgType {
-	case MessageTypeSign1:
+	case frost.MessageTypeSign1:
 		if _, ok := r.msgs1[from]; ok {
 			return ErrDuplicateMessage
 		}
@@ -67,7 +68,7 @@ func (r *round0) StoreMessage(message []byte) error {
 		r.msgs1[from] = msg
 		return nil
 
-	case MessageTypeSign2:
+	case frost.MessageTypeSign2:
 		if _, ok := r.msgs2[from]; ok {
 			return ErrDuplicateMessage
 		}
@@ -142,7 +143,7 @@ func NewRound(selfID uint32, parties map[uint32]*frost.Party, partyIDs []uint32,
 		Secret:     secret,
 		AllParties: partyIDs,
 		Parties:    make(map[uint32]*Signer, N),
-		GroupKey:   edwards25519.NewIdentityPoint(),
+		GroupKey:   new(frost.PublicKey),
 		e:          edwards25519.NewScalar(),
 		d:          edwards25519.NewScalar(),
 		Message:    message,

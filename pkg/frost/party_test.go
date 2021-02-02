@@ -8,8 +8,8 @@ import (
 )
 
 func TestComputeGroupKey(t *testing.T) {
-	s1, _ := common.NewScalarRandom()
-	s2, _ := common.NewScalarRandom()
+	s1 := common.NewScalarRandom()
+	s2 := common.NewScalarRandom()
 	p1 := &Party{
 		Index:  1,
 		Public: new(edwards25519.Point).ScalarBaseMult(s1),
@@ -25,20 +25,20 @@ func TestComputeGroupKey(t *testing.T) {
 	pk, err := ComputeGroupKey(parties)
 	assert.NoError(t, err)
 	pk2 := new(edwards25519.Point).ScalarBaseMult(sk)
-	assert.Equal(t, 1, pk.Equal(pk2))
+	assert.Equal(t, 1, pk.Point().Equal(pk2))
 	pk3 := new(edwards25519.Point).Add(p1.Public, p2.Public)
-	assert.Equal(t, 1, pk.Equal(pk3))
+	assert.Equal(t, 1, pk.Point().Equal(pk3))
 	assert.Equal(t, 1, pk2.Equal(pk3))
 
 }
 
 func TestComputeLagrange(t *testing.T) {
 
-	one, _ := ComputeLagrange(0, nil)
+	one := ComputeLagrange(0, nil)
 	g := new(edwards25519.Point).ScalarBaseMult(one)
 	assert.Equal(t, 1, g.Equal(edwards25519.NewGeneratorPoint()))
 
-	s, _ := common.NewScalarRandom()
+	s := common.NewScalarRandom()
 	p := new(edwards25519.Point).ScalarBaseMult(s)
 	p2 := new(edwards25519.Point).ScalarMult(one, p)
 	assert.Equal(t, 1, p.Equal(p2))

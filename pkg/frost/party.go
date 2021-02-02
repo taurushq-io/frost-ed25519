@@ -3,7 +3,6 @@ package frost
 import (
 	"errors"
 	"filippo.io/edwards25519"
-	"fmt"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
@@ -17,69 +16,71 @@ type PartySecret struct {
 	Secret *edwards25519.Scalar
 }
 
-// ComputeLagrange computes the coefficient l_j(x)
+// ComputeLagrange gives the Lagrange coefficient l_j(x)
+// for x = 0, since we are only interested in interpolating
+// the constant coefficient.
 //
-// We assume that others does not contain any duplicates or self.
-func ComputeLagrange(self uint32, allParties []uint32) (*edwards25519.Scalar, error) {
-	//return common.NewScalarUInt32(uint32(1))
-
+// The following formulas are taken from
+// https://en.wikipedia.org/wiki/Lagrange_polynomial
+//
+//			( x  - x_0) ... ( x  - x_k)
+// l_j(x) =	---------------------------
+//			(x_j - x_0) ... (x_j - x_k)
+//
+//			        x_0 ... x_k
+// l_j(0) =	---------------------------
+//			(x_0 - x_j) ... (x_k - x_j)
+func ComputeLagrange(self uint32, allParties []uint32) *edwards25519.Scalar {
 	var xJ, xM *edwards25519.Scalar
-	var err error
 
-	num, _ := common.NewScalarUInt32(uint32(1))
-	denum, _ := common.NewScalarUInt32(uint32(1))
+	num := common.NewScalarUInt32(uint32(1))
+	denum := common.NewScalarUInt32(uint32(1))
 
-	xJ, err = common.NewScalarUInt32(self)
-	if err != nil {
-		return nil, err
-	}
+	xJ = common.NewScalarUInt32(self)
 
 	for _, id := range allParties {
 		if id == self {
 			continue
 		}
 
-		xM, err = common.NewScalarUInt32(id)
-		if err != nil {
-			return nil, err
-		}
+		xM = common.NewScalarUInt32(id)
 
-		num = num.Multiply(num, xM) // num * xm
-		xM = xM.Subtract(xM, xJ)
+		// num = x_0 * ... * x_k
+		num = num.Multiply(num, xM) // num * xM
+
+		// denum = (x_0 - x_j) ... (x_k - x_j)
+		xM = xM.Subtract(xM, xJ)          // = xM - xJ
 		denum = denum.Multiply(denum, xM) // denum * (xm - xj)
 	}
 
+	// This should not happen since xM!=xJ
 	if denum.Equal(edwards25519.NewScalar()) == 1 {
-		return nil, errors.New("others contained self")
+		panic(errors.New("others contained self"))
 	}
 	denum.Invert(denum)
 	num.Multiply(num, denum)
-	return num, nil
+	return num
 }
 
-func ComputeGroupKey(parties map[uint32]*Party) (*edwards25519.Point, error) {
-
+func ComputeGroupKey(parties map[uint32]*Party) (*PublicKey, error) {
 	allPartyIDs := make([]uint32, 0, len(parties))
 	for index := range parties {
 		allPartyIDs = append(allPartyIDs, index)
 	}
 
 	groupKey := edwards25519.NewIdentityPoint()
-	// TODO investigate this bug
-	//publicKeyShare := edwards25519.NewIdentityPoint()
+	tmp := new(edwards25519.Point)
 	for _, party := range parties {
-		coef, err := ComputeLagrange(party.Index, allPartyIDs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute Lagrange for %d: %w", party.Index, err)
-		}
-		//publicKeyShare.ScalarMult(coef, party.Public)
-		publicKeyShare := new(edwards25519.Point).ScalarMult(coef, party.Public)
+		coef := ComputeLagrange(party.Index, allPartyIDs)
 
-		if publicKeyShare.Equal(party.Public) != 1 {
+		// tmp = [lambda] A = [lambda * sk] B
+		tmp.ScalarMult(coef, party.Public)
+
+		if tmp.Equal(party.Public) != 1 {
 			print("")
 		}
-		groupKey.Add(groupKey, publicKeyShare)
+		groupKey.Add(groupKey, tmp)
 	}
 
-	return groupKey, nil
+	return &PublicKey{pk: *groupKey}, nil
 }
