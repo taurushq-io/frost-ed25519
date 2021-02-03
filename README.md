@@ -64,9 +64,13 @@ follows:
 
     r = ∑ r_i
 
-## Usage
+## Instructions
 
 **Give examples**
+
+### Testing
+
+### Example usage
 
 
 ## Dependencies 
