@@ -1,9 +1,10 @@
 package common
 
 import (
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestNewScalarUInt32(t *testing.T) {
@@ -13,13 +14,13 @@ func TestNewScalarUInt32(t *testing.T) {
 	one, err := new(edwards25519.Scalar).SetCanonicalBytes(b)
 	require.NoError(t, err, "create 1")
 
-	tests := []uint32{1, 2, 200,499, 1025}
+	tests := []uint32{1, 2, 200, 499, 1025}
 
 	for _, test := range tests {
 		computed, err := NewScalarUInt32(test)
 		require.NoError(t, err, "create", test)
 		real := edwards25519.NewScalar()
-		for i := uint32(0); i<test; i++ {
+		for i := uint32(0); i < test; i++ {
 			real.Add(real, one)
 		}
 		require.Equal(t, 1, computed.Equal(real))

@@ -1,6 +1,5 @@
 package common
 
-
 type Party uint32
 
 func (p Party) Bytes() []byte {
@@ -19,7 +18,6 @@ func (p Party) UInt32() uint32 {
 func (p Party) Int64() int64 {
 	return int64(p)
 }
-
 
 //type (
 //	PublicKeyShare struct {

@@ -17,7 +17,6 @@ type (
 
 	Message struct {
 		KeyGen *KeyGenMessage
-		Sign *SignMessage
+		Sign   *SignMessage
 	}
 )
-

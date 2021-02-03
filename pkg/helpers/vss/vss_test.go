@@ -1,11 +1,12 @@
 package vss
 
 import (
-	"filippo.io/edwards25519"
 	"fmt"
+	"testing"
+
+	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"testing"
 )
 
 func TestSumVSS(t *testing.T) {
