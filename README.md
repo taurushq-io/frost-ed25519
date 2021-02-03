@@ -66,11 +66,21 @@ follows:
 
 ## Instructions
 
-**Give examples**
+Give examples
 
 ### Testing
 
 ### Example usage
+
+## Security
+
+Side-channel disclaimer
+
+Not audited yet
+
+Production use warning
+
+Reporting of security issues: contact security@taurusgroup.ch
 
 
 ## Dependencies 
