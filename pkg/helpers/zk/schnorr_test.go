@@ -1,10 +1,11 @@
 package zk
 
 import (
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"testing"
 )
 
 func TestSchnorrProof(t *testing.T) {

@@ -2,8 +2,9 @@ package vss
 
 import (
 	"errors"
-	"filippo.io/edwards25519"
 	"fmt"
+
+	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
@@ -46,7 +47,6 @@ func generateShares(polynomial []*edwards25519.Scalar, indices []common.Party) (
 	}
 	return shares, nil
 }
-
 
 // evaluatePolynomial evaluates a polynomial in a given variable index
 // We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method

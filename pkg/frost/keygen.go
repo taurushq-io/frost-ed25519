@@ -2,6 +2,7 @@ package frost
 
 import (
 	"errors"
+
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/vss"
@@ -21,32 +22,31 @@ var (
 type (
 	KeyGenParameters struct {
 		OtherPartyIDs []common.Party
-		SelfPartyID common.Party
-		Threshold uint32
+		SelfPartyID   common.Party
+		Threshold     uint32
 	}
 
 	KeyGenRound1 struct {
 		*KeyGenParameters
-
 	}
 	KeyGenMessage1 struct {
-		VSS *vss.VSS
+		VSS   *vss.VSS
 		Proof *zk.Schnorr
 	}
 
 	KeyGenRound2 struct {
 		*KeyGenRound1
 
-		VSSs map[common.Party]*vss.VSS
+		VSSs                           map[common.Party]*vss.VSS
 		ReceivedShares, OutgoingShares vss.Shares
 	}
 	KeyGenMessage2 struct {
-		 Share *edwards25519.Scalar
+		Share *edwards25519.Scalar
 	}
 
 	KeyGenRoundFinal struct {
 		*KeyGenRound2
-		PublicKey *edwards25519.Point
+		PublicKey  *edwards25519.Point
 		PublicKeys map[common.Party]*edwards25519.Point
 		PrivateKey *edwards25519.Scalar
 	}
@@ -65,7 +65,7 @@ func (r *KeyGenRound1) GetMessagesOut() (messages *Message, round *KeyGenRound2,
 	if err != nil {
 		return nil, nil, err
 	}
-	commitments, shares, err := vss.NewVSS(r.Threshold, secret, r.AllPartyIDs() )
+	commitments, shares, err := vss.NewVSS(r.Threshold, secret, r.AllPartyIDs())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,13 +91,14 @@ func (r *KeyGenRound1) GetMessagesOut() (messages *Message, round *KeyGenRound2,
 	return
 }
 
-
 func (r *KeyGenRound2) ProcessMessage(from common.Party, msg *Message) error {
 	found := false
 	for _, otherParty := range r.OtherPartyIDs {
 		found = found || (otherParty == from)
 	}
-	if !found { return ErrPartyNotValid}
+	if !found {
+		return ErrPartyNotValid
+	}
 	if msg == nil || msg.KeyGen == nil || msg.KeyGen.Message1 == nil {
 		return ErrMissingValues
 	}
@@ -124,8 +125,9 @@ func (r *KeyGenRoundFinal) ProcessMessage(from common.Party, msg *Message) error
 	for _, otherParty := range r.OtherPartyIDs {
 		found = found || (otherParty == from)
 	}
-	if !found { return ErrPartyNotValid}
-
+	if !found {
+		return ErrPartyNotValid
+	}
 
 	if msg == nil || msg.KeyGen == nil || msg.KeyGen.Message2 == nil {
 		return ErrMissingValues

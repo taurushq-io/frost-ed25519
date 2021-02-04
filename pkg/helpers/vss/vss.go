@@ -2,8 +2,9 @@ package vss
 
 import (
 	"errors"
-	"filippo.io/edwards25519"
 	"fmt"
+
+	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
@@ -82,7 +83,7 @@ func SumVSS(vssMap map[common.Party]*VSS, threshold, parties uint32) (*VSS, erro
 	newVSS := &VSS{
 		Threshold:   threshold,
 		ShareCount:  parties,
-		Commitments: make([]*edwards25519.Point, threshold + 1),
+		Commitments: make([]*edwards25519.Point, threshold+1),
 	}
 
 	infinity := edwards25519.NewIdentityPoint()
@@ -96,7 +97,7 @@ func SumVSS(vssMap map[common.Party]*VSS, threshold, parties uint32) (*VSS, erro
 			// TODO make proper error
 			return nil, fmt.Errorf("SumVSS: index=%d invalid params n=%d, t=%d", index.UInt32(), otherVss.ShareCount, otherVss.Threshold)
 		}
-		if len(otherVss.Commitments) != int(threshold) + 1 {
+		if len(otherVss.Commitments) != int(threshold)+1 {
 			// TODO make proper error
 			return nil, fmt.Errorf("SumVSS: index=%d wrong number of commitments", index.UInt32())
 		}

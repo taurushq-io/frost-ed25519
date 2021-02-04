@@ -9,8 +9,8 @@ import (
 )
 
 type Schnorr struct {
-	commitment *edwards25519.Point	// commitment = v•G for random v
-	response *edwards25519.Scalar	// response = v - privateInput * challenge
+	commitment *edwards25519.Point  // commitment = v•G for random v
+	response   *edwards25519.Scalar // response = v - privateInput * challenge
 }
 
 func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, partyID common.Party, params string) *edwards25519.Scalar {
@@ -28,7 +28,6 @@ func computeChallenge(generator, commitmentPublic, public *edwards25519.Point, p
 	return challenge
 }
 
-
 // NewSchnorr is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
 func NewSchnorrProof(private *edwards25519.Scalar, partyID common.Party, params string) (proof *Schnorr, public *edwards25519.Point, err error) {
@@ -43,14 +42,12 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID common.Party, params 
 	}
 	commitmentPublic := new(edwards25519.Point).ScalarBaseMult(commitmentSecret) // V = v•G
 
-
 	generator := edwards25519.NewGeneratorPoint()
 
 	challenge := computeChallenge(generator, commitmentPublic, public, partyID, params)
 
-	challengeMulPrivate := new(edwards25519.Scalar).Multiply(challenge, private)  // = c•private
+	challengeMulPrivate := new(edwards25519.Scalar).Multiply(challenge, private)         // = c•private
 	response := new(edwards25519.Scalar).Subtract(commitmentSecret, challengeMulPrivate) // r = v - c•private
-
 
 	proof = &Schnorr{
 		commitment: commitmentPublic,
