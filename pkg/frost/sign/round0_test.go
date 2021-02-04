@@ -5,14 +5,15 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha512"
-	"filippo.io/edwards25519"
 	"fmt"
+	"testing"
+
+	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
 	"github.com/taurusgroup/tg-tss/pkg/frost/messages"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"testing"
 )
 
 func TestRound(t *testing.T) {

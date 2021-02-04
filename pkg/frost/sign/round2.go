@@ -2,8 +2,9 @@ package sign
 
 import (
 	"errors"
-	"filippo.io/edwards25519"
 	"fmt"
+
+	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
 	"github.com/taurusgroup/tg-tss/pkg/frost/messages"
 )

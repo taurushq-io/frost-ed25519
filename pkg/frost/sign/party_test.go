@@ -4,7 +4,6 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
 
-	//"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )

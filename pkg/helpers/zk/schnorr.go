@@ -3,6 +3,7 @@ package zk
 import (
 	"encoding/binary"
 	"errors"
+
 	"filippo.io/edwards25519"
 
 	"crypto/sha512"

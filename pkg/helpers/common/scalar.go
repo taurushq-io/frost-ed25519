@@ -2,8 +2,9 @@ package common
 
 import (
 	"crypto/rand"
-	"filippo.io/edwards25519"
 	"fmt"
+
+	"filippo.io/edwards25519"
 )
 
 func NewScalarRandom() *edwards25519.Scalar {

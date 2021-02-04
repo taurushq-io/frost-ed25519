@@ -3,8 +3,9 @@ package frost
 import (
 	"crypto/sha512"
 	"errors"
-	"filippo.io/edwards25519"
 	"fmt"
+
+	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 

@@ -1,12 +1,13 @@
 package frost
 
 import (
-	"filippo.io/edwards25519"
 	"fmt"
+	"testing"
+
+	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
-	"testing"
 )
 
 func TestComputeGroupKey(t *testing.T) {

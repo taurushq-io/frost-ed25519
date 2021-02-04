@@ -2,12 +2,13 @@ package messages
 
 import (
 	"bytes"
+	"math/rand"
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"math/rand"
-	"testing"
 )
 
 func TestSign2_MarshalBinary(t *testing.T) {

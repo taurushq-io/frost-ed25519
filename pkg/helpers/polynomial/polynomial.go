@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )

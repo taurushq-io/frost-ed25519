@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestPrivateKey_ToEdDSA(t *testing.T) {

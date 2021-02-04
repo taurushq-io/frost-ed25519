@@ -1,12 +1,13 @@
 package polynomial
 
 import (
-	"filippo.io/edwards25519"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 	"math/rand"
 	"testing"
+
+	"filippo.io/edwards25519"
+	"github.com/stretchr/testify/assert"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 )
 
 func TestExponent_Evaluate(t *testing.T) {

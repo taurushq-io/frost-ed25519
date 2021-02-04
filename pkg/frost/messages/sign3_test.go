@@ -5,9 +5,10 @@ import (
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestSign3_MarshalBinary(t *testing.T) {

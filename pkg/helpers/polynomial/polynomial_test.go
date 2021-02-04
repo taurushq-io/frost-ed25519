@@ -1,11 +1,12 @@
 package polynomial
 
 import (
+	"math/rand"
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"math/rand"
-	"testing"
 )
 
 func TestPolynomial_Evaluate(t *testing.T) {

@@ -1,8 +1,9 @@
 package messages
 
 import (
-	"filippo.io/edwards25519"
 	"fmt"
+
+	"filippo.io/edwards25519"
 )
 
 const SignSize3 = 64

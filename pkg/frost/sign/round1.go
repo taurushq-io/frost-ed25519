@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"encoding/binary"
+
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/tg-tss/pkg/frost"
 	"github.com/taurusgroup/tg-tss/pkg/frost/messages"

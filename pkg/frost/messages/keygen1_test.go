@@ -2,13 +2,14 @@ package messages
 
 import (
 	"bytes"
+	"math/rand"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/zk"
-	"math/rand"
-	"testing"
 )
 
 func TestKeyGen1_MarshalBinary(t *testing.T) {

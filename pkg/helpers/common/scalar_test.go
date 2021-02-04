@@ -1,9 +1,10 @@
 package common
 
 import (
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestNewScalarUInt32(t *testing.T) {

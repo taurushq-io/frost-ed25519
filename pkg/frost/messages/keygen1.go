@@ -2,6 +2,7 @@ package messages
 
 import (
 	"fmt"
+
 	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/zk"
 )

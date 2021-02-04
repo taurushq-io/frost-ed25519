@@ -1,11 +1,12 @@
 package zk
 
 import (
+	"math/rand"
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"math/rand"
-	"testing"
 )
 
 func TestSchnorrProof(t *testing.T) {
