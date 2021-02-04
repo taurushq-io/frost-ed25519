@@ -24,11 +24,11 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint3
 	for _, id := range allParties {
 		secrets[id] = &frost.PartySecret{
 			Index:  id,
-			Secret: shares[id],
+			Secret: *shares[id],
 		}
 		parties[id] = &frost.Party{
 			Index:  id,
-			Public: new(edwards25519.Point).ScalarBaseMult(shares[id]),
+			Public: *edwards25519.NewIdentityPoint().ScalarBaseMult(shares[id]),
 		}
 	}
 
@@ -38,7 +38,7 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint3
 func generateFakePartiesAdditive(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint32]*frost.Party, map[uint32]*frost.PartySecret) {
 	allParties := make([]uint32, n)
 	for i := uint32(0); i < n; i++ {
-		allParties[i] = i + 1
+		allParties[i] = i
 	}
 
 	secrets := map[uint32]*frost.PartySecret{}
@@ -49,11 +49,11 @@ func generateFakePartiesAdditive(t, n uint32) (*edwards25519.Scalar, []uint32, m
 		fullSecret.Add(fullSecret, secret)
 		secrets[id] = &frost.PartySecret{
 			Index:  id,
-			Secret: secret,
+			Secret: *secret,
 		}
 		parties[id] = &frost.Party{
 			Index:  id,
-			Public: new(edwards25519.Point).ScalarBaseMult(secret),
+			Public: *edwards25519.NewIdentityPoint().ScalarBaseMult(secret),
 		}
 	}
 

@@ -29,8 +29,6 @@ func (pk *PublicKey) ToEdDSA() ed25519.PublicKey {
 	return key[:]
 }
 
-
-
 // PrivateKey is created from an ed25519.PrivateKey and remembers the seed
 // in order to go back to that format
 type PrivateKey struct {

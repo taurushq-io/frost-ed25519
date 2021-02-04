@@ -60,7 +60,7 @@ func (p *Polynomial) Size() int {
 }
 
 func (p *Polynomial) MarshalBinary() (data []byte, err error) {
-	buf := make([]byte, 0, 1 + 32 * len(p.coefficients))
+	buf := make([]byte, 0, 1+32*len(p.coefficients))
 	Buf := bytes.NewBuffer(buf)
 	binary.Write(Buf, binary.BigEndian, p.Degree())
 	for i := 0; i < len(p.coefficients); i++ {
@@ -71,19 +71,19 @@ func (p *Polynomial) MarshalBinary() (data []byte, err error) {
 
 func (p *Polynomial) UnmarshalBinary(data []byte) error {
 	degree := binary.BigEndian.Uint32(data[:4])
-	p.coefficients = make([]edwards25519.Scalar, degree + 1)
+	p.coefficients = make([]edwards25519.Scalar, degree+1)
 
 	remaining := data[4:]
 	count := len(remaining)
-	if count % 32 != 0 {
+	if count%32 != 0 {
 		return errors.New("length of data is wrong")
 	}
-	if count / 32 != int(degree + 1) {
+	if count/32 != int(degree+1) {
 		return errors.New("wrong number of coefficients embedded")
 	}
 	var err error
-	for i := 0; i < int(degree) + 1; i++ {
-		NextScalarBytes := remaining[i*32:(i+1)*32]
+	for i := 0; i < int(degree)+1; i++ {
+		NextScalarBytes := remaining[i*32 : (i+1)*32]
 		_, err = p.coefficients[i].SetCanonicalBytes(NextScalarBytes)
 		if err != nil {
 			return err

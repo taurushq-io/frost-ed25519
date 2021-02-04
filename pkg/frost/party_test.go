@@ -2,44 +2,48 @@ package frost
 
 import (
 	"filippo.io/edwards25519"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
 	"testing"
 )
 
 func TestComputeGroupKey(t *testing.T) {
-	s1 := common.NewScalarRandom()
-	s2 := common.NewScalarRandom()
-	p1 := &Party{
-		Index:  1,
-		Public: new(edwards25519.Point).ScalarBaseMult(s1),
-	}
-	p2 := &Party{
-		Index:  2,
-		Public: new(edwards25519.Point).ScalarBaseMult(s2),
-	}
-	parties := map[uint32]*Party{1: p1, 2: p2}
+	sk := common.NewScalarRandom()
 
-	sk := edwards25519.NewScalar()
-	sk.Add(s1, s2)
+	poly := polynomial.NewPolynomial(1, sk)
+
+	T := uint32(10)
+	parties := make(map[uint32]*Party, T+1)
+
+	for i := uint32(1); i <= T+1; i++ {
+		s := poly.Evaluate(i)
+		p := &Party{
+			Index:  i,
+			Public: *edwards25519.NewIdentityPoint().ScalarBaseMult(s),
+		}
+		parties[i] = p
+	}
+
 	pk, err := ComputeGroupKey(parties)
+	fmt.Println(pk.Point().Bytes())
 	assert.NoError(t, err)
-	pk2 := new(edwards25519.Point).ScalarBaseMult(sk)
+	pk2 := edwards25519.NewIdentityPoint().ScalarBaseMult(sk)
 	assert.Equal(t, 1, pk.Point().Equal(pk2))
-	pk3 := new(edwards25519.Point).Add(p1.Public, p2.Public)
-	assert.Equal(t, 1, pk.Point().Equal(pk3))
-	assert.Equal(t, 1, pk2.Equal(pk3))
-
+	//pk3 := edwards25519.NewIdentityPoint().Add(&p1.Public, &p2.Public)
+	//assert.Equal(t, 1, pk.Point().Equal(pk3))
+	//assert.Equal(t, 1, pk2.Equal(pk3))
 }
 
 func TestComputeLagrange(t *testing.T) {
 
 	one := ComputeLagrange(0, nil)
-	g := new(edwards25519.Point).ScalarBaseMult(one)
+	g := edwards25519.NewIdentityPoint().ScalarBaseMult(one)
 	assert.Equal(t, 1, g.Equal(edwards25519.NewGeneratorPoint()))
 
 	s := common.NewScalarRandom()
-	p := new(edwards25519.Point).ScalarBaseMult(s)
-	p2 := new(edwards25519.Point).ScalarMult(one, p)
+	p := edwards25519.NewIdentityPoint().ScalarBaseMult(s)
+	p2 := edwards25519.NewIdentityPoint().ScalarMult(one, p)
 	assert.Equal(t, 1, p.Equal(p2))
 }

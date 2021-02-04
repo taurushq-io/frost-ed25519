@@ -22,15 +22,13 @@ func TestSignatureEncode_Decode(t *testing.T) {
 	//fromReal := uint32(42)
 	sigBytes, err := sig.MarshalBinary()
 	assert.NoError(t, err)
-	msgType, _ := DecodeBytes(sigBytes)
-	assert.Equal(t, MessageTypeSignature, msgType)
 	//assert.Equal(t, fromReal, from, "from not decoded")
 	sig2 := new(Signature)
 	err = sig2.UnmarshalBinary(sigBytes)
 
 	assert.NoError(t, err)
-	assert.Equal(t, 1, sig.R.Equal(sig2.R))
-	assert.Equal(t, 1, sig.S.Equal(sig2.S))
+	assert.Equal(t, 1, sig.R.Equal(&sig2.R))
+	assert.Equal(t, 1, sig.S.Equal(&sig2.S))
 }
 
 func TestSignature_Verify(t *testing.T) {
@@ -54,13 +52,14 @@ func TestSignature_VerifyEd25519(t *testing.T) {
 
 	assert.True(t, bytes.Equal(pk.Point().Bytes(), pkBytes))
 
-	pkComp := new(edwards25519.Point).ScalarBaseMult(sk.Scalar())
+	pkComp := edwards25519.NewIdentityPoint().ScalarBaseMult(sk.Scalar())
 	assert.Equal(t, 1, pk.Point().Equal(pkComp))
 
-	m := []byte("hello")
-	hm := ComputeMessageHash(m)
+	hm := []byte("hello")
+	//m := []byte("hello")
+	//hm := ComputeMessageHash(m)
 	sig := NewSignature(hm, sk, pk)
-	sigEdDSA := sig.ToEdDSA()
+	sigEdDSA, _ := sig.MarshalBinary()
 
 	assert.True(t, ed25519.Verify(pkBytes, hm, sigEdDSA))
 }

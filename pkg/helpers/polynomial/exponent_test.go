@@ -2,6 +2,7 @@ package polynomial
 
 import (
 	"filippo.io/edwards25519"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
 	"math/rand"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestExponent_Evaluate(t *testing.T) {
-	for x := 0; x < 20; x ++ {
+	for x := 0; x < 20; x++ {
 		N := uint32(1000)
 		secret := common.NewScalarRandom()
 		poly := NewPolynomial(N, secret)
@@ -17,9 +18,9 @@ func TestExponent_Evaluate(t *testing.T) {
 
 		randomIndex := uint32(rand.Int31n(4096))
 
-		lhs := new(edwards25519.Point).ScalarBaseMult(poly.Evaluate(randomIndex))
+		lhs := edwards25519.NewIdentityPoint().ScalarBaseMult(poly.Evaluate(randomIndex))
 		rhs := polyExp.Evaluate(randomIndex)
-		assert.Equal(t, 1, lhs.Equal(rhs))
+		assert.Equal(t, 1, lhs.Equal(rhs), fmt.Sprint(x))
 	}
 }
 
@@ -50,7 +51,7 @@ func TestSum(t *testing.T) {
 	summedExp := Sum(polysExp)
 	evaluationSum := summedExp.Evaluate(randomIndex)
 
-	evaluationFromScalar := new(edwards25519.Point).ScalarBaseMult(evaluationScalar)
+	evaluationFromScalar := edwards25519.NewIdentityPoint().ScalarBaseMult(evaluationScalar)
 	assert.Equal(t, 1, evaluationSum.Equal(evaluationFromScalar))
 	assert.Equal(t, 1, evaluationSum.Equal(evaluationPartial))
 }

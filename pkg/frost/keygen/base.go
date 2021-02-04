@@ -2,20 +2,21 @@ package keygen
 
 import (
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/tg-tss/pkg/frost/messages"
 	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
 )
 
 type base struct {
-	PartySelf uint32
+	PartySelf  uint32
 	AllParties []uint32
 
 	Parties map[uint32]*KeyGenerator
 
-	polynomial *polynomial.Polynomial
+	polynomial     *polynomial.Polynomial
 	receivedShared []*edwards25519.Scalar
 
-	msgs1 map[uint32]*Msg1
-	msgs2 map[uint32]*Msg2
+	msgs1 map[uint32]*messages.Sign1
+	msgs2 map[uint32]*messages.Sign2
 }
 
 //func (r *base) StoreMessage(message []byte) error {
@@ -23,14 +24,14 @@ type base struct {
 //	msgType := frost.MessageType(message[0])
 //	switch msgType {
 //	case frost.MessageTypeKeyGen1:
-//		msg := new(Msg2)
+//		msg := new(Sign2)
 //		err = msg.UnmarshalBinary(message[1:])
 //		if err != nil {
 //			return err
 //		}
 //
 //	case frost.MessageTypeKeyGen2:
-//		msg := new(Msg2)
+//		msg := new(Sign2)
 //		err = msg.UnmarshalBinary(message[1:])
 //		if err != nil {
 //			return err
@@ -48,7 +49,7 @@ type base struct {
 //		if _, ok := r.msgs1[from]; ok {
 //			return ErrDuplicateMessage
 //		}
-//		msg, err := new(Msg1).Decode(content)
+//		msg, err := new(Sign1).Decode(content)
 //		if err != nil {
 //			return err
 //		}
@@ -60,7 +61,7 @@ type base struct {
 //			return ErrDuplicateMessage
 //		}
 //
-//		msg, err := new(Msg2).Decode(content)
+//		msg, err := new(Sign2).Decode(content)
 //		if err != nil {
 //			return err
 //		}
@@ -90,12 +91,12 @@ type base struct {
 //	r.d = new(edwards25519.Scalar).SetUniformBytes(buf)
 //
 //	party := r.Parties[r.PartySelf]
-//	party.CommitmentD = new(edwards25519.Point).ScalarBaseMult(r.d)
-//	party.CommitmentE = new(edwards25519.Point).ScalarBaseMult(r.e)
+//	party.Di = edwards25519.NewIdentityPoint().ScalarBaseMult(r.d)
+//	party.Ei = edwards25519.NewIdentityPoint().ScalarBaseMult(r.e)
 //
-//	msg := Msg1{
-//		CommitmentD: party.CommitmentD,
-//		CommitmentE: party.CommitmentE,
+//	msg := Sign1{
+//		Di: party.Di,
+//		Ei: party.Ei,
 //	}
 //	msgByte, err := msg.Encode(r.PartySelf)
 //	if err != nil {
@@ -130,14 +131,14 @@ type base struct {
 //		Secret:     secret,
 //		AllParties: partyIDs,
 //		Parties:    make(map[uint32]*Signer, N),
-//		GroupKey:   new(frost.PublicKey),
+//		Y:   new(frost.PublicKey),
 //		e:          edwards25519.NewScalar(),
 //		d:          edwards25519.NewScalar(),
 //		Message:    message,
-//		Commitment: edwards25519.NewScalar(),
-//		R:          edwards25519.NewIdentityPoint(),
-//		msgs1:      make(map[uint32]*Msg1, N),
-//		msgs2:      make(map[uint32]*Msg2, N),
+//		C: edwards25519.NewScalar(),
+//		Ri:          edwards25519.NewIdentityPoint(),
+//		msgs1:      make(map[uint32]*Sign1, N),
+//		msgs2:      make(map[uint32]*Sign2, N),
 //		canProceed: true,
 //	}
 //
@@ -149,6 +150,6 @@ type base struct {
 //	if err != nil {
 //		panic(err)
 //	}
-//	r.GroupKey = pk
+//	r.Y = pk
 //	return r
 //}

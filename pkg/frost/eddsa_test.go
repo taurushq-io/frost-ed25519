@@ -21,7 +21,7 @@ func TestPrivateKey_ToEdDSA(t *testing.T) {
 
 	assert.True(t, bytes.Equal(skBytes, skBytesComputed), "secret key bytes are not equal")
 
-	pkComputed := new(edwards25519.Point).ScalarBaseMult(sk.Scalar())
+	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(sk.Scalar())
 	assert.Equal(t, 1, pk.Point().Equal(pkComputed))
 
 	assert.Equal(t, 1, pk.Point().Equal(sk.PublicKey().Point()))

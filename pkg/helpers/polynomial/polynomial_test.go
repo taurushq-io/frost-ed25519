@@ -26,10 +26,4 @@ func TestPolynomial_Evaluate(t *testing.T) {
 		}
 	}
 
-
-
-
-
-
-
 }

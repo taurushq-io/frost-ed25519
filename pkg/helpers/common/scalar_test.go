@@ -10,7 +10,7 @@ func TestNewScalarUInt32(t *testing.T) {
 	b := make([]byte, 32)
 	b[0] = byte(1)
 
-	one, err := new(edwards25519.Scalar).SetCanonicalBytes(b)
+	one, err := edwards25519.NewScalar().SetCanonicalBytes(b)
 	require.NoError(t, err, "create 1")
 
 	tests := []uint32{1, 2, 200, 499, 1025}

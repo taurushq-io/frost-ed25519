@@ -8,12 +8,12 @@ import (
 
 type Party struct {
 	Index  uint32
-	Public *edwards25519.Point
+	Public edwards25519.Point
 }
 
 type PartySecret struct {
 	Index  uint32
-	Secret *edwards25519.Scalar
+	Secret edwards25519.Scalar
 }
 
 // ComputeLagrange gives the Lagrange coefficient l_j(x)
@@ -46,11 +46,11 @@ func ComputeLagrange(self uint32, allParties []uint32) *edwards25519.Scalar {
 		xM = common.NewScalarUInt32(id)
 
 		// num = x_0 * ... * x_k
-		num = num.Multiply(num, xM) // num * xM
+		num.Multiply(num, xM) // num * xM
 
 		// denum = (x_0 - x_j) ... (x_k - x_j)
-		xM = xM.Subtract(xM, xJ)          // = xM - xJ
-		denum = denum.Multiply(denum, xM) // denum * (xm - xj)
+		xM.Subtract(xM, xJ)       // = xM - xJ
+		denum.Multiply(denum, xM) // denum * (xm - xj)
 	}
 
 	// This should not happen since xM!=xJ
@@ -63,24 +63,20 @@ func ComputeLagrange(self uint32, allParties []uint32) *edwards25519.Scalar {
 }
 
 func ComputeGroupKey(parties map[uint32]*Party) (*PublicKey, error) {
+	var tmp, groupKey edwards25519.Point
 	allPartyIDs := make([]uint32, 0, len(parties))
 	for index := range parties {
 		allPartyIDs = append(allPartyIDs, index)
 	}
 
-	groupKey := edwards25519.NewIdentityPoint()
-	tmp := new(edwards25519.Point)
+	groupKey.Set(edwards25519.NewIdentityPoint())
 	for _, party := range parties {
 		coef := ComputeLagrange(party.Index, allPartyIDs)
-
+		tmp.Set(edwards25519.NewIdentityPoint()) // TODO needed until the new version of edwards25519
+		tmp.ScalarMult(coef, &party.Public)
+		groupKey.Add(&groupKey, &tmp)
 		// tmp = [lambda] A = [lambda * sk] B
-		tmp.ScalarMult(coef, party.Public)
-
-		if tmp.Equal(party.Public) != 1 {
-			print("")
-		}
-		groupKey.Add(groupKey, tmp)
 	}
 
-	return &PublicKey{pk: *groupKey}, nil
+	return &PublicKey{pk: groupKey}, nil
 }

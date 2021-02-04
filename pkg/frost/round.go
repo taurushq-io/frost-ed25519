@@ -1,9 +1,11 @@
 package frost
 
+import "github.com/taurusgroup/tg-tss/pkg/frost/messages"
+
 type Round interface {
-	StoreMessage(message []byte) error
+	StoreMessage(message *messages.Message) error
 	CanProcess() bool
-	ProcessRound() ([][]byte, error)
+	ProcessRound() ([]*messages.Message, error)
 	NextRound() Round
 	Reset()
 }

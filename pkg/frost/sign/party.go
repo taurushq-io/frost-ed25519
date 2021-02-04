@@ -6,36 +6,24 @@ import (
 )
 
 type Signer struct {
-	*frost.Party
+	frost.Party
 
-	CommitmentD, CommitmentE *edwards25519.Point
+	// Di = [di]•B
+	// Ei = [ei]•B
+	Di, Ei edwards25519.Point
 
-	Rho *edwards25519.Scalar
+	// Ri = Di + [ρ] Ei
+	Ri edwards25519.Point
 
-	R *edwards25519.Point
+	// Pi = ρ = H(i, Message, B)
+	Pi edwards25519.Scalar
 
-	SigShare *edwards25519.Scalar
-}
-
-func (s *Signer) Reset() {
-	zero := edwards25519.NewScalar()
-	identity := edwards25519.NewIdentityPoint()
-
-	s.CommitmentD.Set(identity)
-	s.CommitmentE.Set(identity)
-	s.R.Set(identity)
-	s.Rho.Set(zero)
-	s.SigShare.Set(zero)
+	// Zi = z = d + (e • ρ) + 𝛌 • s • c
+	Zi edwards25519.Scalar
 }
 
 func NewSigner(p *frost.Party) *Signer {
-	s := &Signer{
-		Party:       p,
-		CommitmentD: new(edwards25519.Point),
-		CommitmentE: new(edwards25519.Point),
-		Rho:         new(edwards25519.Scalar),
-		R:           new(edwards25519.Point),
-		SigShare:    new(edwards25519.Scalar),
-	}
-	return s
+	var s Signer
+	s.Party = *p
+	return &s
 }
