@@ -1,16 +1,15 @@
-package frost
+package eddsa
 
 import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 
+	"testing"
+
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	//"github.com/taurusgroup/tg-tss/pkg/frost/sign"
-	"testing"
 )
 
 func TestSignatureEncode_Decode(t *testing.T) {
@@ -52,10 +51,10 @@ func TestSignature_VerifyEd25519(t *testing.T) {
 	sk := NewPrivateKey(skBytes)
 	pk := sk.PublicKey()
 
-	assert.True(t, bytes.Equal(pk.Point().Bytes(), pkBytes))
+	assert.True(t, bytes.Equal(pk.Point.Bytes(), pkBytes))
 
-	pkComp := edwards25519.NewIdentityPoint().ScalarBaseMult(sk.Scalar())
-	assert.Equal(t, 1, pk.Point().Equal(pkComp))
+	pkComp := edwards25519.NewIdentityPoint().ScalarBaseMult(&sk.Scalar)
+	assert.Equal(t, 1, pk.Point.Equal(pkComp))
 
 	hm := []byte("hello")
 	//m := []byte("hello")

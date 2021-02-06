@@ -3,8 +3,8 @@ package messages
 import (
 	"fmt"
 
-	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/zk"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
 )
 
 type KeyGen1 struct {

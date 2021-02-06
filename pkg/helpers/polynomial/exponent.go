@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 )
 
 type Exponent struct {
@@ -22,57 +22,97 @@ func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
 	return polynomialExp
 }
 
-// evaluatePolynomial evaluates a polynomial in a given variable index
+// evaluateSlow evaluates a polynomial in a given variable index
+// We do the classic method.
+func (p *Exponent) evaluateSlow(index uint32) *edwards25519.Point {
+	var result, tmp edwards25519.Point
+	var x, x0 edwards25519.Scalar
+
+	common.SetScalarUInt32(&x, index)
+	common.SetScalarUInt32(&x0, 1)
+
+	result.Set(edwards25519.NewIdentityPoint())
+	for i := range p.coefficients {
+		tmp.ScalarMult(&x0, &p.coefficients[i])
+		result.Add(&result, &tmp)
+
+		x0.Multiply(&x0, &x)
+	}
+	return &result
+}
+
+// Evaluate evaluates a polynomial in a given variable index
 // We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
 func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
-	var result, tmp edwards25519.Point
+	if index == 0 {
+		return &p.coefficients[0]
+	}
+
+	var result edwards25519.Point
+	var x edwards25519.Scalar
 	result.Set(edwards25519.NewIdentityPoint())
-	x := common.NewScalarUInt32(index)
+
+	common.SetScalarUInt32(&x, index)
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		//B_n-1 = [x]B_n  + A_n-1
-		tmp.Set(edwards25519.NewIdentityPoint()) // TODO wait for ed fix
-		tmp.ScalarMult(x, &result)
-		result.Set(&tmp)
-		//result.Add(result, tmp)
+		result.ScalarMult(&x, &result)
 		result.Add(&result, &p.coefficients[i])
 	}
 	return &result
+}
+
+// EvaluateMulti evaluates a polynomial in a many given points.
+func (p *Exponent) EvaluateMulti(indices []uint32) map[uint32]*edwards25519.Point {
+	evaluations := make(map[uint32]*edwards25519.Point, len(indices))
+
+	for _, id := range indices {
+		evaluations[id] = p.Evaluate(id)
+	}
+	return evaluations
 }
 
 func (p *Exponent) Degree() uint32 {
 	return uint32(len(p.coefficients)) - 1
 }
 
-func Sum(polynomials []*Exponent) *Exponent {
-	degree := polynomials[0].Degree()
-	size := len(polynomials[0].coefficients)
-	summed := &Exponent{make([]edwards25519.Point, size)}
-	for i := range polynomials[0].coefficients {
-		summed.coefficients[i].Set(&polynomials[0].coefficients[i])
+func (p *Exponent) Add(q *Exponent) error {
+	if len(p.coefficients) != len(q.coefficients) {
+		return errors.New("q is not the same length as p")
 	}
+
+	for i := range p.coefficients {
+		p.coefficients[i].Add(&p.coefficients[i], &q.coefficients[i])
+	}
+
+	return nil
+}
+
+// Sum creates a new Polynomial in the Exponent, by summing a slice of existing ones.
+//
+func Sum(polynomials []*Exponent) *Exponent {
+	var summed Exponent
+
+	// Create the new polynomial by copying the first one given
+	summed = *polynomials[0]
+
+	// we assume all polynomials have the same degree as the first
 	for j, p := range polynomials {
 		if j == 0 {
 			continue
 		}
-		if p.Degree() != degree {
+		if len(summed.coefficients) != len(p.coefficients) {
 			panic("polynomials have different lengths")
 		}
 		for i := range p.coefficients {
 			summed.coefficients[i].Add(&summed.coefficients[i], &polynomials[j].coefficients[i])
 		}
 	}
-	return summed
+	return &summed
 }
 
-func (p *Exponent) BytesAppend(existing []byte) (data []byte, err error) {
-	var size [4]byte
-	binary.BigEndian.PutUint32(size[:], uint32(len(p.coefficients)))
-	existing = append(existing, size[:]...)
-	for i := range p.coefficients {
-		existing = append(existing, p.coefficients[i].Bytes()...)
-	}
-	return existing, nil
-}
+//
+// FROSTMarshaller
+//
 
 func (p *Exponent) MarshalBinary() (data []byte, err error) {
 	var buf []byte
@@ -101,6 +141,16 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 		}
 	}
 	return nil
+}
+
+func (p *Exponent) BytesAppend(existing []byte) (data []byte, err error) {
+	var size [4]byte
+	binary.BigEndian.PutUint32(size[:], uint32(len(p.coefficients)))
+	existing = append(existing, size[:]...)
+	for i := range p.coefficients {
+		existing = append(existing, p.coefficients[i].Bytes()...)
+	}
+	return existing, nil
 }
 
 func (p *Exponent) Size() int {

@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/polynomial"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/zk"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
 )
 
 func TestKeyGen1_MarshalBinary(t *testing.T) {

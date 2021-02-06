@@ -1,7 +1,6 @@
-package frost
+package eddsa
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"testing"
@@ -18,12 +17,8 @@ func TestPrivateKey_ToEdDSA(t *testing.T) {
 	pk, err := NewPublicKey(pkBytes)
 	assert.NoError(t, err, "failed to create public key")
 
-	skBytesComputed := sk.ToEdDSA()
+	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(&sk.Scalar)
+	assert.Equal(t, 1, pk.Point.Equal(pkComputed))
 
-	assert.True(t, bytes.Equal(skBytes, skBytesComputed), "secret key bytes are not equal")
-
-	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(sk.Scalar())
-	assert.Equal(t, 1, pk.Point().Equal(pkComputed))
-
-	assert.Equal(t, 1, pk.Point().Equal(sk.PublicKey().Point()))
+	assert.Equal(t, 1, pk.Point.Equal(&sk.PublicKey().Point))
 }

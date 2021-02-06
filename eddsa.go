@@ -1,19 +1,8 @@
 package main
 
-import (
-	"filippo.io/edwards25519"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
-)
+import "github.com/taurusgroup/frost-ed25519/pkg/frost"
 
 func main() {
-	var a, b edwards25519.Point
-	c := common.NewScalarRandom()
-	B := edwards25519.NewGeneratorPoint()
-	a.Set(B)
-	b.Set(B)
-
-	a.ScalarMult(c, B)
-	b.ScalarBaseMult(c)
-
-	print(a.Equal(&b))
+	var a frost.Round
+	print(a.ID())
 }

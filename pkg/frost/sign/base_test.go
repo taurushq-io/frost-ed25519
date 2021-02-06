@@ -5,26 +5,27 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha512"
-	"fmt"
 	"testing"
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/tg-tss/pkg/frost"
-	"github.com/taurusgroup/tg-tss/pkg/frost/messages"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 )
 
 func TestRound(t *testing.T) {
 	N := uint32(10)
-	T := uint32(9)
+	T := uint32(5)
 
-	_, AllPartyIDs, parties, secrets := generateFakeParties(T, N)
+	_, AllPartyIDs, publicKeys, secrets := generateFakeParties(T, N)
 
 	partyIDs := AllPartyIDs[:T+1]
 
-	rounds0 := make(map[uint32]*round0)
+	rounds0 := make(map[uint32]*base)
 	rounds1 := make(map[uint32]*round1)
 	rounds2 := make(map[uint32]*round2)
 
@@ -35,12 +36,13 @@ func TestRound(t *testing.T) {
 	message := []byte("hello")
 
 	for _, id := range partyIDs {
-		r0, _ := NewRound(id, parties, partyIDs, secrets[id], message)
-		rounds0[id] = r0.(*round0)
+		r0, _ := NewRound(id, publicKeys, partyIDs, secrets[id], message)
+		rounds0[id] = r0.(*base)
 	}
 
 	rTmp := rounds0[1]
-	pkKey := *rTmp.Y
+	pk := rTmp.Y
+	pkKey := eddsa.PublicKey{Point: pk}
 
 	a := func(in []*messages.Message, r frost.Round) (out []*messages.Message, rNext frost.Round) {
 		var err error
@@ -52,7 +54,6 @@ func TestRound(t *testing.T) {
 		if r.CanProcess() {
 			msgsOut, err = r.ProcessRound()
 			assert.NoError(t, err, "failed to process")
-
 			for _, msgOut := range msgsOut {
 				out = append(out, msgOut)
 			}
@@ -84,25 +85,21 @@ func TestRound(t *testing.T) {
 		}
 	}
 
-	baseSig := msgsOut3[0].Sign3.Sig
+	sig := msgsOut3[0].SignOutput.Signature
+	sigBytes, err := sig.MarshalBinary()
+	require.NoError(t, err)
 
 	// validate using classic
-	assert.True(t, ed25519.Verify(pkKey.ToEdDSA(), message, baseSig[:]))
+	assert.True(t, ed25519.Verify(pkKey.ToEdDSA(), message, sigBytes))
 
 	// Validate using our own function
-	r, err := new(edwards25519.Point).SetBytes(baseSig[:32])
-	require.NoError(t, err)
-	s, err := new(edwards25519.Scalar).SetCanonicalBytes(baseSig[32:])
-	require.NoError(t, err)
-	sig := frost.Signature{
-		R: *r,
-		S: *s,
-	}
 	assert.True(t, sig.Verify(message, &pkKey))
 
-	// Check all parties return the same sig
+	// Check all publicKeys return the same sig
 	for _, m := range msgsOut3 {
-		assert.True(t, bytes.Equal(baseSig[:], m.Sign3.Sig[:]))
+		comparedSig, err := m.SignOutput.Signature.MarshalBinary()
+		require.NoError(t, err)
+		assert.True(t, bytes.Equal(sigBytes, comparedSig))
 	}
 
 }
@@ -110,31 +107,21 @@ func TestRound(t *testing.T) {
 func TestSingleParty(t *testing.T) {
 	_, skBytes, _ := ed25519.GenerateKey(rand.Reader)
 
-	sk := frost.NewPrivateKey(skBytes)
+	sk := eddsa.NewPrivateKey(skBytes)
 	pk := sk.PublicKey()
-	p := frost.Party{
-		Index:  1,
-		Public: *pk.Point(),
-	}
-
-	s := frost.PartySecret{
-		Index:  1,
-		Secret: *sk.Scalar(),
-	}
 
 	partyIDs := []uint32{1}
-	parties := map[uint32]*frost.Party{1: &p}
+	publicKeys := map[uint32]*eddsa.PublicKey{1: pk}
 
 	Message := []byte("hello")
-	round, _ := NewRound(1, parties, partyIDs, &s, Message)
+	round, _ := NewRound(1, publicKeys, partyIDs, &sk.Scalar, Message)
 
-	groupKey := round.(*round0).Y
-	key := groupKey.Point()
+	groupKey := round.(*base).Y
 
 	{
-		assert.Equal(t, 1, key.Equal(pk.Point()))
+		assert.Equal(t, 1, groupKey.Equal(&pk.Point))
 
-		l := frost.ComputeLagrange(1, partyIDs)
+		l := polynomial.LagrangeCoefficient(1, partyIDs)
 		one := common.NewScalarUInt32(1)
 		assert.Equal(t, 1, l.Equal(one), "lagrange should be 1")
 	}
@@ -180,7 +167,6 @@ func TestSingleParty(t *testing.T) {
 		B = append(B, idByte...)
 		B = append(B, D.Bytes()...)
 		B = append(B, E.Bytes()...)
-		fmt.Println(B)
 
 		h := sha512.New()
 		h.Write([]byte("FROST-SHA512"))
@@ -197,4 +183,27 @@ func TestSingleParty(t *testing.T) {
 		assert.True(t, bytes.Equal(R.Bytes(), Ri.Bytes()))
 	}
 
+}
+
+func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, map[uint32]*eddsa.PublicKey, map[uint32]*edwards25519.Scalar) {
+	allParties := make([]uint32, n)
+	for i := uint32(0); i < n; i++ {
+		allParties[i] = i + 1
+	}
+
+	secret := common.NewScalarRandom()
+	poly := polynomial.NewPolynomial(t, secret)
+	shares := poly.EvaluateMultiple(allParties)
+
+	secrets := map[uint32]*edwards25519.Scalar{}
+	parties := map[uint32]*eddsa.PublicKey{}
+
+	var pk edwards25519.Point
+	for _, id := range allParties {
+		secrets[id] = shares[id]
+		pk.ScalarBaseMult(shares[id])
+		parties[id] = &eddsa.PublicKey{Point: pk}
+	}
+
+	return secret, allParties, parties, secrets
 }

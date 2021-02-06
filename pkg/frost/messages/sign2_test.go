@@ -8,7 +8,7 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 )
 
 func TestSign2_MarshalBinary(t *testing.T) {

@@ -7,11 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 )
 
 func TestKeyGen2_MarshalBinary(t *testing.T) {
-
 	from := rand.Uint32()
 	to := rand.Uint32()
 	secret := common.NewScalarRandom()

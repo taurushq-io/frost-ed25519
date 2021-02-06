@@ -31,7 +31,6 @@ func (m *KeyGen2) BytesAppend(existing []byte) ([]byte, error) {
 	return existing, nil
 }
 
-// MarshalBinary creates a []byte slice with [MsgType + From + Di + Ei]
 func (m *KeyGen2) MarshalBinary() ([]byte, error) {
 	var buf [KeyGenSize2]byte
 	return m.BytesAppend(buf[:0])

@@ -15,10 +15,10 @@ var (
 const (
 	MessageTypeKeyGen1 MessageType = iota
 	MessageTypeKeyGen2
-	MessageTypeKeyGen3
+	MessageTypeKeyGenOutput
 	MessageTypeSign1
 	MessageTypeSign2
-	MessageTypeSign3
+	MessageTypeSignOutput
 )
 
 const HeaderLength = 1
@@ -26,13 +26,14 @@ const HeaderLengthFrom = HeaderLength + 4
 const HeaderLengthFromTo = HeaderLength + 8
 
 type Message struct {
-	Type     MessageType
-	From, To uint32
-	KeyGen1  *KeyGen1
-	KeyGen2  *KeyGen2
-	Sign1    *Sign1
-	Sign2    *Sign2
-	Sign3    *Sign3
+	Type         MessageType
+	From, To     uint32
+	KeyGen1      *KeyGen1
+	KeyGen2      *KeyGen2
+	KeyGenOutput *KeyGenOutput
+	Sign1        *Sign1
+	Sign2        *Sign2
+	SignOutput   *SignOutput
 }
 
 func (m *Message) MarshalBinary() ([]byte, error) {
@@ -59,10 +60,6 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 		buf[0] = byte(MessageTypeSign2)
 		binary.BigEndian.PutUint32(buf[1:5], m.From)
 		return m.Sign2.BytesAppend(buf[:HeaderLengthFrom])
-	case m.Sign3 != nil:
-		var buf [HeaderLength + SignSize2]byte
-		buf[0] = byte(MessageTypeSign3)
-		return m.Sign3.BytesAppend(buf[:1])
 	}
 	return nil, errors.New("message does not contain any data")
 }
@@ -85,21 +82,33 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 		m.KeyGen2 = new(KeyGen2)
 		return m.KeyGen2.UnmarshalBinary(data[9:])
 
+	case MessageTypeKeyGenOutput:
+		var keygenOutput SignOutput
+		m.SignOutput = &keygenOutput
+
+		return m.SignOutput.UnmarshalBinary(data[1:])
+
 	case MessageTypeSign1:
+		var sign1 Sign1
+		m.Sign1 = &sign1
+
 		m.From = binary.BigEndian.Uint32(data[1:])
 
-		m.Sign1 = new(Sign1)
 		return m.Sign1.UnmarshalBinary(data[5:])
 
 	case MessageTypeSign2:
+		var sign2 Sign2
+		m.Sign2 = &sign2
+
 		m.From = binary.BigEndian.Uint32(data[1:])
 
-		m.Sign2 = new(Sign2)
 		return m.Sign2.UnmarshalBinary(data[5:])
 
-	case MessageTypeSign3:
-		m.Sign3 = new(Sign3)
-		return m.Sign3.UnmarshalBinary(data[1:])
+	case MessageTypeSignOutput:
+		var signOutput SignOutput
+		m.SignOutput = &signOutput
+
+		return m.SignOutput.UnmarshalBinary(data[1:])
 	}
 	return errors.New("message type not recognized")
 }

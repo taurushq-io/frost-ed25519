@@ -8,7 +8,7 @@ import (
 
 	"crypto/sha512"
 
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 )
 
 type Schnorr struct {
@@ -19,6 +19,7 @@ type Schnorr struct {
 var edwards25519GeneratorBytes = edwards25519.NewGeneratorPoint().Bytes()
 
 func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
+	var challenge edwards25519.Scalar
 	var partyIDBytes [4]byte
 	binary.BigEndian.PutUint32(partyIDBytes[:], partyID)
 
@@ -31,32 +32,31 @@ func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint
 	h.Write(partyIDBytes[:])
 	h.Write([]byte(params))
 
-	challenge := new(edwards25519.Scalar).SetUniformBytes(h.Sum(nil))
+	challenge.SetUniformBytes(h.Sum(nil))
 
-	return challenge
+	return &challenge
 }
 
 // NewSchnorr is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (proof *Schnorr, public *edwards25519.Point) {
-	var p edwards25519.Point
-	proof = new(Schnorr)
+func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (*Schnorr, *edwards25519.Point) {
+	var public edwards25519.Point
+	var proof Schnorr
 
 	// public = x•G
-	p.ScalarBaseMult(private)
-	public = &p
+	public.ScalarBaseMult(private)
 
 	// Compute commitment for random nonce
 	// V = v•G
 	commitmentSecret := common.NewScalarRandom()      // = v
 	proof.commitment.ScalarBaseMult(commitmentSecret) // V = v•G
 
-	challenge := computeChallenge(&proof.commitment, public, partyID, params)
+	challenge := computeChallenge(&proof.commitment, &public, partyID, params)
 
 	proof.response.Multiply(challenge, private)                // = c•private
 	proof.response.Subtract(commitmentSecret, &proof.response) // r = v - c•private
 
-	return proof, public
+	return &proof, &public
 }
 
 // Schnorr.Verify verifies that the zero knowledge proof is valid.
@@ -77,11 +77,9 @@ func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params 
 	return commitmentComputed.Equal(&proof.commitment) == 1
 }
 
-func (proof *Schnorr) BytesAppend(existing []byte) (data []byte, err error) {
-	existing = append(existing, proof.commitment.Bytes()...)
-	existing = append(existing, proof.response.Bytes()...)
-	return existing, nil
-}
+//
+// FROSTMarshaller
+//
 
 func (proof *Schnorr) MarshalBinary() (data []byte, err error) {
 	var buf [64]byte
@@ -102,6 +100,12 @@ func (proof *Schnorr) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (proof *Schnorr) BytesAppend(existing []byte) (data []byte, err error) {
+	existing = append(existing, proof.commitment.Bytes()...)
+	existing = append(existing, proof.response.Bytes()...)
+	return existing, nil
 }
 
 func (proof *Schnorr) Size() int {

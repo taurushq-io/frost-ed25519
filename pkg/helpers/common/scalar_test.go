@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"filippo.io/edwards25519"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,6 +29,6 @@ func TestNewScalarUInt32(t *testing.T) {
 		for i := uint32(0); i < test; i++ {
 			newScalar.Add(newScalar, one)
 		}
-		require.Equal(t, 1, computed.Equal(newScalar))
+		assert.Equal(t, 1, computed.Equal(newScalar))
 	}
 }

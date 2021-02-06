@@ -6,22 +6,29 @@ import (
 	"encoding/binary"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/tg-tss/pkg/frost"
-	"github.com/taurusgroup/tg-tss/pkg/frost/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 )
 
 type round1 struct {
-	*round0
+	*base
 }
 
-func (r *round1) CanProcess() bool {
-	if len(r.msgs1) == len(r.AllParties)-1 {
-		for id := range r.Parties {
-			if id == r.PartySelf {
+func (round *round1) CanProcess() bool {
+	round.Lock()
+	defer round.Unlock()
+
+	if round.readyForNextRound {
+		return false
+	}
+
+	if len(round.msgs1) == len(round.AllParties)-1 {
+		for id := range round.Parties {
+			if id == round.PartySelf {
 				continue
 			}
-			if _, ok := r.msgs1[id]; !ok {
-
+			if _, ok := round.msgs1[id]; !ok {
 				return false
 			}
 		}
@@ -29,38 +36,56 @@ func (r *round1) CanProcess() bool {
 	return true
 }
 
-func (r *round1) ProcessRound() ([]*messages.Message, error) {
+func (round *round1) ProcessMessages() error {
+	for id, party := range round.Parties {
+		if id != round.PartySelf {
+			party.Di.Set(&round.msgs1[id].Di)
+			party.Ei.Set(&round.msgs1[id].Ei)
+
+			delete(round.msgs1, id)
+		}
+	}
+
+	return nil
+}
+
+func (round *round1) ProcessRound() ([]*messages.Message, error) {
+	round.Lock()
+	defer round.Unlock()
+
+	if round.readyForNextRound {
+		return nil, frost.ErrRoundProcessed
+	}
+
+	if err := round.ProcessMessages(); err != nil {
+		return nil, err
+	}
+
 	var IDBuffer [4]byte
-	partyCount := len(r.AllParties)
+	partyCount := len(round.AllParties)
 
 	// We allocate a new buffer which contains a sorted list of triples (i, B_i, E_i) for each party i
 	buffer := bytes.NewBuffer(make([]byte, 0, partyCount*(4+32+32)))
-	for _, id := range r.AllParties {
-		party := r.Parties[id]
-		if id != r.PartySelf {
-			party.Di.Set(&r.msgs1[id].Di)
-			party.Ei.Set(&r.msgs1[id].Ei)
-		}
-		binary.BigEndian.PutUint32(IDBuffer[:], id)
+	for _, id := range round.AllParties {
+		party := round.Parties[id]
 
+		binary.BigEndian.PutUint32(IDBuffer[:], id)
 		// B || (i || Di || Ei)
 
 		buffer.Write(IDBuffer[:])
 		buffer.Write(party.Di.Bytes())
 		buffer.Write(party.Ei.Bytes())
-
-		// TODO erase Ei, Di message
 	}
 	B := buffer.Bytes()
 
-	r.R.Set(edwards25519.NewIdentityPoint())
+	round.R.Set(edwards25519.NewIdentityPoint())
 
 	// DIFFERENT_TO_ISIS we actually follow the paper here since we can't easily clone the state of a hash
 	h := sha512.New()
-	for id, party := range r.Parties {
+	for id, party := range round.Parties {
 		h.Reset()
 
-		// Domain seperation
+		// Domain separation
 		h.Write([]byte("FROST-SHA512"))
 
 		// Write ID
@@ -68,7 +93,7 @@ func (r *round1) ProcessRound() ([]*messages.Message, error) {
 		h.Write(IDBuffer[:])
 
 		// Write Message
-		h.Write(r.Message)
+		h.Write(round.Message)
 
 		// Write list B
 		h.Write(B)
@@ -77,37 +102,42 @@ func (r *round1) ProcessRound() ([]*messages.Message, error) {
 		party.Pi.SetUniformBytes(h.Sum(nil))
 
 		// Ri = D + [𝛌] E
-		party.Ri.Set(edwards25519.NewIdentityPoint()) // TODO needed until the new version of edwards25519
 		party.Ri.ScalarMult(&party.Pi, &party.Ei)
 		party.Ri.Add(&party.Ri, &party.Di)
 
 		// Ri += Ri
-		r.R.Add(&r.R, &party.Ri)
+		round.R.Add(&round.R, &party.Ri)
 	}
 
-	var l, z edwards25519.Scalar
+	var z edwards25519.Scalar
 
-	selfParty := r.Parties[r.PartySelf]
+	selfParty := round.Parties[round.PartySelf]
 
 	// c = H(R, Y, M)
-	c := frost.ComputeChallenge(r.Message, r.Y, &r.R)
-
-	// 𝛌
-	l.Set(frost.ComputeLagrange(r.PartySelf, r.AllParties))
+	c := eddsa.ComputeChallenge(round.Message, &round.Y, &round.R)
 
 	// z = d + (e • ρ) + 𝛌 • s • c
-	z.Multiply(&l, &r.Secret.Secret)       // z = 𝛌 • s
-	z.Multiply(&z, c)                      // 𝛌 • s • c
-	z.MultiplyAdd(&r.e, &selfParty.Pi, &z) // (e • ρ) + 𝛌 • s • c
-	z.Add(&z, &r.d)                        // d + (e • ρ) + 𝛌 • s • c
+	z.Multiply(&selfParty.Lagrange, round.Secret) // z = 𝛌 • s
+	z.Multiply(&z, c)                             // 𝛌 • s • c
+	z.MultiplyAdd(&round.e, &selfParty.Pi, &z)    // (e • ρ) + 𝛌 • s • c
+	z.Add(&z, &round.d)                           // d + (e • ρ) + 𝛌 • s • c
 
 	selfParty.Zi.Set(&z)
-	r.C.Set(c)
+	round.C.Set(c)
 
-	msg := messages.NewSign2(r.PartySelf, &z)
+	msg := messages.NewSign2(round.PartySelf, &z)
+
+	round.readyForNextRound = true
 
 	return []*messages.Message{msg}, nil
 }
-func (r *round1) NextRound() frost.Round {
-	return &round2{r}
+func (round *round1) NextRound() frost.Round {
+	round.Lock()
+	defer round.Unlock()
+
+	if round.readyForNextRound {
+		round.readyForNextRound = false
+		return &round2{round}
+	}
+	return round
 }

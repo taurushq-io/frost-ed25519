@@ -7,7 +7,7 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
-	"github.com/taurusgroup/tg-tss/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 )
 
 func TestExponent_Evaluate(t *testing.T) {
@@ -20,8 +20,14 @@ func TestExponent_Evaluate(t *testing.T) {
 		randomIndex := uint32(rand.Int31n(4096))
 
 		lhs := edwards25519.NewIdentityPoint().ScalarBaseMult(poly.Evaluate(randomIndex))
-		rhs := polyExp.Evaluate(randomIndex)
-		assert.Equal(t, 1, lhs.Equal(rhs), fmt.Sprint(x))
+		rhs1 := polyExp.Evaluate(randomIndex)
+		rhs2 := polyExp.evaluateSlow(randomIndex)
+
+		fmt.Println(lhs.Bytes())
+		fmt.Println(rhs1.Bytes())
+		fmt.Println(rhs2.Bytes())
+		assert.Equal(t, 1, lhs.Equal(rhs1), fmt.Sprint(x))
+		assert.Equal(t, 1, lhs.Equal(rhs2), fmt.Sprint(x))
 	}
 }
 
