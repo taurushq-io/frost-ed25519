@@ -31,9 +31,12 @@ func (p *Exponent) evaluateSlow(index uint32) *edwards25519.Point {
 	common.SetScalarUInt32(&x, index)
 	common.SetScalarUInt32(&x0, 1)
 
+	zero := edwards25519.NewScalar()
+
 	result.Set(edwards25519.NewIdentityPoint())
 	for i := range p.coefficients {
-		tmp.ScalarMult(&x0, &p.coefficients[i])
+		tmp.VarTimeDoubleScalarBaseMult(&x0, &p.coefficients[i], zero)
+		//tmp.ScalarMult(&x0, &p.coefficients[i])
 		result.Add(&result, &tmp)
 
 		x0.Multiply(&x0, &x)
@@ -46,16 +49,21 @@ func (p *Exponent) evaluateSlow(index uint32) *edwards25519.Point {
 func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
 	if index == 0 {
 		return &p.coefficients[0]
+		//return result.Set(&p.coefficients[0])
 	}
 
 	var result edwards25519.Point
 	var x edwards25519.Scalar
+
 	result.Set(edwards25519.NewIdentityPoint())
 
+	zero := edwards25519.NewScalar()
 	common.SetScalarUInt32(&x, index)
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		//B_n-1 = [x]B_n  + A_n-1
-		result.ScalarMult(&x, &result)
+
+		result.VarTimeDoubleScalarBaseMult(&x, &result, zero)
+		//result.ScalarMult(&x, &result)
 		result.Add(&result, &p.coefficients[i])
 	}
 	return &result
@@ -88,26 +96,24 @@ func (p *Exponent) Add(q *Exponent) error {
 }
 
 // Sum creates a new Polynomial in the Exponent, by summing a slice of existing ones.
-//
-func Sum(polynomials []*Exponent) *Exponent {
+func Sum(polynomials []*Exponent) (*Exponent, error) {
 	var summed Exponent
+	var err error
 
 	// Create the new polynomial by copying the first one given
 	summed = *polynomials[0]
 
 	// we assume all polynomials have the same degree as the first
-	for j, p := range polynomials {
+	for j := range polynomials {
 		if j == 0 {
 			continue
 		}
-		if len(summed.coefficients) != len(p.coefficients) {
-			panic("polynomials have different lengths")
-		}
-		for i := range p.coefficients {
-			summed.coefficients[i].Add(&summed.coefficients[i], &polynomials[j].coefficients[i])
+		err = summed.Add(polynomials[j])
+		if err != nil {
+			return nil, err
 		}
 	}
-	return &summed
+	return &summed, nil
 }
 
 //
@@ -115,8 +121,7 @@ func Sum(polynomials []*Exponent) *Exponent {
 //
 
 func (p *Exponent) MarshalBinary() (data []byte, err error) {
-	var buf []byte
-	buf = make([]byte, 0, p.Size())
+	buf := make([]byte, 0, p.Size())
 	return p.BytesAppend(buf)
 }
 
@@ -155,4 +160,12 @@ func (p *Exponent) BytesAppend(existing []byte) (data []byte, err error) {
 
 func (p *Exponent) Size() int {
 	return 4 + 32*len(p.coefficients)
+}
+
+func (p *Exponent) Copy() *Exponent {
+	q := Exponent{coefficients: make([]edwards25519.Point, len(p.coefficients))}
+	for i := range p.coefficients {
+		q.coefficients[i].Set(&p.coefficients[i])
+	}
+	return &q
 }

@@ -23,9 +23,6 @@ func TestExponent_Evaluate(t *testing.T) {
 		rhs1 := polyExp.Evaluate(randomIndex)
 		rhs2 := polyExp.evaluateSlow(randomIndex)
 
-		fmt.Println(lhs.Bytes())
-		fmt.Println(rhs1.Bytes())
-		fmt.Println(rhs2.Bytes())
 		assert.Equal(t, 1, lhs.Equal(rhs1), fmt.Sprint(x))
 		assert.Equal(t, 1, lhs.Equal(rhs2), fmt.Sprint(x))
 	}
@@ -55,7 +52,7 @@ func TestSum(t *testing.T) {
 	}
 
 	// compute (F1 + F2 + ...)(x)
-	summedExp := Sum(polysExp)
+	summedExp, _ := Sum(polysExp)
 	evaluationSum := summedExp.Evaluate(randomIndex)
 
 	evaluationFromScalar := edwards25519.NewIdentityPoint().ScalarBaseMult(evaluationScalar)

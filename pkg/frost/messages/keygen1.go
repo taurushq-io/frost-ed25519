@@ -51,20 +51,22 @@ func (m *KeyGen1) MarshalBinary() (data []byte, err error) {
 
 func (m *KeyGen1) UnmarshalBinary(data []byte) error {
 	var err error
+	var proof zk.Schnorr
+	var commitments polynomial.Exponent
 
-	m.Proof = new(zk.Schnorr)
-	err = m.Proof.UnmarshalBinary(data[:64])
+	//proof.
+	err = proof.UnmarshalBinary(data[:64])
 	if err != nil {
 		return err
 	}
+	m.Proof = &proof
 	data = data[64:]
 
-	m.Commitments = new(polynomial.Exponent)
-	err = m.Commitments.UnmarshalBinary(data[:])
+	err = commitments.UnmarshalBinary(data[:])
 	if err != nil {
 		return err
 	}
-
+	m.Commitments = &commitments
 	return nil
 }
 

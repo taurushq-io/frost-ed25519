@@ -22,7 +22,7 @@ func NewSignature(message []byte, secretKey *PrivateKey, publicKey *PublicKey) *
 	var r edwards25519.Scalar
 	common.SetScalarRandom(&r)
 	sig.R.ScalarBaseMult(&r)
-	c := ComputeChallenge(message, &publicKey.Point, &sig.R)
+	c := ComputeChallenge(message, publicKey.Point, &sig.R)
 	sig.S.Multiply(&secretKey.Scalar, c)
 	sig.S.Add(&sig.S, &r)
 	return &sig
@@ -31,8 +31,8 @@ func NewSignature(message []byte, secretKey *PrivateKey, publicKey *PublicKey) *
 func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	var RPrime, ANeg edwards25519.Point
 
-	k := ComputeChallenge(message, &publicKey.Point, &s.R)
-	ANeg.Negate(&publicKey.Point)
+	k := ComputeChallenge(message, publicKey.Point, &s.R)
+	ANeg.Negate(publicKey.Point)
 	// RPrime = [-l]A + [s]B
 	RPrime.VarTimeDoubleScalarBaseMult(k, &ANeg, &s.S)
 

@@ -12,7 +12,7 @@ import (
 
 func TestKeygen(t *testing.T) {
 	N := uint32(20)
-	T := uint32(15)
+	T := uint32(10)
 
 	partyIDs := make([]uint32, 0, N+5)
 	for id := uint32(1); id <= N; id++ {
@@ -28,35 +28,43 @@ func TestKeygen(t *testing.T) {
 
 	msgsOut1 := make([][]byte, 0, N*(N-1))
 	msgsOut2 := make([][]byte, 0, N*(N-1))
-	msgsOut3 := make([]*messages.Message, 0, N)
 
 	for _, id := range partyIDs {
 		r0, _ := NewRound(id, T, partyIDs)
 		rounds0[id] = r0.(*base)
 	}
 
-	a := func(in [][]byte, r frost.Round) (out [][]byte, rNext frost.Round, finalMessage *messages.Message) {
-		var msgTmp messages.Message
+	a := func(in [][]byte, r frost.Round) (out [][]byte, rNext frost.Round) {
 		out = make([][]byte, 0, N-1)
 		for _, m := range in {
-			msgTmp = messages.Message{}
+
+			msgTmp := messages.Message{}
 			err := msgTmp.UnmarshalBinary(m)
 			assert.NoError(t, err, "failed to store message")
+
+			if msgTmp.From == r.ID() {
+				continue
+			}
+
 			if msgTmp.To == 0 {
 				assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
 			} else if msgTmp.To == r.ID() {
 				assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
 			}
 		}
-		if r.CanProcess() {
-			msgsOut, err := r.ProcessRound()
+
+		if r.CanStart() {
+			err := r.ProcessMessages()
+			assert.NoError(t, err, "failed to process")
+			err = r.ProcessRound()
+
+			msgsOut, err := r.GenerateMessages()
 			assert.NoError(t, err, "failed to process")
 			rNext = r.NextRound()
 			for _, msgOut := range msgsOut {
 				if b, err := msgOut.MarshalBinary(); err == nil {
 					out = append(out, b)
 				} else {
-					finalMessage = msgOut
 					return
 				}
 			}
@@ -65,24 +73,25 @@ func TestKeygen(t *testing.T) {
 	}
 
 	for id, r0 := range rounds0 {
-		msgs1, nextR, _ := a(nil, r0)
+		msgs1, nextR := a(nil, r0)
 		for _, m := range msgs1 {
 			msgsOut1 = append(msgsOut1, m)
 		}
 		rounds1[id] = nextR.(*round1)
 	}
+	println("done round 0")
 
 	for id, r1 := range rounds1 {
-		msgs2, nextR, _ := a(msgsOut1, r1)
+		msgs2, nextR := a(msgsOut1, r1)
 		for _, m := range msgs2 {
 			msgsOut2 = append(msgsOut2, m)
 		}
 		rounds2[id] = nextR.(*round2)
 	}
+	println("done round 1")
 
 	for _, r2 := range rounds2 {
-		_, _, out := a(msgsOut2, r2)
-		msgsOut3 = append(msgsOut3, out)
+		a(msgsOut2, r2)
 	}
 
 	var tmp, pk edwards25519.Point
@@ -96,22 +105,25 @@ func TestKeygen(t *testing.T) {
 	sk.Set(edwards25519.NewScalar())
 	pk.Set(edwards25519.NewIdentityPoint())
 
-	groupKey := msgsOut3[1].KeyGenOutput.GroupKey
-	publicShares := msgsOut3[1].KeyGenOutput.PublicShares
-	for _, m := range msgsOut3 {
-		output := m.KeyGenOutput
-		for id2, share := range output.PublicShares {
-			assert.Equal(t, 1, publicShares[id2].Equal(&share.Point))
-		}
-		assert.Equal(t, 1, tmp.ScalarBaseMult(&output.SecretShare).Equal(&publicShares[m.To].Point))
-		assert.Equal(t, 1, output.GroupKey.Equal(&groupKey.Point))
+	groupKey, publicShares, _, err := rounds2[1].WaitForKeyGenOutput()
+	assert.NoError(t, err, "failed to get output")
+	for id, round := range rounds2 {
+		groupKeyCmp, publicSharesCmp, secretCmp, err := round.WaitForKeyGenOutput()
+		assert.NoError(t, err, "failed to get output")
 
-		lagrange := polynomial.LagrangeCoefficient(m.To, allPartyIDs)
-		lagrange.Multiply(lagrange, &output.SecretShare)
+		for id2, share := range publicSharesCmp {
+			assert.Equal(t, 1, publicShares[id2].Equal(share.Point))
+		}
+		assert.Equal(t, 1, tmp.ScalarBaseMult(&secretCmp).Equal(publicShares[id].Point))
+		assert.Equal(t, 1, groupKeyCmp.Equal(groupKey.Point))
+
+		lagrange := polynomial.LagrangeCoefficient(id, allPartyIDs)
+		lagrange.Multiply(lagrange, &secretCmp)
 		sk.Add(&sk, lagrange)
 		tmp.ScalarBaseMult(lagrange)
 		pk.Add(&pk, &tmp)
 	}
 
 	assert.Equal(t, 1, groupKey.Equal(&pk))
+
 }

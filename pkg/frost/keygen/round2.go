@@ -9,72 +9,71 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 )
 
-type round2 struct {
-	*round1
-}
-
-func (round *round2) CanProcess() bool {
+func (round *round2) ProcessMessages() error {
 	round.Lock()
 	defer round.Unlock()
 
-	if round.readyForNextRound {
-		return false
+	if round.messagesProcessed {
+		return nil
 	}
 
-	if len(round.msgs2) == len(round.OtherParties) {
-		for id := range round.OtherParties {
-			if _, ok := round.msgs2[id]; !ok {
-				return false
-			}
-		}
-	}
-	return true
-}
+	msgs := round.messages.Messages()
 
-func (round *round2) ProcessMessages() error {
 	var computedShareExp edwards25519.Point
-	for id := range round.OtherParties {
-		msg := round.msgs2[id]
+	for id, msg := range msgs {
 
 		shareExp := round.CommitmentsOthers[id].Evaluate(round.PartySelf)
-		computedShareExp.ScalarBaseMult(msg.Share)
+		computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 
 		if computedShareExp.Equal(shareExp) != 1 {
 			return errors.New("VSS failed to validate")
 		}
-
-		round.Secret.Add(&round.Secret, msg.Share)
-
-		delete(round.msgs2, id)
 	}
+
+	for id := range round.OtherParties {
+		round.Secret.Add(&round.Secret, &msgs[id].KeyGen2.Share)
+	}
+
+	round.messages.NextRound()
+	round.messagesProcessed = true
+
 	return nil
 }
 
-func (round *round2) ProcessRound() ([]*messages.Message, error) {
+func (round *round2) ProcessRound() error {
 	round.Lock()
 	defer round.Unlock()
 
-	if round.readyForNextRound {
-		return nil, frost.ErrRoundProcessed
+	if round.roundProcessed {
+		return nil
 	}
 
-	if err := round.ProcessMessages(); err != nil {
-		return nil, err
-	}
-
-	round.readyForNextRound = true
-
-	publicShares := make(map[uint32]*eddsa.PublicKey, len(round.OtherParties)+1)
 	for id := range round.OtherParties {
-		publicShares[id] = &eddsa.PublicKey{Point: *round.CommitmentsSum.Evaluate(id)}
+		round.GroupKeyShares[id] = &eddsa.PublicKey{Point: round.CommitmentsSum.Evaluate(id)}
 	}
-	publicShares[round.PartySelf] = &eddsa.PublicKey{Point: *round.CommitmentsSum.Evaluate(round.PartySelf)}
+	round.GroupKeyShares[round.PartySelf] = &eddsa.PublicKey{Point: round.CommitmentsSum.Evaluate(round.PartySelf)}
+	round.GroupKey = &eddsa.PublicKey{Point: round.CommitmentsSum.Evaluate(0)}
 
-	groupKey := &eddsa.PublicKey{Point: *round.CommitmentsSum.Evaluate(0)}
-	msgOut := messages.NewKeyGenOutput(round.ID(), groupKey, publicShares, &round.Secret)
-
-	return []*messages.Message{msgOut}, nil
+	round.roundProcessed = true
+	close(round.output)
+	return nil
 }
+
+func (round *round2) GenerateMessages() ([]*messages.Message, error) {
+	return nil, nil
+}
+
 func (round *round2) NextRound() frost.Round {
 	return round
+}
+
+func (round *base) WaitForKeyGenOutput() (groupKey *eddsa.PublicKey, groupKeyShares map[uint32]*eddsa.PublicKey, secretKeyShare edwards25519.Scalar, err error) {
+	// TODO handle cancel
+
+	if round.GroupKey != nil {
+		return round.GroupKey, round.GroupKeyShares, round.Secret, nil
+	}
+
+	<-round.output
+	return round.GroupKey, round.GroupKeyShares, round.Secret, nil
 }

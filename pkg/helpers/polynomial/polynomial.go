@@ -32,10 +32,12 @@ func NewPolynomial(degree uint32, constant *edwards25519.Scalar) *Polynomial {
 // Evaluate evaluates a polynomial in a given variable index
 // We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
 func (p *Polynomial) Evaluate(index uint32) *edwards25519.Scalar {
+	if index == 0 {
+		return &p.coefficients[0]
+	}
+
 	var result, x edwards25519.Scalar
-	//result := edwards25519.NewScalar()
 	common.SetScalarUInt32(&x, index)
-	//x := common.NewScalarUInt32(index)
 	// revers order
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		// b_n-1 = b_n * x + a_n-1
@@ -62,4 +64,12 @@ func (p *Polynomial) Degree() uint32 {
 // It is equal to Degree+1
 func (p *Polynomial) Size() int {
 	return len(p.coefficients)
+}
+
+// Reset sets all coefficients to 0
+func (p *Polynomial) Reset() {
+	zero := edwards25519.NewScalar()
+	for i := range p.coefficients {
+		p.coefficients[i].Set(zero)
+	}
 }

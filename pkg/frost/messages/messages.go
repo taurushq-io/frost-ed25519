@@ -15,10 +15,8 @@ var (
 const (
 	MessageTypeKeyGen1 MessageType = iota
 	MessageTypeKeyGen2
-	MessageTypeKeyGenOutput
 	MessageTypeSign1
 	MessageTypeSign2
-	MessageTypeSignOutput
 )
 
 const HeaderLength = 1
@@ -26,14 +24,12 @@ const HeaderLengthFrom = HeaderLength + 4
 const HeaderLengthFromTo = HeaderLength + 8
 
 type Message struct {
-	Type         MessageType
-	From, To     uint32
-	KeyGen1      *KeyGen1
-	KeyGen2      *KeyGen2
-	KeyGenOutput *KeyGenOutput
-	Sign1        *Sign1
-	Sign2        *Sign2
-	SignOutput   *SignOutput
+	Type     MessageType
+	From, To uint32
+	KeyGen1  *KeyGen1
+	KeyGen2  *KeyGen2
+	Sign1    *Sign1
+	Sign2    *Sign2
 }
 
 func (m *Message) MarshalBinary() ([]byte, error) {
@@ -75,18 +71,15 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 		return m.KeyGen1.UnmarshalBinary(data[5:])
 
 	case MessageTypeKeyGen2:
+		var keygen2 KeyGen2
 		m.From = binary.BigEndian.Uint32(data[1:])
 
 		m.To = binary.BigEndian.Uint32(data[5:])
-
-		m.KeyGen2 = new(KeyGen2)
-		return m.KeyGen2.UnmarshalBinary(data[9:])
-
-	case MessageTypeKeyGenOutput:
-		var keygenOutput SignOutput
-		m.SignOutput = &keygenOutput
-
-		return m.SignOutput.UnmarshalBinary(data[1:])
+		if err := keygen2.UnmarshalBinary(data[9:]); err != nil {
+			return err
+		}
+		m.KeyGen2 = &keygen2
+		return nil
 
 	case MessageTypeSign1:
 		var sign1 Sign1
@@ -103,12 +96,6 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 		m.From = binary.BigEndian.Uint32(data[1:])
 
 		return m.Sign2.UnmarshalBinary(data[5:])
-
-	case MessageTypeSignOutput:
-		var signOutput SignOutput
-		m.SignOutput = &signOutput
-
-		return m.SignOutput.UnmarshalBinary(data[1:])
 	}
 	return errors.New("message type not recognized")
 }

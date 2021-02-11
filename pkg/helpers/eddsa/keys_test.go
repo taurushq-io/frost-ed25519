@@ -10,15 +10,19 @@ import (
 )
 
 func TestPrivateKey_ToEdDSA(t *testing.T) {
-	pkBytes, skBytes, err := ed25519.GenerateKey(rand.Reader)
+	pkbytes, skBytes, err := ed25519.GenerateKey(rand.Reader)
 	assert.NoError(t, err, "failed to generate key")
 
-	sk := NewPrivateKey(skBytes)
-	pk, err := NewPublicKey(pkBytes)
+	sk, pk := NewKeyPair(skBytes)
+	assert.NoError(t, err, "failed to create key pair")
+
+	pkOther, err := NewPublicKey(pkbytes)
 	assert.NoError(t, err, "failed to create public key")
 
 	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(&sk.Scalar)
 	assert.Equal(t, 1, pk.Point.Equal(pkComputed))
 
-	assert.Equal(t, 1, pk.Point.Equal(&sk.PublicKey().Point))
+	assert.Equal(t, 1, pkOther.Equal(pk.Point))
+
+	assert.Equal(t, 1, pk.Point.Equal(sk.PublicKey().Point))
 }

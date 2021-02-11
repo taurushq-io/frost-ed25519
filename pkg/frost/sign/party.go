@@ -32,7 +32,6 @@ type signer struct {
 	Lagrange edwards25519.Scalar
 }
 
-
 // Reset sets all values to default.
 func (signer *signer) Reset() {
 	zero := edwards25519.NewScalar()

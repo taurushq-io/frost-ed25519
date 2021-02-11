@@ -16,8 +16,10 @@ func TestSignatureEncode_Decode(t *testing.T) {
 	m := []byte("hello")
 	_, skBytes, err := ed25519.GenerateKey(rand.Reader)
 	assert.NoError(t, err)
-	sk := NewPrivateKey(skBytes)
-	pk := sk.PublicKey()
+
+	sk, pk := NewKeyPair(skBytes)
+	//sk := frost.NewPrivateKey(skBytes)
+	//pk := sk.PublicKey()
 
 	sig := NewSignature(m, sk, pk)
 	//fromReal := uint32(42)
@@ -36,9 +38,7 @@ func TestSignature_Verify(t *testing.T) {
 	m := []byte("hello")
 	_, skBytes, err := ed25519.GenerateKey(rand.Reader)
 	assert.NoError(t, err)
-	sk := NewPrivateKey(skBytes)
-	pk := sk.PublicKey()
-
+	sk, pk := NewKeyPair(skBytes)
 	sig := NewSignature(m, sk, pk)
 	require.True(t, sig.Verify(m, pk))
 }
@@ -48,8 +48,7 @@ func TestSignature_VerifyEd25519(t *testing.T) {
 	pkBytes, skBytes, err := ed25519.GenerateKey(rand.Reader)
 	assert.NoError(t, err)
 
-	sk := NewPrivateKey(skBytes)
-	pk := sk.PublicKey()
+	sk, pk := NewKeyPair(skBytes)
 
 	assert.True(t, bytes.Equal(pk.Point.Bytes(), pkBytes))
 
@@ -57,8 +56,6 @@ func TestSignature_VerifyEd25519(t *testing.T) {
 	assert.Equal(t, 1, pk.Point.Equal(pkComp))
 
 	hm := []byte("hello")
-	//m := []byte("hello")
-	//hm := ComputeMessageHash(m)
 	sig := NewSignature(hm, sk, pk)
 	sigEdDSA, _ := sig.MarshalBinary()
 

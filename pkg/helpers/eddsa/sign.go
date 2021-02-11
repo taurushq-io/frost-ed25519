@@ -24,13 +24,14 @@ func ComputeChallenge(message []byte, groupKey, R *edwards25519.Point) *edwards2
 
 // SetChallenge set s to the edwards25519.Scalar value of H(Ri, A, M).
 func SetChallenge(s *edwards25519.Scalar, message []byte, groupKey, R *edwards25519.Point) *edwards25519.Scalar {
-	var kHash [64]byte
+	//var kHash [64]byte
 
 	h := sha512.New()
 	h.Write(R.Bytes())
 	h.Write(groupKey.Bytes())
 	h.Write(message)
-	h.Sum(kHash[:0])
-	s.SetUniformBytes(kHash[:])
+	//h.Sum(kHash[:0])
+	s.SetUniformBytes(h.Sum(nil))
+	//s.SetUniformBytes(kHash[:])
 	return s
 }

@@ -21,18 +21,25 @@ var edwards25519GeneratorBytes = edwards25519.NewGeneratorPoint().Bytes()
 func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
 	var challenge edwards25519.Scalar
 	var partyIDBytes [4]byte
+	var out [64]byte
 	binary.BigEndian.PutUint32(partyIDBytes[:], partyID)
 
 	// Compute challenge
 	// c = H(G || V || public || partyID || params)
 	h := sha512.New()
 	h.Write(edwards25519GeneratorBytes)
-	h.Write(commitmentPublic.Bytes())
-	h.Write(public.Bytes())
+	copy(out[:32], commitmentPublic.Bytes())
+	h.Write(out[:32])
+	copy(out[:32], public.Bytes())
+	h.Write(out[:32])
 	h.Write(partyIDBytes[:])
 	h.Write([]byte(params))
+	//h.Write(commitmentPublic.Bytes())
+	//h.Write(public.Bytes())
+	//h.Write(partyIDBytes[:])
+	//h.Write([]byte(params))
 
-	challenge.SetUniformBytes(h.Sum(nil))
+	challenge.SetUniformBytes(h.Sum(out[:0]))
 
 	return &challenge
 }
@@ -42,19 +49,20 @@ func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint
 func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (*Schnorr, *edwards25519.Point) {
 	var public edwards25519.Point
 	var proof Schnorr
+	var commitmentSecret, challenge edwards25519.Scalar
 
 	// public = x•G
 	public.ScalarBaseMult(private)
 
 	// Compute commitment for random nonce
 	// V = v•G
-	commitmentSecret := common.NewScalarRandom()      // = v
-	proof.commitment.ScalarBaseMult(commitmentSecret) // V = v•G
+	common.SetScalarRandom(&commitmentSecret)          // = v
+	proof.commitment.ScalarBaseMult(&commitmentSecret) // V = v•G
 
-	challenge := computeChallenge(&proof.commitment, &public, partyID, params)
+	challenge = *computeChallenge(&proof.commitment, &public, partyID, params)
 
-	proof.response.Multiply(challenge, private)                // = c•private
-	proof.response.Subtract(commitmentSecret, &proof.response) // r = v - c•private
+	proof.response.Multiply(&challenge, private)                // = c•private
+	proof.response.Subtract(&commitmentSecret, &proof.response) // r = v - c•private
 
 	return &proof, &public
 }
