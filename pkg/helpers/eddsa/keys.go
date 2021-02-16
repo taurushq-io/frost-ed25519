@@ -9,12 +9,13 @@ import (
 
 type (
 	PrivateKey struct {
-		edwards25519.Scalar
+		sk edwards25519.Scalar
 		pk *PublicKey
 	}
 	PublicKey struct {
-		*edwards25519.Point
+		pk edwards25519.Point
 	}
+	PublicKeyShares map[uint32]*PublicKey
 )
 
 func NewKeyPair(key ed25519.PrivateKey) (*PrivateKey, *PublicKey) {
@@ -22,14 +23,33 @@ func NewKeyPair(key ed25519.PrivateKey) (*PrivateKey, *PublicKey) {
 		sk PrivateKey
 		pk PublicKey
 	)
-
 	digest := sha512.Sum512(key[:32])
 
-	sk.SetBytesWithClamping(digest[:32])
-
-	pk.Point = new(edwards25519.Point).ScalarBaseMult(&sk.Scalar)
+	sk.sk.SetBytesWithClamping(digest[:32])
+	pk.pk.ScalarBaseMult(&sk.sk)
 	sk.pk = &pk
+
 	return &sk, &pk
+}
+
+func NewPrivateKeyFromScalar(secret *edwards25519.Scalar, public *PublicKey) *PrivateKey {
+	var sk PrivateKey
+	if public == nil {
+		var pk PublicKey
+		pk.pk.ScalarBaseMult(secret)
+		public = &pk
+	}
+	sk.pk = public
+	sk.sk.Set(secret)
+	return &sk
+}
+
+func NewPublicKeyFromPoint(public *edwards25519.Point) *PublicKey {
+	var pk PublicKey
+
+	pk.pk.Set(public)
+
+	return &pk
 }
 
 func NewPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
@@ -37,7 +57,7 @@ func NewPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
 		err error
 		pk  PublicKey
 	)
-	pk.Point, err = new(edwards25519.Point).SetBytes(key)
+	_, err = pk.pk.SetBytes(key)
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +66,24 @@ func NewPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
 
 func (pk *PublicKey) ToEdDSA() ed25519.PublicKey {
 	var key [32]byte
-	copy(key[:], pk.Bytes())
+	copy(key[:], pk.pk.Bytes())
 	return key[:]
 }
 
 func (sk *PrivateKey) PublicKey() *PublicKey {
 	return sk.pk
+}
+
+func (sk *PrivateKey) Scalar() *edwards25519.Scalar {
+	var s edwards25519.Scalar
+	return s.Set(&sk.sk)
+}
+
+func (pk *PublicKey) Point() *edwards25519.Point {
+	var p edwards25519.Point
+	return p.Set(&pk.pk)
+}
+
+func (pk *PublicKey) Equal(pk0 *PublicKey) bool {
+	return 1 == pk.pk.Equal(&pk0.pk)
 }

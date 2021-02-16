@@ -8,7 +8,7 @@ import (
 
 	"crypto/sha512"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 type Schnorr struct {
@@ -34,10 +34,6 @@ func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint
 	h.Write(out[:32])
 	h.Write(partyIDBytes[:])
 	h.Write([]byte(params))
-	//h.Write(commitmentPublic.Bytes())
-	//h.Write(public.Bytes())
-	//h.Write(partyIDBytes[:])
-	//h.Write([]byte(params))
 
 	challenge.SetUniformBytes(h.Sum(out[:0]))
 
@@ -49,17 +45,17 @@ func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint
 func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (*Schnorr, *edwards25519.Point) {
 	var public edwards25519.Point
 	var proof Schnorr
-	var commitmentSecret, challenge edwards25519.Scalar
+	var commitmentSecret edwards25519.Scalar
 
 	// public = x•G
 	public.ScalarBaseMult(private)
 
 	// Compute commitment for random nonce
 	// V = v•G
-	common.SetScalarRandom(&commitmentSecret)          // = v
+	scalar.SetScalarRandom(&commitmentSecret)          // = v
 	proof.commitment.ScalarBaseMult(&commitmentSecret) // V = v•G
 
-	challenge = *computeChallenge(&proof.commitment, &public, partyID, params)
+	challenge := *computeChallenge(&proof.commitment, &public, partyID, params)
 
 	proof.response.Multiply(&challenge, private)                // = c•private
 	proof.response.Subtract(&commitmentSecret, &proof.response) // r = v - c•private
@@ -72,7 +68,7 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string
 func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params string) bool {
 	var commitmentComputed edwards25519.Point
 
-	// Check that the public point is not the identity
+	// Check that the public secp256k1 is not the identity
 	if public.Equal(edwards25519.NewIdentityPoint()) == 1 {
 		return false
 	}

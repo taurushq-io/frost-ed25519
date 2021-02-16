@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 // ComputeLagrange gives the Lagrange coefficient l_j(x)
@@ -24,16 +24,16 @@ import (
 func LagrangeCoefficient(selfIndex uint32, allIndices []uint32) *edwards25519.Scalar {
 	var xJ, xM, num, denum edwards25519.Scalar
 
-	common.SetScalarUInt32(&num, uint32(1))
-	common.SetScalarUInt32(&denum, uint32(1))
-	common.SetScalarUInt32(&xJ, selfIndex)
+	scalar.SetScalarUInt32(&num, uint32(1))
+	scalar.SetScalarUInt32(&denum, uint32(1))
+	scalar.SetScalarUInt32(&xJ, selfIndex)
 
 	for _, id := range allIndices {
 		if id == selfIndex {
 			continue
 		}
 
-		common.SetScalarUInt32(&xM, id)
+		scalar.SetScalarUInt32(&xM, id)
 
 		// num = x_0 * ... * x_k
 		num.Multiply(&num, &xM) // num * xM

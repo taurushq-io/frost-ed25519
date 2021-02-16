@@ -19,10 +19,10 @@ func TestPrivateKey_ToEdDSA(t *testing.T) {
 	pkOther, err := NewPublicKey(pkbytes)
 	assert.NoError(t, err, "failed to create public key")
 
-	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(&sk.Scalar)
-	assert.Equal(t, 1, pk.Point.Equal(pkComputed))
+	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(sk.Scalar())
+	assert.Equal(t, 1, pk.Point().Equal(pkComputed))
 
-	assert.Equal(t, 1, pkOther.Equal(pk.Point))
+	assert.True(t, pkOther.Equal(pk))
 
-	assert.Equal(t, 1, pk.Point.Equal(sk.PublicKey().Point))
+	assert.Equal(t, 1, pk.Point().Equal(sk.PublicKey().Point()))
 }

@@ -3,88 +3,68 @@ package keygen
 import (
 	"errors"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-func (round *round1) ProcessMessages() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.messagesProcessed {
-		return nil
+func (round *round1) ProcessMessages() {
+	if !round.CanProcessMessages() {
+		return
 	}
+	defer round.NextStep()
 
-	msgs := round.messages.Messages()
+	msgs := round.Messages()
 
 	for _, msg := range msgs {
 		if !msg.KeyGen1.Proof.Verify(msg.KeyGen1.Commitments.Evaluate(0), msg.From, "") {
-			return errors.New("ZK Schnorr failed")
+			round.Abort(msg.From, errors.New("ZK Schnorr failed"))
+			return
 		}
 	}
 
-	for id := range round.OtherParties {
-		msg := msgs[id].KeyGen1
-
+	for id, msg := range msgs {
 		// Add the commitments to our own, so that we can interpolate the final polynomial
-		err := round.CommitmentsSum.Add(msg.Commitments)
+		err := round.CommitmentsSum.Add(msg.KeyGen1.Commitments)
 		if err != nil {
-			return err
+			round.Abort(id, err)
+			return
 		}
 
-		round.CommitmentsOthers[id] = msg.Commitments
+		round.CommitmentsOthers[id] = msg.KeyGen1.Commitments
 	}
-
-	round.messages.NextRound()
-	round.messagesProcessed = true
-
-	return nil
 }
 
-func (round *round1) ProcessRound() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed {
-		return nil
+func (round *round1) ProcessRound() {
+	if !round.CanProcessRound() {
+		return
 	}
+	defer round.NextStep()
 
 	// We use the variable Secret to hold the sum of all shares received.
 	// Therefore, we can set it to the share we would send to our selves.
-	round.Secret.Set(round.Polynomial.Evaluate(round.PartySelf))
-
-	round.roundProcessed = true
-
-	return nil
+	round.Secret.Set(round.Polynomial.Evaluate(round.ID()))
 }
 
-func (round *round1) GenerateMessages() ([]*messages.Message, error) {
-	round.Lock()
-	defer round.Unlock()
+func (round *round1) GenerateMessages() []*messages.Message {
+	if !round.CanGenerateMessages() {
+		return nil
+	}
+	defer round.NextStep()
 
-	if !(round.roundProcessed && round.messagesProcessed) {
-		return nil, frost.ErrRoundNotProcessed
+	msgsOut := make([]*messages.Message, 0, round.N()-1)
+	for id := range round.OtherPartyIDs {
+		msgsOut = append(msgsOut, messages.NewKeyGen2(round.ID(), id, round.Polynomial.Evaluate(id)))
 	}
 
-	msgsOut := make([]*messages.Message, 0, len(round.OtherParties))
-	for id := range round.OtherParties {
-		msgsOut = append(msgsOut, messages.NewKeyGen2(round.PartySelf, id, round.Polynomial.Evaluate(id)))
-	}
-	return msgsOut, nil
+	// Now that we have received the commitment from every one,
+	// we no longer require the original polynomial, so we reset it
+	round.Polynomial.Reset()
+
+	return msgsOut
 }
 
-func (round *round1) NextRound() frost.Round {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed && round.messagesProcessed {
-		// Now that we have received the commitment from every one,
-		// we no longer require the original polynomial, so we reset it
-		round.Polynomial.Reset()
-		round.Polynomial = nil
-
-		round.roundProcessed = false
-		round.messagesProcessed = false
+func (round *round1) NextRound() rounds.Round {
+	if round.PrepareNextRound() {
 		return &round2{round}
 	}
 	return round

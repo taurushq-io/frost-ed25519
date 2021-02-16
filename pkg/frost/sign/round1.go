@@ -6,54 +6,42 @@ import (
 	"encoding/binary"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-func (round *round1) ProcessMessages() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.messagesProcessed {
-		return nil
+func (round *round1) ProcessMessages() {
+	if !round.CanProcessMessages() {
+		return
 	}
+	defer round.NextStep()
 
-	msgs := round.messages.Messages()
-
-	for _, id := range round.AllParties {
-		if id == round.PartySelf {
+	for id, msg := range round.Messages() {
+		if id == round.ID() {
 			continue
 		}
 		party := round.Parties[id]
-		party.Di.Set(&msgs[id].Sign1.Di)
-		party.Ei.Set(&msgs[id].Sign1.Ei)
+		party.Di.Set(&msg.Sign1.Di)
+		party.Ei.Set(&msg.Sign1.Ei)
 	}
-
-	round.messages.NextRound()
-	round.messagesProcessed = true
-
-	return nil
+	return
 }
 
-func (round *round1) ProcessRound() error {
-	var IDBuffer [4]byte
-
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed {
-		return frost.ErrRoundProcessed
+func (round *round1) ProcessRound() {
+	if !round.CanProcessRound() {
+		return
 	}
+	defer round.NextStep()
 
-	partyCount := len(round.AllParties)
+	var IDBuffer [4]byte
 
 	// B = (ID1 || D_1 || E_1) || (ID_2 || D_2 || E_2) || ... || (ID_N || D_N || E_N) >
 	var B []byte
 	{
 		// We allocate a new buffer which contains a sorted list of triples (i, B_i, E_i) for each party i
-		buffer := bytes.NewBuffer(make([]byte, 0, partyCount*(4+32+32)))
-		for _, id := range round.AllParties {
+		buffer := bytes.NewBuffer(make([]byte, 0, round.N()*(4+32+32)))
+		for _, id := range round.AllPartyIDs {
 			party := round.Parties[id]
 
 			binary.BigEndian.PutUint32(IDBuffer[:], id)
@@ -67,6 +55,7 @@ func (round *round1) ProcessRound() error {
 	}
 
 	round.R.Set(edwards25519.NewIdentityPoint())
+
 	// DIFFERENT_TO_ISIS we actually follow the paper here since we can't easily clone the state of a hash
 	h := sha512.New()
 	for id, party := range round.Parties {
@@ -90,49 +79,41 @@ func (round *round1) ProcessRound() error {
 		round.R.Add(&round.R, &party.Ri)
 	}
 
-	// c = H(R, Y, M)
-	c := eddsa.ComputeChallenge(round.Message, &round.Y, &round.R)
+	// c = H(R, GroupKey, M)
+	c := eddsa.ComputeChallenge(round.Message, &round.GroupKey, &round.R)
 	round.C.Set(c)
 
 	// Compute z = d + (e • ρ) + 𝛌 • s • c
 	{
 		var z edwards25519.Scalar
-		selfParty := round.Parties[round.PartySelf]
+		selfParty := round.Parties[round.ID()]
 
 		// z = d + (e • ρ) + 𝛌 • s • c
-		z.Multiply(&selfParty.Lagrange, round.Secret) // z = 𝛌 • s
-		z.Multiply(&z, c)                             // 𝛌 • s • c
-		z.MultiplyAdd(&round.e, &selfParty.Pi, &z)    // (e • ρ) + 𝛌 • s • c
-		z.Add(&z, &round.d)                           // d + (e • ρ) + 𝛌 • s • c
+		// Note: since we multiply the secret by the Lagrange coefficient,
+		// can ignore 𝛌
+		z.Multiply(&round.SecretKeyShare, c)       // 𝛌 • s • c
+		z.MultiplyAdd(&round.e, &selfParty.Pi, &z) // (e • ρ) + 𝛌 • s • c
+		z.Add(&z, &round.d)                        // d + (e • ρ) + 𝛌 • s • c
 
 		selfParty.Zi.Set(&z)
 	}
 
-	round.roundProcessed = true
-
-	return nil
+	return
 }
 
-func (round *round1) GenerateMessages() ([]*messages.Message, error) {
-	round.Lock()
-	defer round.Unlock()
-
-	if !(round.roundProcessed && round.messagesProcessed) {
-		return nil, frost.ErrRoundNotProcessed
+func (round *round1) GenerateMessages() []*messages.Message {
+	if !round.CanGenerateMessages() {
+		return nil
 	}
+	defer round.NextStep()
 
-	msg := messages.NewSign2(round.PartySelf, &round.Parties[round.PartySelf].Zi)
+	msg := messages.NewSign2(round.ID(), &round.Parties[round.ID()].Zi)
 
-	return []*messages.Message{msg}, nil
+	return []*messages.Message{msg}
 }
 
-func (round *round1) NextRound() frost.Round {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed && round.messagesProcessed {
-		round.roundProcessed = false
-		round.messagesProcessed = false
+func (round *round1) NextRound() rounds.Round {
+	if round.PrepareNextRound() {
 		return &round2{round}
 	}
 	return round

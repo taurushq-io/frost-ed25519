@@ -18,7 +18,7 @@ func TestSignatureEncode_Decode(t *testing.T) {
 	assert.NoError(t, err)
 
 	sk, pk := NewKeyPair(skBytes)
-	//sk := frost.NewPrivateKey(skBytes)
+	//sk := frost.NewPrivateKeyFromScalar(skBytes)
 	//pk := sk.PublicKey()
 
 	sig := NewSignature(m, sk, pk)
@@ -50,10 +50,10 @@ func TestSignature_VerifyEd25519(t *testing.T) {
 
 	sk, pk := NewKeyPair(skBytes)
 
-	assert.True(t, bytes.Equal(pk.Point.Bytes(), pkBytes))
+	assert.True(t, bytes.Equal(pk.Point().Bytes(), pkBytes))
 
-	pkComp := edwards25519.NewIdentityPoint().ScalarBaseMult(&sk.Scalar)
-	assert.Equal(t, 1, pk.Point.Equal(pkComp))
+	pkComp := edwards25519.NewIdentityPoint().ScalarBaseMult(sk.Scalar())
+	assert.Equal(t, 1, pk.Point().Equal(pkComp))
 
 	hm := []byte("hello")
 	sig := NewSignature(hm, sk, pk)

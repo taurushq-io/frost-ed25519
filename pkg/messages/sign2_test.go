@@ -5,17 +5,20 @@ import (
 	"math/rand"
 	"testing"
 
+	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
-func TestKeyGen2_MarshalBinary(t *testing.T) {
-	from := rand.Uint32()
-	to := rand.Uint32()
-	secret := common.NewScalarRandom()
+func TestSign2_MarshalBinary(t *testing.T) {
+	var s *edwards25519.Scalar
+	var err error
 
-	msg := NewKeyGen2(from, to, secret)
+	from := rand.Uint32()
+	s = scalar.NewScalarRandom()
+
+	msg := NewSign2(from, s)
 
 	msgBytes, err := msg.MarshalBinary()
 	require.NoError(t, err, "marshalling failed")
@@ -29,10 +32,10 @@ func TestKeyGen2_MarshalBinary(t *testing.T) {
 
 	assert.True(t, bytes.Equal(msgBytes, msgDecBytes), "unmarshal -> marshal should give the same result")
 
-	require.NotNil(t, msgDec.KeyGen2, "keygen2 is nil")
-	require.NotNil(t, msgDec.KeyGen2.Share, "share is nil")
+	require.NotNil(t, msgDec.Sign2, "sign2 is nil")
+	require.NotNil(t, msgDec.Sign2.Zi, "s is nil")
 
-	assert.True(t, msgDec.KeyGen2.Share.Equal(secret) == 1, "shares are not equal")
+	assert.Equal(t, 1, s.Equal(&msgDec.Sign2.Zi), "s are not equal")
 	assert.Equal(t, msg.From, msgDec.From, "from is not the same")
-	assert.Equal(t, MessageTypeKeyGen2, msgDec.Type, "type is wrong")
+	assert.Equal(t, MessageTypeSign2, msgDec.Type, "type is wrong")
 }

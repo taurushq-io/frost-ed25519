@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 type Polynomial struct {
@@ -37,7 +37,7 @@ func (p *Polynomial) Evaluate(index uint32) *edwards25519.Scalar {
 	}
 
 	var result, x edwards25519.Scalar
-	common.SetScalarUInt32(&x, index)
+	scalar.SetScalarUInt32(&x, index)
 	// revers order
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		// b_n-1 = b_n * x + a_n-1
@@ -72,4 +72,5 @@ func (p *Polynomial) Reset() {
 	for i := range p.coefficients {
 		p.coefficients[i].Set(zero)
 	}
+	p.coefficients = []edwards25519.Scalar{}
 }

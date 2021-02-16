@@ -5,38 +5,41 @@ import (
 	"errors"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 type Exponent struct {
-	coefficients []edwards25519.Point
+	coefficients []*edwards25519.Point
 }
 
 // NewPolynomial generates a Polynomial f(X) = secret + a1*X + ... + at*X^t,
 // with coefficients in Z_q, and degree t.
 func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
-	polynomialExp := &Exponent{make([]edwards25519.Point, len(polynomial.coefficients))}
-	for i, _ := range polynomialExp.coefficients {
-		polynomialExp.coefficients[i].ScalarBaseMult(&polynomial.coefficients[i])
+	var coefficients = make([]edwards25519.Point, len(polynomial.coefficients))
+	var p Exponent
+
+	p.coefficients = make([]*edwards25519.Point, len(polynomial.coefficients))
+	for i := range coefficients {
+		p.coefficients[i] = coefficients[i].ScalarBaseMult(&polynomial.coefficients[i])
 	}
-	return polynomialExp
+
+	return &p
 }
 
-// evaluateSlow evaluates a polynomial in a given variable index
+// evaluateClassic evaluates a polynomial in a given variable index
 // We do the classic method.
-func (p *Exponent) evaluateSlow(index uint32) *edwards25519.Point {
+func (p *Exponent) evaluateClassic(index uint32) *edwards25519.Point {
 	var result, tmp edwards25519.Point
 	var x, x0 edwards25519.Scalar
 
-	common.SetScalarUInt32(&x, index)
-	common.SetScalarUInt32(&x0, 1)
+	scalar.SetScalarUInt32(&x, index)
+	scalar.SetScalarUInt32(&x0, 1)
 
 	zero := edwards25519.NewScalar()
 
 	result.Set(edwards25519.NewIdentityPoint())
 	for i := range p.coefficients {
-		tmp.VarTimeDoubleScalarBaseMult(&x0, &p.coefficients[i], zero)
-		//tmp.ScalarMult(&x0, &p.coefficients[i])
+		tmp.VarTimeDoubleScalarBaseMult(&x0, p.coefficients[i], zero)
 		result.Add(&result, &tmp)
 
 		x0.Multiply(&x0, &x)
@@ -44,27 +47,55 @@ func (p *Exponent) evaluateSlow(index uint32) *edwards25519.Point {
 	return &result
 }
 
-// Evaluate evaluates a polynomial in a given variable index
-// We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
+// Evaluate uses any one of the defined evaluation algorithms
 func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
 	if index == 0 {
-		return &p.coefficients[0]
-		//return result.Set(&p.coefficients[0])
+		return p.coefficients[0]
 	}
 
+	return p.evaluateVar(index)
+}
+
+// evaluateVar evaluates a polynomial in a given variable index.
+// We exploit the fact that edwards25519.Point.VarTimeMultiScalarMult is a lot faster
+// than other Point ops, but this requires us to have access to an array of powers of index.
+func (p *Exponent) evaluateVar(index uint32) *edwards25519.Point {
+	var result edwards25519.Point
+	var x edwards25519.Scalar
+	scalar.SetScalarUInt32(&x, index)
+
+	powers := make([]edwards25519.Scalar, len(p.coefficients))
+	powersPointers := make([]*edwards25519.Scalar, len(p.coefficients))
+
+	for i := range p.coefficients {
+		if i == 0 {
+			powersPointers[i] = scalar.SetScalarUInt32(&powers[0], 1)
+		} else if i == 1 {
+			powersPointers[i] = powers[1].Set(&x)
+		} else {
+			powersPointers[i] = powers[i].Multiply(&powers[i-1], &x)
+		}
+	}
+	return result.VarTimeMultiScalarMult(powersPointers, p.coefficients)
+}
+
+// evaluateHorner evaluates a polynomial in a given variable index
+// We create a list of all powers of index, and use VarTimeMultiScalarMult
+// to speed things up
+func (p *Exponent) evaluateHorner(index uint32) *edwards25519.Point {
 	var result edwards25519.Point
 	var x edwards25519.Scalar
 
+	zero := edwards25519.NewScalar()
+
+	scalar.SetScalarUInt32(&x, index)
 	result.Set(edwards25519.NewIdentityPoint())
 
-	zero := edwards25519.NewScalar()
-	common.SetScalarUInt32(&x, index)
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		//B_n-1 = [x]B_n  + A_n-1
 
 		result.VarTimeDoubleScalarBaseMult(&x, &result, zero)
-		//result.ScalarMult(&x, &result)
-		result.Add(&result, &p.coefficients[i])
+		result.Add(&result, p.coefficients[i])
 	}
 	return &result
 }
@@ -89,7 +120,7 @@ func (p *Exponent) Add(q *Exponent) error {
 	}
 
 	for i := range p.coefficients {
-		p.coefficients[i].Add(&p.coefficients[i], &q.coefficients[i])
+		p.coefficients[i].Add(p.coefficients[i], q.coefficients[i])
 	}
 
 	return nil
@@ -97,11 +128,10 @@ func (p *Exponent) Add(q *Exponent) error {
 
 // Sum creates a new Polynomial in the Exponent, by summing a slice of existing ones.
 func Sum(polynomials []*Exponent) (*Exponent, error) {
-	var summed Exponent
 	var err error
 
 	// Create the new polynomial by copying the first one given
-	summed = *polynomials[0]
+	summed := polynomials[0].Copy()
 
 	// we assume all polynomials have the same degree as the first
 	for j := range polynomials {
@@ -113,7 +143,16 @@ func Sum(polynomials []*Exponent) (*Exponent, error) {
 			return nil, err
 		}
 	}
-	return &summed, nil
+	return summed, nil
+}
+
+// Reset sets all coefficients to 0
+func (p *Exponent) Reset() {
+	one := edwards25519.NewIdentityPoint()
+	for i := range p.coefficients {
+		p.coefficients[i].Set(one)
+	}
+	p.coefficients = []*edwards25519.Point{}
 }
 
 //
@@ -127,7 +166,9 @@ func (p *Exponent) MarshalBinary() (data []byte, err error) {
 
 func (p *Exponent) UnmarshalBinary(data []byte) error {
 	coefficientCount := binary.BigEndian.Uint32(data[:4])
-	p.coefficients = make([]edwards25519.Point, coefficientCount)
+
+	coefficients := make([]edwards25519.Point, coefficientCount)
+	p.coefficients = make([]*edwards25519.Point, coefficientCount)
 
 	remaining := data[4:]
 	count := len(remaining)
@@ -140,7 +181,7 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 	var err error
 	for i := 0; i < len(p.coefficients); i++ {
 		NextScalarBytes := remaining[i*32 : (i+1)*32]
-		_, err = p.coefficients[i].SetBytes(NextScalarBytes)
+		p.coefficients[i], err = coefficients[i].SetBytes(NextScalarBytes)
 		if err != nil {
 			return err
 		}
@@ -163,9 +204,11 @@ func (p *Exponent) Size() int {
 }
 
 func (p *Exponent) Copy() *Exponent {
-	q := Exponent{coefficients: make([]edwards25519.Point, len(p.coefficients))}
+	var q Exponent
+	coefficients := make([]edwards25519.Point, len(p.coefficients))
+	q.coefficients = make([]*edwards25519.Point, len(p.coefficients))
 	for i := range p.coefficients {
-		q.coefficients[i].Set(&p.coefficients[i])
+		q.coefficients[i] = coefficients[i].Set(p.coefficients[i])
 	}
 	return &q
 }

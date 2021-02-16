@@ -26,7 +26,7 @@ type Queue struct {
 	sync.Mutex
 }
 
-func NewMessageHolder(selfID uint32, otherPartyIDs map[uint32]struct{}, acceptedTypes []MessageType) (*Queue, error) {
+func NewMessageQueue(selfID uint32, otherPartyIDs map[uint32]struct{}, acceptedTypes []MessageType) (*Queue, error) {
 	for i := range acceptedTypes {
 		if i >= 1 {
 			if acceptedTypes[i] == acceptedTypes[i-1] {
@@ -39,7 +39,7 @@ func NewMessageHolder(selfID uint32, otherPartyIDs map[uint32]struct{}, accepted
 		}
 	}
 
-	N := len(otherPartyIDs) - 1
+	N := len(otherPartyIDs)
 
 	m := Queue{
 		messages:      make(map[uint32]*Message, N),
@@ -49,7 +49,6 @@ func NewMessageHolder(selfID uint32, otherPartyIDs map[uint32]struct{}, accepted
 		acceptedTypes: acceptedTypes,
 		otherPartyIDs: otherPartyIDs,
 		selfPartyID:   selfID,
-		Mutex:         sync.Mutex{},
 	}
 	return &m, nil
 }
@@ -104,9 +103,6 @@ func (m *Queue) ReceivedAll() bool {
 }
 
 func (m *Queue) receivedAll() bool {
-	//if m.startingType == m.currentType {
-	//	return true
-	//}
 	m.extractFromQueue()
 
 	if len(m.messages) == len(m.otherPartyIDs) {

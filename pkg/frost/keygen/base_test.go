@@ -1,40 +1,37 @@
 package keygen
 
 import (
+	"fmt"
 	"testing"
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
 func TestKeygen(t *testing.T) {
-	N := uint32(20)
-	T := uint32(10)
+	N := uint32(10)
+	//T := N-1
+	T := N / 2
 
-	partyIDs := make([]uint32, 0, N+5)
+	partyIDs := make([]uint32, 0, N)
 	for id := uint32(1); id <= N; id++ {
 		partyIDs = append(partyIDs, id)
 	}
-	for i := len(partyIDs); i < cap(partyIDs); i++ {
-		partyIDs = append(partyIDs, uint32(i)+3-N)
-	}
 
-	rounds0 := make(map[uint32]*base)
-	rounds1 := make(map[uint32]*round1)
-	rounds2 := make(map[uint32]*round2)
+	Rounds := make(map[uint32]rounds.KeyGenRound)
 
-	msgsOut1 := make([][]byte, 0, N*(N-1))
-	msgsOut2 := make([][]byte, 0, N*(N-1))
+	msgsOut1 := make([][]byte, 0, N)
+	msgsOut2 := make([][]byte, 0, N*(N-1)/2)
 
 	for _, id := range partyIDs {
 		r0, _ := NewRound(id, T, partyIDs)
-		rounds0[id] = r0.(*base)
+		Rounds[id] = r0.(*round0)
 	}
 
-	a := func(in [][]byte, r frost.Round) (out [][]byte, rNext frost.Round) {
+	a := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
 		out = make([][]byte, 0, N-1)
 		for _, m := range in {
 
@@ -53,47 +50,36 @@ func TestKeygen(t *testing.T) {
 			}
 		}
 
-		if r.CanStart() {
-			err := r.ProcessMessages()
-			assert.NoError(t, err, "failed to process")
-			err = r.ProcessRound()
-
-			msgsOut, err := r.GenerateMessages()
-			assert.NoError(t, err, "failed to process")
-			rNext = r.NextRound()
-			for _, msgOut := range msgsOut {
-				if b, err := msgOut.MarshalBinary(); err == nil {
-					out = append(out, b)
-				} else {
-					return
-				}
+		r.ProcessMessages()
+		r.ProcessRound()
+		for _, msgOut := range r.GenerateMessages() {
+			if b, err := msgOut.MarshalBinary(); err == nil {
+				out = append(out, b)
+			} else {
+				fmt.Println(err)
+				return
 			}
 		}
-		return
+		return out, r.NextRound()
 	}
 
-	for id, r0 := range rounds0 {
+	for id, r0 := range Rounds {
 		msgs1, nextR := a(nil, r0)
-		for _, m := range msgs1 {
-			msgsOut1 = append(msgsOut1, m)
-		}
-		rounds1[id] = nextR.(*round1)
+		msgsOut1 = append(msgsOut1, msgs1...)
+		Rounds[id] = nextR.(rounds.KeyGenRound)
 	}
 	println("done round 0")
 
-	for id, r1 := range rounds1 {
+	for id, r1 := range Rounds {
 		msgs2, nextR := a(msgsOut1, r1)
-		for _, m := range msgs2 {
-			msgsOut2 = append(msgsOut2, m)
-		}
-		rounds2[id] = nextR.(*round2)
+		msgsOut2 = append(msgsOut2, msgs2...)
+		Rounds[id] = nextR.(rounds.KeyGenRound)
 	}
 	println("done round 1")
 
-	for _, r2 := range rounds2 {
-		a(msgsOut2, r2)
+	for id := range Rounds {
+		a(msgsOut2, Rounds[id])
 	}
-
 	var tmp, pk edwards25519.Point
 	var sk edwards25519.Scalar
 
@@ -105,25 +91,25 @@ func TestKeygen(t *testing.T) {
 	sk.Set(edwards25519.NewScalar())
 	pk.Set(edwards25519.NewIdentityPoint())
 
-	groupKey, publicShares, _, err := rounds2[1].WaitForKeyGenOutput()
+	groupKey, publicShares, _, err := Rounds[1].WaitForKeygenOutput()
 	assert.NoError(t, err, "failed to get output")
-	for id, round := range rounds2 {
-		groupKeyCmp, publicSharesCmp, secretCmp, err := round.WaitForKeyGenOutput()
+	for id, round := range Rounds {
+		groupKeyCmp, publicSharesCmp, secretCmp, err := round.WaitForKeygenOutput()
 		assert.NoError(t, err, "failed to get output")
 
 		for id2, share := range publicSharesCmp {
-			assert.Equal(t, 1, publicShares[id2].Equal(share.Point))
+			assert.True(t, publicShares[id2].Equal(share))
 		}
-		assert.Equal(t, 1, tmp.ScalarBaseMult(&secretCmp).Equal(publicShares[id].Point))
-		assert.Equal(t, 1, groupKeyCmp.Equal(groupKey.Point))
+		assert.Equal(t, 1, tmp.ScalarBaseMult(secretCmp.Scalar()).Equal(publicShares[id].Point()))
+		assert.True(t, groupKeyCmp.Equal(groupKey))
 
 		lagrange := polynomial.LagrangeCoefficient(id, allPartyIDs)
-		lagrange.Multiply(lagrange, &secretCmp)
+		lagrange.Multiply(lagrange, secretCmp.Scalar())
 		sk.Add(&sk, lagrange)
 		tmp.ScalarBaseMult(lagrange)
 		pk.Add(&pk, &tmp)
 	}
 
-	assert.Equal(t, 1, groupKey.Equal(&pk))
+	assert.Equal(t, 1, groupKey.Point().Equal(&pk))
 
 }

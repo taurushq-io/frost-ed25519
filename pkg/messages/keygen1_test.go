@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
 )
 
@@ -16,7 +16,7 @@ func TestKeyGen1_MarshalBinary(t *testing.T) {
 	from := rand.Uint32()
 	params := ""
 	deg := uint32(10)
-	secret := common.NewScalarRandom()
+	secret := scalar.NewScalarRandom()
 	proof, public := zk.NewSchnorrProof(secret, from, params)
 
 	poly := polynomial.NewPolynomial(deg, secret)

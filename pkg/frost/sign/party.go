@@ -20,19 +20,20 @@ type signer struct {
 	Di, Ei edwards25519.Point
 
 	// Ri = Di + [ρ] Ei
+	// This is a share of the nonce R
 	Ri edwards25519.Point
 
 	// Pi = ρ = H(i, Message, B)
+	// This is the 'rho' from the paper
 	Pi edwards25519.Scalar
 
 	// Zi = z = d + (e • ρ) + 𝛌 • s • c
+	// This is the share of the final signature
 	Zi edwards25519.Scalar
-
-	// Lagrange coefficient of for the current set of parties
-	Lagrange edwards25519.Scalar
 }
 
 // Reset sets all values to default.
+// The party is no longer usable since the public key is deleted.
 func (signer *signer) Reset() {
 	zero := edwards25519.NewScalar()
 	identity := edwards25519.NewIdentityPoint()
@@ -44,5 +45,4 @@ func (signer *signer) Reset() {
 
 	signer.Pi.Set(zero)
 	signer.Zi.Set(zero)
-	signer.Lagrange.Set(zero)
 }

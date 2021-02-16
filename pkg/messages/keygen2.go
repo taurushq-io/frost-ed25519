@@ -20,14 +20,6 @@ func NewKeyGen2(from, to uint32, Share *edwards25519.Scalar) *Message {
 	msg.From = from
 	msg.To = to
 	msg.KeyGen2 = &kg
-	//return &Message{
-	//	Type: MessageTypeKeyGen2,
-	//	From: from,
-	//	To:   to,
-	//	KeyGen2: &KeyGen2{
-	//		Share: edwards25519.NewScalar().Set(Share),
-	//	},
-	//}
 	return &msg
 }
 

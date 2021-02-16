@@ -3,41 +3,41 @@ package main
 import (
 	"fmt"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	round2 "github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
 type Handler struct {
 	id              uint32
-	round           frost.Round
+	round           round2.Round
 	sendingChannels map[uint32]chan []byte
 }
 
-func main() {
+func All() {
 	var done chan struct{}
 
 	N := uint32(100)
 	T := N / 2
-	MaliciousSlack := uint32(2)
 	message := []byte("hello")
 
 	keygenHandlers := make(map[uint32]*Handler, N)
-	signHandlers := make(map[uint32]*Handler, T+MaliciousSlack)
+	signHandlers := make(map[uint32]*Handler, T+1)
 
 	partyIDs := make([]uint32, N)
-	signerIDs := make([]uint32, T+MaliciousSlack)
+	signerIDs := make([]uint32, T+1)
+
 	for id := uint32(0); id < N; id++ {
 		partyIDs[id] = 2*id + 10
 	}
+
 	copy(signerIDs, partyIDs)
 
 	// Setup communication channel
 	msgsChans := map[uint32]chan []byte{}
 	for _, id := range partyIDs {
-		msgsChans[id] = make(chan []byte, N*2)
-		//msgsChans[id] = make(chan []byte, N)
+		msgsChans[id] = make(chan []byte, N)
 	}
 
 	done = make(chan struct{})
@@ -54,18 +54,22 @@ func main() {
 
 	party1 := partyIDs[0]
 	// obtain the public key from the first party and wait for the others
-	pk, _, _, _ := keygenHandlers[party1].round.(frost.KeyGenRound).WaitForKeyGenOutput()
+	pk, _, _, err := keygenHandlers[party1].round.(round2.KeyGenRound).WaitForKeygenOutput()
 	for _, h := range keygenHandlers {
-		h.round.(frost.KeyGenRound).WaitForKeyGenOutput()
+		h.round.WaitForFinish()
 	}
 	close(done)
 
+	fmt.Println("got keys")
 	done = make(chan struct{})
 	for _, id := range signerIDs {
-		_, pkShares, secret, _ := keygenHandlers[id].round.(frost.KeyGenRound).WaitForKeyGenOutput()
-		r, err := sign.NewRound(id, pkShares, signerIDs, &secret, message)
+		pkOther, pkShares, secret, _ := keygenHandlers[id].round.(round2.KeyGenRound).WaitForKeygenOutput()
+		r, err := sign.NewRound(id, pkShares, signerIDs, secret, message)
 		if err != nil {
 			panic(err)
+		}
+		if !pkOther.Equal(pk) {
+			panic("bad pk")
 		}
 
 		signHandlers[id] = &Handler{
@@ -76,13 +80,21 @@ func main() {
 		go signHandlers[id].HandleMessage(done)
 	}
 
-	signHandlers[party1].round.(frost.SignRound).WaitForSignOutput()
+	_, err = signHandlers[party1].round.(round2.SignRound).WaitForSignOutput()
+	if err != nil {
+		panic(err)
+	}
 	for _, h := range signHandlers {
-		if h.round.(frost.SignRound).WaitForSignOutput().Verify(message, pk) {
+		s, _ := h.round.(round2.SignRound).WaitForSignOutput()
+		if s.Verify(message, pk) {
 			fmt.Println(message, "was correctly signed")
 		}
 	}
 	close(done)
+}
+
+func main() {
+	All()
 }
 
 func (h *Handler) HandleMessage(done chan struct{}) {
@@ -114,35 +126,23 @@ func (h *Handler) HandleMessage(done chan struct{}) {
 }
 
 func (h *Handler) ProcessAll() error {
-	var err error
-	if h.round.CanStart() {
-		if err = h.round.ProcessMessages(); err != nil {
-			return err
-		}
+	h.round.ProcessMessages()
 
-		if err = h.round.ProcessRound(); err != nil {
-			return err
-		}
+	h.round.ProcessRound()
 
-		msgsOut, err := h.round.GenerateMessages()
+	msgsOut := h.round.GenerateMessages()
+
+	for _, msg := range msgsOut {
+		msgBytes, err := msg.MarshalBinary()
 		if err != nil {
-			return err
+			fmt.Println(err)
 		}
 
-		for _, msg := range msgsOut {
-			msgBytes, err := msg.MarshalBinary()
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			if msg.To != 0 {
-				h.SendMessage(msg.To, msgBytes)
-				//go h.SendMessage(msg.To, msgBytes)
-			} else {
-				for otherID := range h.sendingChannels {
-					h.SendMessage(otherID, msgBytes)
-					//go h.SendMessage(otherID, msgBytes)
-				}
+		if msg.To != 0 {
+			go h.SendMessage(msg.To, msgBytes)
+		} else {
+			for otherID := range h.sendingChannels {
+				go h.SendMessage(otherID, msgBytes)
 			}
 		}
 	}

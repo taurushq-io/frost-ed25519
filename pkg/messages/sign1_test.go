@@ -8,7 +8,7 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 func TestSign1_MarshalBinary(t *testing.T) {
@@ -17,8 +17,8 @@ func TestSign1_MarshalBinary(t *testing.T) {
 	var d, e *edwards25519.Scalar
 	var D, E *edwards25519.Point
 	var err error
-	d = common.NewScalarRandom()
-	e = common.NewScalarRandom()
+	d = scalar.NewScalarRandom()
+	e = scalar.NewScalarRandom()
 	D = new(edwards25519.Point).ScalarBaseMult(d)
 	E = new(edwards25519.Point).ScalarBaseMult(e)
 

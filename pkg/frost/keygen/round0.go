@@ -1,36 +1,21 @@
 package keygen
 
 import (
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-func (round *base) ProcessMessages() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.messagesProcessed {
-		return nil
+func (round *round0) ProcessRound() {
+	if !round.CanProcessRound() {
+		return
 	}
-
-	round.messagesProcessed = true
-
-	return nil
-}
-
-func (round *base) ProcessRound() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed {
-		return nil
-	}
+	defer round.NextStep()
 
 	// Sample a_i,0 which is the constant factor of the polynomial
-	secret := common.NewScalarRandom()
+	secret := scalar.NewScalarRandom()
 
 	// Sample the remaining coefficients, and obtain a polynomial
 	// of degree t.
@@ -38,37 +23,26 @@ func (round *base) ProcessRound() error {
 
 	// Generate all commitments [a_i,j] B for j = 0, 1, ..., t
 	round.CommitmentsSum = polynomial.NewPolynomialExponent(round.Polynomial)
-
-	round.roundProcessed = true
-
-	return nil
 }
 
-func (round *base) GenerateMessages() ([]*messages.Message, error) {
-	round.Lock()
-	defer round.Unlock()
-
-	if !(round.roundProcessed && round.messagesProcessed) {
-		return nil, frost.ErrRoundNotProcessed
+func (round *round0) GenerateMessages() []*messages.Message {
+	if !round.CanGenerateMessages() {
+		return nil
 	}
+	defer round.NextStep()
 
 	secret := round.Polynomial.Evaluate(0)
 
 	// Generate proof of knowledge of a_i,0 = f(0)
-	proof, _ := zk.NewSchnorrProof(secret, round.PartySelf, "")
+	proof, _ := zk.NewSchnorrProof(secret, round.ID(), "")
 
-	msg := messages.NewKeyGen1(round.PartySelf, proof, round.CommitmentsSum)
+	msg := messages.NewKeyGen1(round.ID(), proof, round.CommitmentsSum)
 
-	return []*messages.Message{msg}, nil
+	return []*messages.Message{msg}
 }
 
-func (round *base) NextRound() frost.Round {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed && round.messagesProcessed {
-		round.roundProcessed = false
-		round.messagesProcessed = false
+func (round *round0) NextRound() rounds.Round {
+	if round.PrepareNextRound() {
 		return &round1{round}
 	}
 

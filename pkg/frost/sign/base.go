@@ -3,78 +3,57 @@ package sign
 import (
 	"errors"
 	"fmt"
-	"sync"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
 type (
-	base struct {
-		PartySelf uint32
-		Secret    *edwards25519.Scalar
-
-		// AllParties is a sorted array of party IDs
-		AllParties []uint32
+	round0 struct {
+		*rounds.BaseRound
 
 		// Message is the message to be signed
 		Message []byte
 
-		// Parties maps IDs to a struct containing all intermediary data for each signer
+		// Parties maps IDs to a struct containing all intermediary data for each signer.
 		Parties map[uint32]*signer
-		Y       edwards25519.Point
+
+		// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
+		GroupKey       edwards25519.Point
+		SecretKeyShare edwards25519.Scalar
 
 		// e and d are the scalars committed to in the first round
 		e, d edwards25519.Scalar
 
-		// C = H(R, Y, Message)
+		// C = H(R, GroupKey, Message)
 		C edwards25519.Scalar
 		// R = ∑ Ri
 		R edwards25519.Point
 
-		messages *messages.Queue
-
-		messagesProcessed, roundProcessed bool
-
-		output chan struct{}
-
-		// Signature to be output
+		// Signature is the output
 		Signature *eddsa.Signature
-
-		sync.Mutex
 	}
 	round1 struct {
-		*base
+		*round0
 	}
 	round2 struct {
 		*round1
 	}
 )
 
-func NewRound(selfID uint32, publicKeys map[uint32]*eddsa.PublicKey, partyIDs []uint32, secret *edwards25519.Scalar, message []byte) (frost.Round, error) {
-	var pk edwards25519.Point
-	// Check that the 0 ID is never used
-	if selfID == 0 {
-		return nil, errors.New("id 0 is not valid")
-	}
+func NewRound(selfID uint32, publicKeys eddsa.PublicKeyShares, partyIDs []uint32, secret *eddsa.PrivateKey, message []byte) (rounds.Round, error) {
+	var (
+		round round0
+		err   error
+	)
 
-	// Remove all duplicates and occurrences of selfID from partyIDs
-	othersMap := map[uint32]struct{}{}
+	round.GroupKey.Set(edwards25519.NewIdentityPoint())
+	round.Parties = make(map[uint32]*signer, len(partyIDs))
 	for _, id := range partyIDs {
-		if selfID == id {
-			continue
-		}
-		othersMap[id] = struct{}{}
-	}
-
-	N := len(partyIDs)
-
-	pk.Set(edwards25519.NewIdentityPoint())
-	signers := make(map[uint32]*signer, N)
-	for _, id := range partyIDs {
+		var party signer
 		if id == 0 {
 			return nil, errors.New("id 0 is not valid")
 		}
@@ -86,53 +65,54 @@ func NewRound(selfID uint32, publicKeys map[uint32]*eddsa.PublicKey, partyIDs []
 
 		lagrange := polynomial.LagrangeCoefficient(id, partyIDs)
 
-		signers[id] = new(signer)
-		signers[id].Public.ScalarMult(lagrange, pkShare.Point)
+		party.Public.ScalarMult(lagrange, pkShare.Point())
 
-		signers[id].Lagrange.Set(lagrange)
-		pk.Add(&pk, &signers[id].Public)
+		round.GroupKey.Add(&round.GroupKey, &party.Public)
+
+		round.Parties[id] = &party
 	}
-	if _, ok := signers[selfID]; !ok {
+	if _, ok := round.Parties[selfID]; !ok {
 		return nil, errors.New("secret data and ID don't match")
 	}
 
 	accepted := []messages.MessageType{messages.MessageTypeSign1, messages.MessageTypeSign2}
-	messagesHolder, err := messages.NewMessageHolder(selfID, othersMap, accepted)
+	round.BaseRound, err = rounds.NewBaseRound(selfID, partyIDs, accepted)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
 	}
 
-	r := base{
-		PartySelf:  selfID,
-		Secret:     secret,
-		AllParties: partyIDs,
-		Parties:    signers,
-		Y:          pk,
-		Message:    message,
-		messages:   messagesHolder,
-		output:     make(chan struct{}),
+	round.Message = message
+
+	round.SecretKeyShare.Multiply(polynomial.LagrangeCoefficient(selfID, partyIDs), secret.Scalar())
+
+	return &round, nil
+}
+
+func (round *round0) WaitForSignOutput() (signature *eddsa.Signature, err error) {
+	err = round.WaitForFinish()
+	round.Reset()
+	if err != nil {
+		return nil, err
+	} else {
+		return round.Signature, nil
 	}
-
-	return &r, nil
 }
 
-func (round *base) StoreMessage(message *messages.Message) error {
-	return round.messages.Store(message)
-}
+func (round *round0) Reset() {
+	zero := edwards25519.NewScalar()
+	one := edwards25519.NewIdentityPoint()
 
-func (round *base) Reset() {
-}
+	round.Message = nil
+	round.GroupKey.Set(one)
+	round.SecretKeyShare.Set(zero)
 
-func (round *base) ID() uint32 {
-	return round.PartySelf
-}
+	round.e.Set(zero)
+	round.d.Set(zero)
+	round.C.Set(zero)
+	round.R.Set(one)
 
-func (round *base) CanStart() bool {
-	return true
-}
-
-func (round *round1) CanStart() bool {
-	round.Lock()
-	defer round.Unlock()
-	return round.messages.ReceivedAll()
+	for id, p := range round.Parties {
+		p.Reset()
+		delete(round.Parties, id)
+	}
 }

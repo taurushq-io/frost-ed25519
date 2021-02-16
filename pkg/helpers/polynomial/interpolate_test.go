@@ -5,7 +5,7 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 func TestLagrangeCoefficient(t *testing.T) {
@@ -13,7 +13,7 @@ func TestLagrangeCoefficient(t *testing.T) {
 	g := edwards25519.NewIdentityPoint().ScalarBaseMult(one)
 	assert.Equal(t, 1, g.Equal(edwards25519.NewGeneratorPoint()))
 
-	s := common.NewScalarRandom()
+	s := scalar.NewScalarRandom()
 	p := edwards25519.NewIdentityPoint().ScalarBaseMult(s)
 	p2 := edwards25519.NewIdentityPoint().ScalarMult(one, p)
 	assert.Equal(t, 1, p.Equal(p2))

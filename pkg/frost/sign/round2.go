@@ -2,40 +2,25 @@ package sign
 
 import (
 	"errors"
-	"fmt"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-var ErrValidateSigShare = errors.New("failed to validate sig share")
+var (
+	ErrValidateSigShare  = errors.New("signature share is invalid")
+	ErrValidateSignature = errors.New("full signature is invalid")
+)
 
-//func (round *round2) CanStart() bool {
-//	if len(round.msgs2) == len(round.AllParties)-1 {
-//		return false
-//	}
-//	for id := range round.Parties {
-//		if id == round.PartySelf {
-//			continue
-//		}
-//		if _, ok := round.msgs2[id]; !ok {
-//			return false
-//		}
-//	}
-//	return true
-//}
-
-func (round *round2) ProcessMessages() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.messagesProcessed {
-		return nil
+func (round *round2) ProcessMessages() {
+	if !round.CanProcessMessages() {
+		return
 	}
+	defer round.NextStep()
 
-	msgs := round.messages.Messages()
+	msgs := round.Messages()
 
 	var RPrime edwards25519.Point
 	var CNeg edwards25519.Scalar
@@ -48,35 +33,33 @@ func (round *round2) ProcessMessages() error {
 		// We have already multiplied the public key by the lagrange coefficient,
 		// so we we simply check
 		//
-		// 	R' =  [-c] Y + [z] B = [-c * 𝛌] [x] B + [z] B
+		// 	R' =  [-c] GroupKey + [z] B = [-c * 𝛌] [x] B + [z] B
 		//     =  [-c * 𝛌 * x + z] B
 		//  R =? R'
 		//
 		RPrime.VarTimeDoubleScalarBaseMult(&CNeg, &party.Public, &msg.Sign2.Zi)
 		if RPrime.Equal(&party.Ri) != 1 {
-			return fmt.Errorf("party %d: %w", id, ErrValidateSigShare)
+			round.Abort(id, ErrValidateSigShare)
+			return
 		}
 	}
 
 	for id, party := range round.Parties {
-		if id == round.PartySelf {
+		if id == round.ID() {
 			continue
 		}
 		party.Zi.Set(&msgs[id].Sign2.Zi)
 	}
 
-	round.messagesProcessed = true
-
-	return nil
+	return
 }
 
-func (round *round2) ProcessRound() error {
-	round.Lock()
-	defer round.Unlock()
-
-	if round.roundProcessed {
-		return frost.ErrRoundProcessed
+func (round *round2) ProcessRound() {
+	if !round.CanProcessRound() {
+		return
 	}
+	defer round.NextStep()
+	defer round.Finish()
 
 	var sig, CNeg edwards25519.Scalar
 	var RPrime edwards25519.Point
@@ -93,9 +76,10 @@ func (round *round2) ProcessRound() error {
 	// Verify the full signature here too.
 	{
 		CNeg.Negate(&round.C)
-		RPrime.VarTimeDoubleScalarBaseMult(&CNeg, &round.Y, &sig)
+		RPrime.VarTimeDoubleScalarBaseMult(&CNeg, &round.GroupKey, &sig)
 		if RPrime.Equal(&round.R) != 1 {
-			return fmt.Errorf("party %d: %w", round.PartySelf, ErrValidateSigShare)
+			round.Abort(0, ErrValidateSignature)
+			return
 		}
 	}
 
@@ -103,25 +87,13 @@ func (round *round2) ProcessRound() error {
 		R: round.R,
 		S: sig,
 	}
+	return
+}
 
-	close(round.output)
-	round.roundProcessed = true
-
+func (round *round2) GenerateMessages() []*messages.Message {
 	return nil
 }
 
-func (round *round2) GenerateMessages() ([]*messages.Message, error) {
-	return nil, nil
-}
-
-func (round *round2) NextRound() frost.Round {
+func (round *round2) NextRound() rounds.Round {
 	return round
-}
-
-func (round *base) WaitForSignOutput() (signature *eddsa.Signature) {
-	if round.Signature != nil {
-		return round.Signature
-	}
-	<-round.output
-	return round.Signature
 }

@@ -6,14 +6,14 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 func TestSchnorrProof(t *testing.T) {
 	params := ""
 	partyID := rand.Uint32()
 
-	private := common.NewScalarRandom()
+	private := scalar.NewScalarRandom()
 	proof, public := NewSchnorrProof(private, partyID, params)
 	publicComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(private)
 	require.True(t, publicComputed.Equal(public) == 1)

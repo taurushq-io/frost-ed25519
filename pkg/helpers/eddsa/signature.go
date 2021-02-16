@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/common"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 const MessageLengthSig = 32 + 32
@@ -20,21 +20,21 @@ type Signature struct {
 func NewSignature(message []byte, secretKey *PrivateKey, publicKey *PublicKey) *Signature {
 	var sig Signature
 	var r edwards25519.Scalar
-	common.SetScalarRandom(&r)
+	scalar.SetScalarRandom(&r)
 	sig.R.ScalarBaseMult(&r)
-	c := ComputeChallenge(message, publicKey.Point, &sig.R)
-	sig.S.Multiply(&secretKey.Scalar, c)
+	c := ComputeChallenge(message, publicKey.Point(), &sig.R)
+	sig.S.Multiply(secretKey.Scalar(), c)
 	sig.S.Add(&sig.S, &r)
 	return &sig
 }
 
 func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
-	var RPrime, ANeg edwards25519.Point
+	var RPrime edwards25519.Point
 
-	k := ComputeChallenge(message, publicKey.Point, &s.R)
-	ANeg.Negate(publicKey.Point)
+	k := ComputeChallenge(message, publicKey.Point(), &s.R)
+	k.Negate(k)
 	// RPrime = [-l]A + [s]B
-	RPrime.VarTimeDoubleScalarBaseMult(k, &ANeg, &s.S)
+	RPrime.VarTimeDoubleScalarBaseMult(k, publicKey.Point(), &s.S)
 
 	return RPrime.Equal(&s.R) == 1
 }
