@@ -41,13 +41,11 @@ however it does not have a full security proof, unlike
 FROST-Interactive (see [Section
 6.2](https://eprint.iacr.org/2020/852.pdf)).
 
-**NOTE ANY DEVIATION FROM THE PROTOCOL**
 
 ### Ed25519 version
 
 We support the original Ed25519, which follows the construction known as
 PureEdDSA, as opposed to HashEdDSA/Ed25519ph or ContextEdDSA/Ed25519ctx.
-
 
 ### Deterministic nonce generation
 
@@ -74,13 +72,30 @@ Give examples
 
 ## Security
 
-Side-channel disclaimer
+This library was NOT designed to be free of side channels (timing,
+memory, oracles, and so on), and due to Go's intrinsic limitations
+most likely is not.
 
-Not audited yet
+This library has yet to be audited and fully vetted for production
+usage. Use at your own risk.
 
-Production use warning
+Please report any critical security issue to security@taurusgroup.ch.
+We encourage you to use our PGP key:
 
-Reporting of security issues: contact security@taurusgroup.ch
+```
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEX3G3ARYJKwYBBAHaRw8BAQdA7sQCSqSkAmGylsLRJepXuAZKkcWA+EWRPeGa
+22cIXYC0KVRhdXJ1cyBTZWN1cml0eSA8c2VjdXJpdHlAdGF1cnVzZ3JvdXAuY2g+
+iJAEExYIADgWIQQ0q1qzH0uLrdBgWQWfaUpuIE2KEAUCX3G3AQIbIwULCQgHAgYV
+CgkICwIEFgIDAQIeAQIXgAAKCRCfaUpuIE2KEFn9AP9uAyItJevrH8rV3K4zO25X
+7nOI8MQJagBMnGxP+FdF7QD8D3LndQy2AefifK44v8BOKHs0J/hXtkIJTFLu6IzG
+MwA=
+=QNKX
+-----END PGP PUBLIC KEY BLOCK-----
+```
+
+Issues that are not critical (not exploitable, DoS, and so on) can be reported as [GitHub Issues](https://github.com/taurusgroup/frost-ed25519/issues).
 
 
 ## Dependencies 
@@ -91,5 +106,5 @@ mainly Valsorda's [edwards25519](https://filippo.io/edwards25519).
 
 ## Intellectual property
 
-This code is copyright (c) Taurus SA, 2021, and under **TBD** license.
+This code is copyright (c) Taurus SA, 2021, and under Apache 2.0 license.
 
