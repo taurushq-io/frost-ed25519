@@ -1,5 +1,8 @@
 # FROST-Ed25519
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+
 A Go implementation of a [FROST](https://eprint.iacr.org/2020/852.pdf)
 threshold signature protocol for the Ed25519 signature scheme.
 
