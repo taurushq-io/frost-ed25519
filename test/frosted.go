@@ -55,8 +55,14 @@ func All() {
 	party1 := partyIDs[0]
 	// obtain the public key from the first party and wait for the others
 	pk, _, _, err := keygenHandlers[party1].round.(round2.KeyGenRound).WaitForKeygenOutput()
+	if err != nil {
+		panic(err)
+	}
 	for _, h := range keygenHandlers {
-		h.round.WaitForFinish()
+		err = h.round.WaitForFinish()
+		if err != nil {
+			panic(err)
+		}
 	}
 	close(done)
 

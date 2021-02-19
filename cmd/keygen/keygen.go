@@ -2,7 +2,6 @@ package main
 
 import "fmt"
 
-
 func main() {
-   fmt.Println("give me t and n")
+	fmt.Println("give me t and n")
 }

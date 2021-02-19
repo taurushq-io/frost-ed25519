@@ -50,8 +50,6 @@ func (round *round2) ProcessMessages() {
 		}
 		party.Zi.Set(&msgs[id].Sign2.Zi)
 	}
-
-	return
 }
 
 func (round *round2) ProcessRound() {
@@ -87,7 +85,6 @@ func (round *round2) ProcessRound() {
 		R: round.R,
 		S: sig,
 	}
-	return
 }
 
 func (round *round2) GenerateMessages() []*messages.Message {

@@ -42,9 +42,8 @@ func (m *KeyGen1) BytesAppend(existing []byte) ([]byte, error) {
 }
 
 func (m *KeyGen1) MarshalBinary() (data []byte, err error) {
-	var buf []byte
 
-	buf = make([]byte, 0, m.Size())
+	buf := make([]byte, 0, m.Size())
 
 	return m.BytesAppend(buf[:0])
 }
