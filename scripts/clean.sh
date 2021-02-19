@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 
-# build script, doing go vet, goimports, unit tests, cmds build
 go vet ./...
+
+find -name "\.go" -exec goimports -w {} \;
+
+golangci-lint run

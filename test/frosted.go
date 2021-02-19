@@ -15,11 +15,11 @@ type Handler struct {
 	sendingChannels map[uint32]chan []byte
 }
 
-func All() {
+func FROSTest(N, T uint32) {
 	var done chan struct{}
 
-	N := uint32(100)
-	T := N / 2
+	fmt.Printf("(n, t) = (%v, %v): ", N, T)
+
 	message := []byte("hello")
 
 	keygenHandlers := make(map[uint32]*Handler, N)
@@ -66,7 +66,6 @@ func All() {
 	}
 	close(done)
 
-	fmt.Println("got keys")
 	done = make(chan struct{})
 	for _, id := range signerIDs {
 		pkOther, pkShares, secret, _ := keygenHandlers[id].round.(round2.KeyGenRound).WaitForKeygenOutput()
@@ -90,18 +89,31 @@ func All() {
 	if err != nil {
 		panic(err)
 	}
+
+	failures := 0
+
 	for _, h := range signHandlers {
 		s, _ := h.round.(round2.SignRound).WaitForSignOutput()
-		if s.Verify(message, pk) {
-			fmt.Println(message, "was correctly signed")
+		if !s.Verify(message, pk) {
+			failures++
 		}
 	}
+	if failures != 0 {
+		fmt.Printf("%v signatures verifications failed\n", failures)
+	} else {
+		fmt.Printf("ok\n")
+	}
+
 	close(done)
 }
 
 func main() {
-	All()
+	FROSTest(10, 2)
+	FROSTest(10, 9)
+	FROSTest(100, 50)
+	FROSTest(100, 99)
 }
+
 
 func (h *Handler) HandleMessage(done chan struct{}) {
 	var err error
