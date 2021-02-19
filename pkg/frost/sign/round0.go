@@ -17,16 +17,20 @@ func (round *round0) ProcessRound() {
 	party := round.Parties[round.ID()]
 
 	// Sample d_i, D_i = [d_i] B
-	rand.Read(buf[:])
+	_, err := rand.Read(buf[:])
+	if err != nil {
+		panic("failed to read")
+	}
 	round.d.SetUniformBytes(buf[:])
 	party.Di.ScalarBaseMult(&round.d)
 
 	// Sample e_i, D_i = [e_i] B
-	rand.Read(buf[:])
+	_, err = rand.Read(buf[:])
+	if err != nil {
+		panic("failed to read")
+	}
 	round.e.SetUniformBytes(buf[:])
 	party.Ei.ScalarBaseMult(&round.e)
-
-	return
 }
 
 func (round *round0) GenerateMessages() []*messages.Message {

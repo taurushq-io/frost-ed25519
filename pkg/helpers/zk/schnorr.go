@@ -27,13 +27,28 @@ func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint
 	// Compute challenge
 	// c = H(G || V || public || partyID || params)
 	h := sha512.New()
-	h.Write(edwards25519GeneratorBytes)
+	b, err := h.Write(edwards25519GeneratorBytes)
+	if err != nil || b != len(edwards25519GeneratorBytes) {
+		panic("hash failed")
+	}
 	copy(out[:32], commitmentPublic.Bytes())
-	h.Write(out[:32])
+	b, err = h.Write(out[:32])
+	if err != nil || b != 32 {
+		panic("hash failed")
+	}
 	copy(out[:32], public.Bytes())
-	h.Write(out[:32])
-	h.Write(partyIDBytes[:])
-	h.Write([]byte(params))
+	b, err = h.Write(out[:32])
+	if err != nil || b != 32 {
+		panic("hash failed")
+	}
+	b, err = h.Write(partyIDBytes[:])
+	if err != nil || b != len(partyIDBytes) {
+		panic("hash failed")
+	}
+	b, err = h.Write([]byte(params))
+	if err != nil || b != len(params) {
+		panic("hash failed")
+	}
 
 	challenge.SetUniformBytes(h.Sum(out[:0]))
 

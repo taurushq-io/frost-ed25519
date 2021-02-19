@@ -25,7 +25,6 @@ func (round *round1) ProcessMessages() {
 		party.Di.Set(&msg.Sign1.Di)
 		party.Ei.Set(&msg.Sign1.Ei)
 	}
-	return
 }
 
 func (round *round1) ProcessRound() {
@@ -58,15 +57,28 @@ func (round *round1) ProcessRound() {
 
 	// DIFFERENT_TO_ISIS we actually follow the paper here since we can't easily clone the state of a hash
 	h := sha512.New()
+	frostring := "FROST-SHA512"
 	for id, party := range round.Parties {
 		h.Reset()
 
 		// H ("FROST-SHA512" || ID || Message || B )
-		h.Write([]byte("FROST-SHA512"))
+		b, err := h.Write([]byte(frostring))
+		if err != nil || b != len(frostring) {
+			panic("hash failed")
+		}
 		binary.BigEndian.PutUint32(IDBuffer[:], id)
-		h.Write(IDBuffer[:4])
-		h.Write(round.Message)
-		h.Write(B)
+		b, err = h.Write(IDBuffer[:4])
+		if err != nil || b != 4 {
+			panic("hash failed")
+		}
+		b, err = h.Write(round.Message)
+		if err != nil || b != len(round.Message) {
+			panic("hash failed")
+		}
+		b, err = h.Write(B)
+		if err != nil || b != len(B) {
+			panic("hash failed")
+		}
 
 		// Pi = ρ = H(i, M, B)
 		party.Pi.SetUniformBytes(h.Sum(nil))
@@ -97,8 +109,6 @@ func (round *round1) ProcessRound() {
 
 		selfParty.Zi.Set(&z)
 	}
-
-	return
 }
 
 func (round *round1) GenerateMessages() []*messages.Message {

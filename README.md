@@ -42,7 +42,7 @@ and can therefore be precomputed.
 This variant is the one that is proposed for practical implementations,
 however it does not have a full security proof, unlike
 FROST-Interactive (see [Section
-6.2](https://eprint.iacr.org/2020/852.pdf)).
+6.2](https://eprint.iacr.org/2020/852.pdf) of the FROST paper).
 
 
 ### Ed25519 version
@@ -52,7 +52,7 @@ PureEdDSA, as opposed to HashEdDSA/Ed25519ph or ContextEdDSA/Ed25519ctx.
 
 ### Deterministic nonce generation
 
-Ed25519 computes nonces 'r' deterministically, which is done in FROST as
+Ed25519 computes a nonce `r` deterministically, which is done in FROST as
 follows:
 
     d_i, e_i random

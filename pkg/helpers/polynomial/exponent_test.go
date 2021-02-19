@@ -71,7 +71,7 @@ func TestSum(t *testing.T) {
 
 	polys := make([]*Polynomial, N)
 	polysExp := make([]*Exponent, N)
-	for i, _ := range polys {
+	for i := range polys {
 		sec := scalar.NewScalarRandom()
 		polys[i] = NewPolynomial(Deg, sec)
 		polysExp[i] = NewPolynomialExponent(polys[i])

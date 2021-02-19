@@ -38,8 +38,8 @@ type BaseRound struct {
 	done       chan struct{}
 	finalError error
 
-	aborted bool
-	state   RoundState
+	//aborted bool
+	state RoundState
 
 	mtx sync.Mutex
 }
@@ -103,7 +103,6 @@ func (b *BaseRound) StoreMessage(message *messages.Message) error {
 // ProcessMessages is implemented here as an empty function so that the BaseRound and subsequent initial round
 // satisfies the Round interface, even when there are no messages to process.
 func (b *BaseRound) ProcessMessages() {
-	return
 }
 
 // PrepareNextRound checks whether the state of the round allows us to continue on to the next one.

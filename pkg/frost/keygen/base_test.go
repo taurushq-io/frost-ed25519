@@ -31,7 +31,7 @@ func TestKeygen(t *testing.T) {
 		Rounds[id] = r0.(*round0)
 	}
 
-	a := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
+	doRound := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
 		out = make([][]byte, 0, N-1)
 		for _, m := range in {
 
@@ -64,21 +64,19 @@ func TestKeygen(t *testing.T) {
 	}
 
 	for id, r0 := range Rounds {
-		msgs1, nextR := a(nil, r0)
+		msgs1, nextR := doRound(nil, r0)
 		msgsOut1 = append(msgsOut1, msgs1...)
 		Rounds[id] = nextR.(rounds.KeyGenRound)
 	}
-	println("done round 0")
 
 	for id, r1 := range Rounds {
-		msgs2, nextR := a(msgsOut1, r1)
+		msgs2, nextR := doRound(msgsOut1, r1)
 		msgsOut2 = append(msgsOut2, msgs2...)
 		Rounds[id] = nextR.(rounds.KeyGenRound)
 	}
-	println("done round 1")
 
 	for id := range Rounds {
-		a(msgsOut2, Rounds[id])
+		doRound(msgsOut2, Rounds[id])
 	}
 	var tmp, pk edwards25519.Point
 	var sk edwards25519.Scalar
