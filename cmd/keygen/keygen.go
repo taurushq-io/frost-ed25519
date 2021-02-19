@@ -1,6 +1,7 @@
 package main
 
-import fmt
+import "fmt"
+
 
 func main() {
    fmt.Println("give me t and n")
