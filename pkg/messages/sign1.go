@@ -6,24 +6,21 @@ import (
 	"filippo.io/edwards25519"
 )
 
-const SignSize1 = 32 + 32
+const sizeSign1 = 32 + 32
 
 type Sign1 struct {
 	Di, Ei edwards25519.Point
 }
 
-func NewSign1(from uint32, CommitmentD, CommitmentE *edwards25519.Point) *Message {
-	var msg Sign1
-
-	msg.Di.Set(CommitmentD)
-	msg.Ei.Set(CommitmentE)
-
+func NewSign1(from uint32, commitmentD, commitmentE *edwards25519.Point) *Message {
 	return &Message{
-		Type:  MessageTypeSign1,
-		From:  from,
-		Sign1: &msg,
+		Type: MessageTypeSign1,
+		From: from,
+		Sign1: &Sign1{
+			Di: *commitmentD,
+			Ei: *commitmentE,
+		},
 	}
-
 }
 
 func (m *Sign1) BytesAppend(existing []byte) ([]byte, error) {
@@ -32,16 +29,15 @@ func (m *Sign1) BytesAppend(existing []byte) ([]byte, error) {
 	return existing, nil
 }
 
-// Encode creates a []byte slice with [MsgType + From + Di + Ei]
 func (m *Sign1) MarshalBinary() ([]byte, error) {
-	var buf [SignSize1]byte
+	var buf [sizeSign1]byte
 	return m.BytesAppend(buf[:0])
 }
 
 func (m *Sign1) UnmarshalBinary(data []byte) error {
 	var err error
 
-	if len(data) != SignSize1 {
+	if len(data) != sizeSign1 {
 		return fmt.Errorf("msg1: %w", ErrInvalidMessage)
 	}
 
@@ -59,5 +55,5 @@ func (m *Sign1) UnmarshalBinary(data []byte) error {
 }
 
 func (m *Sign1) Size() int {
-	return SignSize1
+	return sizeSign1
 }

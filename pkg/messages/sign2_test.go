@@ -13,7 +13,6 @@ import (
 
 func TestSign2_MarshalBinary(t *testing.T) {
 	var s *edwards25519.Scalar
-	var err error
 
 	from := rand.Uint32()
 	s = scalar.NewScalarRandom()

@@ -20,13 +20,13 @@ type Queue struct {
 	startingType  MessageType
 	acceptedTypes []MessageType
 
-	otherPartyIDs map[uint32]struct{}
+	otherPartyIDs map[uint32]bool
 	selfPartyID   uint32
 
 	sync.Mutex
 }
 
-func NewMessageQueue(selfID uint32, otherPartyIDs map[uint32]struct{}, acceptedTypes []MessageType) (*Queue, error) {
+func NewMessageQueue(selfID uint32, otherPartyIDs map[uint32]bool, acceptedTypes []MessageType) (*Queue, error) {
 	for i := range acceptedTypes {
 		if i >= 1 {
 			if acceptedTypes[i] == acceptedTypes[i-1] {
@@ -137,7 +137,7 @@ func (m *Queue) NextRound() {
 		return
 	}
 
-	m.currentType += 1
+	m.currentType++
 	m.extractFromQueue()
 }
 

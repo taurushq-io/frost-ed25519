@@ -16,7 +16,7 @@ func TestSign1_MarshalBinary(t *testing.T) {
 
 	var d, e *edwards25519.Scalar
 	var D, E *edwards25519.Point
-	var err error
+
 	d = scalar.NewScalarRandom()
 	e = scalar.NewScalarRandom()
 	D = new(edwards25519.Point).ScalarBaseMult(d)

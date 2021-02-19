@@ -20,60 +20,39 @@ var edwards25519GeneratorBytes = edwards25519.NewGeneratorPoint().Bytes()
 
 func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
 	var challenge edwards25519.Scalar
-	var partyIDBytes [4]byte
-	var out [64]byte
-	binary.BigEndian.PutUint32(partyIDBytes[:], partyID)
 
 	// Compute challenge
 	// c = H(G || V || public || partyID || params)
 	h := sha512.New()
-	b, err := h.Write(edwards25519GeneratorBytes)
-	if err != nil || b != len(edwards25519GeneratorBytes) {
-		panic("hash failed")
-	}
-	copy(out[:32], commitmentPublic.Bytes())
-	b, err = h.Write(out[:32])
-	if err != nil || b != 32 {
-		panic("hash failed")
-	}
-	copy(out[:32], public.Bytes())
-	b, err = h.Write(out[:32])
-	if err != nil || b != 32 {
-		panic("hash failed")
-	}
-	b, err = h.Write(partyIDBytes[:])
-	if err != nil || b != len(partyIDBytes) {
-		panic("hash failed")
-	}
-	b, err = h.Write([]byte(params))
-	if err != nil || b != len(params) {
-		panic("hash failed")
-	}
+	_, _ = h.Write(edwards25519GeneratorBytes)
+	_, _ = h.Write(commitmentPublic.Bytes())
+	_, _ = h.Write(public.Bytes())
+	_ = binary.Write(h, binary.BigEndian, partyID)
+	_, _ = h.Write([]byte(params))
 
-	challenge.SetUniformBytes(h.Sum(out[:0]))
+	challenge.SetUniformBytes(h.Sum(nil))
 
 	return &challenge
 }
 
-// NewSchnorr is generates a ZK proof of knowledge of privateInput.
+// NewSchnorrProof is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
 func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (*Schnorr, *edwards25519.Point) {
 	var public edwards25519.Point
 	var proof Schnorr
-	var commitmentSecret edwards25519.Scalar
 
 	// public = x•G
 	public.ScalarBaseMult(private)
 
 	// Compute commitment for random nonce
 	// V = v•G
-	scalar.SetScalarRandom(&commitmentSecret)          // = v
-	proof.commitment.ScalarBaseMult(&commitmentSecret) // V = v•G
+	commitmentSecret := scalar.NewScalarRandom()      // = v
+	proof.commitment.ScalarBaseMult(commitmentSecret) // V = v•G
 
-	challenge := *computeChallenge(&proof.commitment, &public, partyID, params)
+	challenge := computeChallenge(&proof.commitment, &public, partyID, params)
 
-	proof.response.Multiply(&challenge, private)                // = c•private
-	proof.response.Subtract(&commitmentSecret, &proof.response) // r = v - c•private
+	proof.response.Multiply(challenge, private)                // = c•private
+	proof.response.Subtract(commitmentSecret, &proof.response) // r = v - c•private
 
 	return &proof, &public
 }
@@ -83,7 +62,7 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string
 func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params string) bool {
 	var commitmentComputed edwards25519.Point
 
-	// Check that the public secp256k1 is not the identity
+	// Check that the public point is not the identity
 	if public.Equal(edwards25519.NewIdentityPoint()) == 1 {
 		return false
 	}

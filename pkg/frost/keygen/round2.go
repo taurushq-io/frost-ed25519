@@ -19,7 +19,6 @@ func (round *round2) ProcessMessages() {
 
 	var computedShareExp edwards25519.Point
 	for id, msg := range msgs {
-
 		shareExp := round.CommitmentsOthers[id].Evaluate(round.ID())
 		computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 

@@ -12,13 +12,13 @@ type KeyGen1 struct {
 	Commitments *polynomial.Exponent
 }
 
-func NewKeyGen1(from uint32, Proof *zk.Schnorr, Commitments *polynomial.Exponent) *Message {
+func NewKeyGen1(from uint32, proof *zk.Schnorr, commitments *polynomial.Exponent) *Message {
 	return &Message{
 		Type: MessageTypeKeyGen1,
 		From: from,
 		KeyGen1: &KeyGen1{
-			Proof:       Proof,
-			Commitments: Commitments,
+			Proof:       proof,
+			Commitments: commitments,
 		},
 	}
 }
@@ -42,27 +42,25 @@ func (m *KeyGen1) BytesAppend(existing []byte) ([]byte, error) {
 }
 
 func (m *KeyGen1) MarshalBinary() (data []byte, err error) {
-
 	buf := make([]byte, 0, m.Size())
 
-	return m.BytesAppend(buf[:0])
+	return m.BytesAppend(buf)
 }
 
 func (m *KeyGen1) UnmarshalBinary(data []byte) error {
-	var err error
+	if len(data) < 64 {
+		return fmt.Errorf("msg1: %w", ErrInvalidMessage)
+	}
+
 	var proof zk.Schnorr
 	var commitments polynomial.Exponent
 
-	//proof.
-	err = proof.UnmarshalBinary(data[:64])
-	if err != nil {
+	if err := proof.UnmarshalBinary(data[:64]); err != nil {
 		return err
 	}
 	m.Proof = &proof
-	data = data[64:]
 
-	err = commitments.UnmarshalBinary(data[:])
-	if err != nil {
+	if err := commitments.UnmarshalBinary(data[64:]); err != nil {
 		return err
 	}
 	m.Commitments = &commitments

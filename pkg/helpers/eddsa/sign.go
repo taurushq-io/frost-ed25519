@@ -8,42 +8,20 @@ import (
 
 // Compute the SHA 512 of the message
 func ComputeMessageHash(message []byte) []byte {
-	var out [64]byte
-	h := sha512.New()
-	b, err := h.Write(message)
-	if err != nil || b != len(message) {
-		panic("hash failed")
-	}
-	h.Sum(out[:0])
-	return out[:]
+	digest := sha512.Sum512(message)
+	return digest[:]
 }
 
 // ComputeChallenge computes the value H(Ri, A, M), and assumes nothing about whether M is hashed.
 // It returns a Scalar.
-func ComputeChallenge(message []byte, groupKey, R *edwards25519.Point) *edwards25519.Scalar {
+func ComputeChallenge(R, groupKey *edwards25519.Point, message []byte) *edwards25519.Scalar {
 	var s edwards25519.Scalar
-	return SetChallenge(&s, message, groupKey, R)
-}
-
-// SetChallenge set s to the edwards25519.Scalar value of H(Ri, A, M).
-func SetChallenge(s *edwards25519.Scalar, message []byte, groupKey, R *edwards25519.Point) *edwards25519.Scalar {
-	//var kHash [64]byte
 
 	h := sha512.New()
-	b, err := h.Write(R.Bytes())
-	if err != nil || b != len(R.Bytes()) {
-		panic("hash failed")
-	}
-	b, err = h.Write(groupKey.Bytes())
-	if err != nil || b != len(groupKey.Bytes()) {
-		panic("hash failed")
-	}
-	b, err = h.Write(message)
-	if err != nil || b != len(message) {
-		panic("hash failed")
-	}
-	//h.Sum(kHash[:0])
+	_, _ = h.Write(R.Bytes())
+	_, _ = h.Write(groupKey.Bytes())
+	_, _ = h.Write(message)
 	s.SetUniformBytes(h.Sum(nil))
-	//s.SetUniformBytes(kHash[:])
-	return s
+
+	return &s
 }

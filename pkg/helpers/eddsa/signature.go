@@ -19,19 +19,25 @@ type Signature struct {
 
 func NewSignature(message []byte, secretKey *PrivateKey, publicKey *PublicKey) *Signature {
 	var sig Signature
-	var r edwards25519.Scalar
-	scalar.SetScalarRandom(&r)
-	sig.R.ScalarBaseMult(&r)
-	c := ComputeChallenge(message, publicKey.Point(), &sig.R)
+
+	r := scalar.NewScalarRandom()
+
+	// R = [r] • B
+	sig.R.ScalarBaseMult(r)
+
+	// C = H(R, A, M)
+	c := ComputeChallenge(&sig.R, publicKey.Point(), message)
 	sig.S.Multiply(secretKey.Scalar(), c)
-	sig.S.Add(&sig.S, &r)
+	sig.S.Add(&sig.S, r)
+
 	return &sig
 }
 
+// Verify checks that the signature is valid
 func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	var RPrime edwards25519.Point
 
-	k := ComputeChallenge(message, publicKey.Point(), &s.R)
+	k := ComputeChallenge(&s.R, publicKey.Point(), message)
 	k.Negate(k)
 	// RPrime = [-l]A + [s]B
 	RPrime.VarTimeDoubleScalarBaseMult(k, publicKey.Point(), &s.S)
@@ -39,13 +45,20 @@ func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	return RPrime.Equal(&s.R) == 1
 }
 
+// ToEdDSA returns a signature that can be validated by ed25519.Verify.
+func (s *Signature) ToEdDSA() []byte {
+	var sig [64]byte
+	copy(sig[:32], s.R.Bytes())
+	copy(sig[32:], s.S.Bytes())
+	return sig[:]
+}
+
 //
 // FROSTMarshaller
 //
 
 func (s *Signature) MarshalBinary() ([]byte, error) {
-	var buf [MessageLengthSig]byte
-	return s.BytesAppend(buf[:0])
+	return s.ToEdDSA(), nil
 }
 
 func (s *Signature) UnmarshalBinary(data []byte) error {
@@ -66,9 +79,7 @@ func (s *Signature) UnmarshalBinary(data []byte) error {
 }
 
 func (s *Signature) BytesAppend(existing []byte) ([]byte, error) {
-	existing = append(existing, s.R.Bytes()...)
-	existing = append(existing, s.S.Bytes()...)
-	return existing, nil
+	return append(existing, s.ToEdDSA()...), nil
 }
 
 func (s *Signature) Size() int {

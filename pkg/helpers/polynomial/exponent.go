@@ -26,54 +26,58 @@ func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
 	return &p
 }
 
-// evaluateClassic evaluates a polynomial in a given variable index
-// We do the classic method.
-func (p *Exponent) evaluateClassic(index uint32) *edwards25519.Point {
-	var result, tmp edwards25519.Point
-	var x, x0 edwards25519.Scalar
-
-	scalar.SetScalarUInt32(&x, index)
-	scalar.SetScalarUInt32(&x0, 1)
-
-	zero := edwards25519.NewScalar()
-
-	result.Set(edwards25519.NewIdentityPoint())
-	for i := range p.coefficients {
-		tmp.VarTimeDoubleScalarBaseMult(&x0, p.coefficients[i], zero)
-		result.Add(&result, &tmp)
-
-		x0.Multiply(&x0, &x)
-	}
-	return &result
-}
-
 // Evaluate uses any one of the defined evaluation algorithms
 func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
 	if index == 0 {
 		return p.coefficients[0]
 	}
 
+	//return p.evaluateClassic(index)
+	//return p.evaluateHorner(index)
 	return p.evaluateVar(index)
+}
+
+// evaluateClassic evaluates a polynomial in a given variable index
+// We do the classic method.
+func (p *Exponent) evaluateClassic(index uint32) *edwards25519.Point {
+	var result, tmp edwards25519.Point
+
+	x := scalar.NewScalarUInt32(index)
+	x0 := scalar.NewScalarUInt32(1)
+
+	zero := edwards25519.NewScalar()
+
+	result.Set(edwards25519.NewIdentityPoint())
+	for i := range p.coefficients {
+		tmp.VarTimeDoubleScalarBaseMult(x0, p.coefficients[i], zero)
+		result.Add(&result, &tmp)
+
+		x0.Multiply(x0, x)
+	}
+	return &result
 }
 
 // evaluateVar evaluates a polynomial in a given variable index.
 // We exploit the fact that edwards25519.Point.VarTimeMultiScalarMult is a lot faster
 // than other Point ops, but this requires us to have access to an array of powers of index.
+//
+//
 func (p *Exponent) evaluateVar(index uint32) *edwards25519.Point {
 	var result edwards25519.Point
-	var x edwards25519.Scalar
-	scalar.SetScalarUInt32(&x, index)
+
+	x := scalar.NewScalarUInt32(index)
 
 	powers := make([]edwards25519.Scalar, len(p.coefficients))
 	powersPointers := make([]*edwards25519.Scalar, len(p.coefficients))
 
 	for i := range p.coefficients {
-		if i == 0 {
+		switch {
+		case i == 0:
 			powersPointers[i] = scalar.SetScalarUInt32(&powers[0], 1)
-		} else if i == 1 {
-			powersPointers[i] = powers[1].Set(&x)
-		} else {
-			powersPointers[i] = powers[i].Multiply(&powers[i-1], &x)
+		case i == 1:
+			powersPointers[i] = powers[1].Set(x)
+		default:
+			powersPointers[i] = powers[i].Multiply(&powers[i-1], x)
 		}
 	}
 	return result.VarTimeMultiScalarMult(powersPointers, p.coefficients)
@@ -84,17 +88,15 @@ func (p *Exponent) evaluateVar(index uint32) *edwards25519.Point {
 // to speed things up
 func (p *Exponent) evaluateHorner(index uint32) *edwards25519.Point {
 	var result edwards25519.Point
-	var x edwards25519.Scalar
+	x := scalar.NewScalarUInt32(index)
 
 	zero := edwards25519.NewScalar()
 
-	scalar.SetScalarUInt32(&x, index)
 	result.Set(edwards25519.NewIdentityPoint())
 
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
-		//B_n-1 = [x]B_n  + A_n-1
-
-		result.VarTimeDoubleScalarBaseMult(&x, &result, zero)
+		// B_n-1 = [x]B_n  + A_n-1
+		result.VarTimeDoubleScalarBaseMult(x, &result, zero)
 		result.Add(&result, p.coefficients[i])
 	}
 	return &result

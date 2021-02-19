@@ -21,27 +21,21 @@ const (
 )
 
 type BaseRound struct {
-	selfPartyID uint32
-
 	// AllPartyIDs is a sorted list of uint32 which represent all parties (including this one)
 	// that are participating in the round
 	AllPartyIDs []uint32
 
 	// OtherPartyIDs is a set of IDs from all other parties. It is not ordered, and is mostly used to
 	// iterate over the list of IDs.
-	OtherPartyIDs map[uint32]struct{}
+	OtherPartyIDs map[uint32]bool
 
-	messages *messages.Queue
-
+	finalError  error
+	messages    *messages.Queue
 	roundNumber int
-
-	done       chan struct{}
-	finalError error
-
-	//aborted bool
-	state RoundState
-
-	mtx sync.Mutex
+	done        chan struct{}
+	mtx         sync.Mutex
+	selfPartyID uint32
+	state       RoundState
 }
 
 func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []messages.MessageType) (*BaseRound, error) {
@@ -53,7 +47,7 @@ func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []mess
 
 	foundSelfIDInAll := false
 	finalAllPartyIDs := make([]uint32, 0, len(allPartyIDs))
-	otherPartyIDs := make(map[uint32]struct{}, len(allPartyIDs))
+	otherPartyIDs := make(map[uint32]bool, len(allPartyIDs))
 	for _, id := range allPartyIDs {
 		if id == 0 {
 			return nil, errors.New("IDs in allPartyIDs cannot be 0")
@@ -64,7 +58,7 @@ func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []mess
 			continue
 		}
 		if _, ok := otherPartyIDs[id]; !ok {
-			otherPartyIDs[id] = struct{}{}
+			otherPartyIDs[id] = true
 			finalAllPartyIDs = append(finalAllPartyIDs, id)
 		}
 	}
@@ -112,7 +106,7 @@ func (b *BaseRound) PrepareNextRound() bool {
 	defer b.mtx.Unlock()
 	if b.state == NextRound {
 		b.state = ProcessMessages
-		b.roundNumber += 1
+		b.roundNumber++
 		return true
 	}
 	return false
@@ -175,15 +169,19 @@ func (b *BaseRound) RoundNumber() int {
 	return b.roundNumber
 }
 
+// N returns the number of parties participating.
 func (b *BaseRound) N() uint32 {
 	return uint32(len(b.AllPartyIDs))
 }
 
+// WaitForFinish blocks until the protocol has finished,
+// or until an error is returned.
 func (b *BaseRound) WaitForFinish() error {
 	<-b.done
 	return b.finalError
 }
 
+// Messages fetches the message from the queue for the current round.
 func (b *BaseRound) Messages() map[uint32]*messages.Message {
 	return b.messages.Messages()
 }

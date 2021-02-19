@@ -6,7 +6,7 @@ import (
 	"filippo.io/edwards25519"
 )
 
-const SignSize2 = 32
+const sizeSign2 = 32
 
 type Sign2 struct {
 	// Zi is a edwards25519.Scalar.
@@ -14,36 +14,29 @@ type Sign2 struct {
 	Zi edwards25519.Scalar
 }
 
-func NewSign2(from uint32, SignatureShare *edwards25519.Scalar) *Message {
-	var msg Sign2
-
-	msg.Zi.Set(SignatureShare)
-
+func NewSign2(from uint32, signatureShare *edwards25519.Scalar) *Message {
 	return &Message{
 		Type:  MessageTypeSign2,
 		From:  from,
-		Sign2: &msg,
+		Sign2: &Sign2{Zi: *signatureShare},
 	}
 }
 
 func (m *Sign2) BytesAppend(existing []byte) ([]byte, error) {
-	existing = append(existing, m.Zi.Bytes()...)
-	return existing, nil
+	return append(existing, m.Zi.Bytes()...), nil
 }
 
-// Encode creates a []byte slice with [MsgType + From + Zi]
 func (m *Sign2) MarshalBinary() ([]byte, error) {
-	var buf [SignSize2]byte
+	var buf [sizeSign2]byte
 	return m.BytesAppend(buf[:0])
 }
 
 func (m *Sign2) UnmarshalBinary(data []byte) error {
-	var err error
-	if len(data) != SignSize2 {
+	if len(data) != sizeSign2 {
 		return fmt.Errorf("msg2: %w", ErrInvalidMessage)
 	}
 
-	_, err = m.Zi.SetCanonicalBytes(data[:32])
+	_, err := m.Zi.SetCanonicalBytes(data)
 	if err != nil {
 		return fmt.Errorf("msg2.Zi: %w", err)
 	}
@@ -52,5 +45,5 @@ func (m *Sign2) UnmarshalBinary(data []byte) error {
 }
 
 func (m *Sign2) Size() int {
-	return SignSize2
+	return sizeSign2
 }

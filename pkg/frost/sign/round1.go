@@ -1,15 +1,18 @@
 package sign
 
 import (
-	"bytes"
 	"crypto/sha512"
+	"encoding"
 	"encoding/binary"
+	"fmt"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
+
+const hashDomainSeparation = "FROST-SHA512"
 
 func (round *round1) ProcessMessages() {
 	if !round.CanProcessMessages() {
@@ -33,54 +36,44 @@ func (round *round1) ProcessRound() {
 	}
 	defer round.NextStep()
 
-	var IDBuffer [4]byte
-
+	// As in the implementation by Isis, we actually compute
+	// H ("FROST-SHA512" || Message || B || ID )
+	// where
 	// B = (ID1 || D_1 || E_1) || (ID_2 || D_2 || E_2) || ... || (ID_N || D_N || E_N) >
-	var B []byte
-	{
-		// We allocate a new buffer which contains a sorted list of triples (i, B_i, E_i) for each party i
-		buffer := bytes.NewBuffer(make([]byte, 0, round.N()*(4+32+32)))
-		for _, id := range round.AllPartyIDs {
-			party := round.Parties[id]
+	//
+	// Start by computing
+	// H ("FROST-SHA512" || Message || B)
+	h := sha512.New()
+	_, _ = h.Write([]byte(hashDomainSeparation))
+	_, _ = h.Write(round.Message)
+	for _, id := range round.AllPartyIDs {
+		party := round.Parties[id]
 
-			binary.BigEndian.PutUint32(IDBuffer[:], id)
-			// B = ... || (ID || Di || Ei)
+		// H ( ... || ID || Di || Ei )
+		_ = binary.Write(h, binary.BigEndian, id)
+		_, _ = h.Write(party.Di.Bytes())
+		_, _ = h.Write(party.Ei.Bytes())
+	}
 
-			buffer.Write(IDBuffer[:])
-			buffer.Write(party.Di.Bytes())
-			buffer.Write(party.Ei.Bytes())
-		}
-		B = buffer.Bytes()
+	// Save the state of the hash function
+	hashState, err := h.(encoding.BinaryMarshaler).MarshalBinary()
+	if err != nil {
+		panic(fmt.Errorf("failed to save hash function state: %w", err))
 	}
 
 	round.R.Set(edwards25519.NewIdentityPoint())
-
-	// DIFFERENT_TO_ISIS we actually follow the paper here since we can't easily clone the state of a hash
-	h := sha512.New()
-	frostring := "FROST-SHA512"
 	for id, party := range round.Parties {
-		h.Reset()
-
-		// H ("FROST-SHA512" || ID || Message || B )
-		b, err := h.Write([]byte(frostring))
-		if err != nil || b != len(frostring) {
-			panic("hash failed")
-		}
-		binary.BigEndian.PutUint32(IDBuffer[:], id)
-		b, err = h.Write(IDBuffer[:4])
-		if err != nil || b != 4 {
-			panic("hash failed")
-		}
-		b, err = h.Write(round.Message)
-		if err != nil || b != len(round.Message) {
-			panic("hash failed")
-		}
-		b, err = h.Write(B)
-		if err != nil || b != len(B) {
-			panic("hash failed")
+		// Reset the hash to
+		// H ("FROST-SHA512" || Message || B)
+		if h.(encoding.BinaryUnmarshaler).UnmarshalBinary(hashState) != nil {
+			panic(fmt.Errorf("failed to restore hash function state: %w", err))
 		}
 
-		// Pi = ρ = H(i, M, B)
+		// Add the ID at the end and compute
+		// H ("FROST-SHA512" || Message || B || ID )
+		_ = binary.Write(h, binary.BigEndian, id)
+
+		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
 		party.Pi.SetUniformBytes(h.Sum(nil))
 
 		// Ri = D + [ρ] E
@@ -92,8 +85,7 @@ func (round *round1) ProcessRound() {
 	}
 
 	// c = H(R, GroupKey, M)
-	c := eddsa.ComputeChallenge(round.Message, &round.GroupKey, &round.R)
-	round.C.Set(c)
+	round.C.Set(eddsa.ComputeChallenge(&round.R, &round.GroupKey, round.Message))
 
 	// Compute z = d + (e • ρ) + 𝛌 • s • c
 	{
@@ -103,9 +95,9 @@ func (round *round1) ProcessRound() {
 		// z = d + (e • ρ) + 𝛌 • s • c
 		// Note: since we multiply the secret by the Lagrange coefficient,
 		// can ignore 𝛌
-		z.Multiply(&round.SecretKeyShare, c)       // 𝛌 • s • c
-		z.MultiplyAdd(&round.e, &selfParty.Pi, &z) // (e • ρ) + 𝛌 • s • c
-		z.Add(&z, &round.d)                        // d + (e • ρ) + 𝛌 • s • c
+		z.Multiply(&round.SecretKeyShare, &round.C) // 𝛌 • s • c
+		z.MultiplyAdd(&round.e, &selfParty.Pi, &z)  // (e • ρ) + 𝛌 • s • c
+		z.Add(&z, &round.d)                         // d + (e • ρ) + 𝛌 • s • c
 
 		selfParty.Zi.Set(&z)
 	}

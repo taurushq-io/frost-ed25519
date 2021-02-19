@@ -67,19 +67,22 @@ func NewRound(selfID uint32, threshold uint32, partyIDs []uint32) (rounds.KeyGen
 	return &r, nil
 }
 
-func (round *round0) WaitForKeygenOutput() (groupKey *eddsa.PublicKey, groupKeyShares eddsa.PublicKeyShares, secretKeyShare *eddsa.PrivateKey, err error) {
-	err = round.WaitForFinish()
+func (round *round0) WaitForKeygenOutput() (*eddsa.PublicKey, eddsa.PublicKeyShares, *eddsa.PrivateKey, error) {
+	err := round.WaitForFinish()
 	round.Reset()
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return round.GroupKey, round.GroupKeyShares, round.SecretKeyShare, nil
+
+	groupKey := *round.GroupKey
+	groupKeyShares := round.GroupKeyShares
+	secretKeyShare := *round.SecretKeyShare
+
+	return &groupKey, groupKeyShares, &secretKeyShare, nil
 }
 
 func (round *round0) Reset() {
-	zero := edwards25519.NewScalar()
-
-	round.Secret.Set(zero)
+	round.Secret.Set(edwards25519.NewScalar())
 	if round.Polynomial != nil {
 		round.Polynomial.Reset()
 	}

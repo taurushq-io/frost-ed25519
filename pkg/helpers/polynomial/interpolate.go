@@ -22,11 +22,12 @@ import (
 // l_j(0) =	---------------------------
 //			(x_0 - x_j) ... (x_k - x_j)
 func LagrangeCoefficient(selfIndex uint32, allIndices []uint32) *edwards25519.Scalar {
-	var xJ, xM, num, denum edwards25519.Scalar
+	var xM edwards25519.Scalar
 
-	scalar.SetScalarUInt32(&num, uint32(1))
-	scalar.SetScalarUInt32(&denum, uint32(1))
-	scalar.SetScalarUInt32(&xJ, selfIndex)
+	denum := scalar.NewScalarUInt32(uint32(1))
+	num := scalar.NewScalarUInt32(uint32(1))
+
+	xJ := scalar.NewScalarUInt32(selfIndex)
 
 	for _, id := range allIndices {
 		if id == selfIndex {
@@ -36,18 +37,18 @@ func LagrangeCoefficient(selfIndex uint32, allIndices []uint32) *edwards25519.Sc
 		scalar.SetScalarUInt32(&xM, id)
 
 		// num = x_0 * ... * x_k
-		num.Multiply(&num, &xM) // num * xM
+		num.Multiply(num, &xM) // num * xM
 
 		// denum = (x_0 - x_j) ... (x_k - x_j)
-		xM.Subtract(&xM, &xJ)       // = xM - xJ
-		denum.Multiply(&denum, &xM) // denum * (xm - xj)
+		xM.Subtract(&xM, xJ)       // = xM - xJ
+		denum.Multiply(denum, &xM) // denum * (xm - xj)
 	}
 
 	// This should not happen since xM!=xJ
 	if denum.Equal(edwards25519.NewScalar()) == 1 {
 		panic(errors.New("others contained selfIndex"))
 	}
-	denum.Invert(&denum)
-	num.Multiply(&num, &denum)
-	return &num
+	denum.Invert(denum)
+	num.Multiply(num, denum)
+	return num
 }

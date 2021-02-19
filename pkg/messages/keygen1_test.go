@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"bytes"
 	"math/rand"
 	"testing"
 
@@ -24,24 +23,15 @@ func TestKeyGen1_MarshalBinary(t *testing.T) {
 
 	msg := NewKeyGen1(from, proof, comm)
 
-	msgBytes, err := msg.MarshalBinary()
-	require.NoError(t, err, "marshalling failed")
+	var msg2 Message
+	require.NoError(t, CheckFROSTMarshaller(msg, &msg2))
 
-	msgDec := new(Message)
-	err = msgDec.UnmarshalBinary(msgBytes)
-	require.NoError(t, err, "unmarshalling failed")
+	require.NotNil(t, msg2, "keygen1 is nil")
+	require.NotNil(t, msg2.KeyGen1.Proof, "proof is nil")
+	require.NotNil(t, msg2.KeyGen1.Commitments, "commitments is nil")
 
-	msgDecBytes, err := msgDec.MarshalBinary()
-	require.NoError(t, err, "marshalling failed")
-
-	assert.True(t, bytes.Equal(msgBytes, msgDecBytes), "unmarshal -> marshal should give the same result")
-
-	require.NotNil(t, msgDec.KeyGen1, "keygen1 is nil")
-	require.NotNil(t, msgDec.KeyGen1.Proof, "proof is nil")
-	require.NotNil(t, msgDec.KeyGen1.Commitments, "commitments is nil")
-
-	assert.True(t, msgDec.KeyGen1.Proof.Verify(public, from, params), "zk failed to verify")
-	assert.Equal(t, deg, msgDec.KeyGen1.Commitments.Degree(), "wrong degree commitment")
-	assert.Equal(t, msg.From, msgDec.From, "from is not the same")
-	assert.Equal(t, MessageTypeKeyGen1, msgDec.Type, "type is wrong")
+	assert.True(t, msg2.KeyGen1.Proof.Verify(public, from, params), "zk failed to verify")
+	assert.Equal(t, deg, msg2.KeyGen1.Commitments.Degree(), "wrong degree commitment")
+	assert.Equal(t, msg.From, msg2.From, "from is not the same")
+	assert.Equal(t, MessageTypeKeyGen1, msg2.Type, "type is wrong")
 }
