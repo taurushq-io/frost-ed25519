@@ -39,7 +39,7 @@ type BaseRound struct {
 	finalError error
 
 	//aborted bool
-	state   RoundState
+	state RoundState
 
 	mtx sync.Mutex
 }

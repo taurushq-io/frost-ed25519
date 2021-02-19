@@ -63,20 +63,20 @@ func (round *round1) ProcessRound() {
 
 		// H ("FROST-SHA512" || ID || Message || B )
 		b, err := h.Write([]byte(frostring))
-		if (err!= nil || b != len(frostring)) {
+		if err != nil || b != len(frostring) {
 			panic("hash failed")
 		}
 		binary.BigEndian.PutUint32(IDBuffer[:], id)
 		b, err = h.Write(IDBuffer[:4])
-		if (err!= nil || b != 4) {
+		if err != nil || b != 4 {
 			panic("hash failed")
 		}
 		b, err = h.Write(round.Message)
-		if (err!= nil || b != len(round.Message)) {
+		if err != nil || b != len(round.Message) {
 			panic("hash failed")
 		}
 		b, err = h.Write(B)
-		if (err!= nil || b != len(B)) {
+		if err != nil || b != len(B) {
 			panic("hash failed")
 		}
 

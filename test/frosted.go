@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
@@ -108,12 +109,15 @@ func FROSTest(N, T uint32) {
 }
 
 func main() {
-	FROSTest(10, 2)
-	FROSTest(10, 9)
-	FROSTest(100, 50)
-	FROSTest(100, 99)
-}
+	ns := []uint32{5, 10, 50, 100}
 
+	for _, n := range ns {
+		start := time.Now()
+		FROSTest(n, n/2)
+		elapsed := time.Since(start)
+		fmt.Printf("%s\n", elapsed)
+	}
+}
 
 func (h *Handler) HandleMessage(done chan struct{}) {
 	var err error

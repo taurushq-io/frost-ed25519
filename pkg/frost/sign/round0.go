@@ -17,7 +17,7 @@ func (round *round0) ProcessRound() {
 	party := round.Parties[round.ID()]
 
 	// Sample d_i, D_i = [d_i] B
-	_, err:= rand.Read(buf[:])
+	_, err := rand.Read(buf[:])
 	if err != nil {
 		panic("failed to read")
 	}

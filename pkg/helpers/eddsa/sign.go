@@ -11,9 +11,9 @@ func ComputeMessageHash(message []byte) []byte {
 	var out [64]byte
 	h := sha512.New()
 	b, err := h.Write(message)
-	if (err != nil || b != len(message)) {
+	if err != nil || b != len(message) {
 		panic("hash failed")
-	} 
+	}
 	h.Sum(out[:0])
 	return out[:]
 }
@@ -31,17 +31,17 @@ func SetChallenge(s *edwards25519.Scalar, message []byte, groupKey, R *edwards25
 
 	h := sha512.New()
 	b, err := h.Write(R.Bytes())
-	if (err != nil || b != len(R.Bytes())) {
+	if err != nil || b != len(R.Bytes()) {
 		panic("hash failed")
-	} 
+	}
 	b, err = h.Write(groupKey.Bytes())
-	if (err != nil || b != len(groupKey.Bytes())) {
+	if err != nil || b != len(groupKey.Bytes()) {
 		panic("hash failed")
-	} 
+	}
 	b, err = h.Write(message)
-	if (err != nil || b != len(message)) {
+	if err != nil || b != len(message) {
 		panic("hash failed")
-	} 
+	}
 	//h.Sum(kHash[:0])
 	s.SetUniformBytes(h.Sum(nil))
 	//s.SetUniformBytes(kHash[:])

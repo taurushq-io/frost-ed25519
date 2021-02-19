@@ -2,6 +2,6 @@
 
 go vet ./...
 
-find -name "\.go" -exec goimports -w {} \;
+find -name "*\.go" -exec goimports -w {} \;
 
 golangci-lint run
