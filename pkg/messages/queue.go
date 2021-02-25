@@ -7,9 +7,7 @@ import (
 
 var (
 	ErrMessageTypeNotAccepted     = errors.New("message type is not accepted")
-	ErrMessageFromSelf            = errors.New("message was from self")
 	ErrMessageNotFromOtherParties = errors.New("sender is not a party")
-	ErrWrongDestination           = errors.New("message is for other party")
 )
 
 type Queue struct {
@@ -72,24 +70,23 @@ func (m *Queue) Store(message *Message) error {
 }
 
 func (m *Queue) store(message *Message) error {
+	// Ignore messages from self
+	if message.From == m.selfPartyID {
+		return nil
+	}
+	// Ignore message not addressed to us
+	if message.To != 0 && message.To != m.selfPartyID {
+		return nil
+	}
+
 	// Is the message one of those we accept
 	if !m.isAcceptedType(message.Type) {
 		return ErrMessageTypeNotAccepted
 	}
 
-	// Is the message from someone else than us
-	if message.From == m.selfPartyID {
-		return ErrMessageFromSelf
-	}
-
 	// Is the sender in our list of participants?
 	if _, ok := m.otherPartyIDs[message.From]; !ok {
 		return ErrMessageNotFromOtherParties
-	}
-
-	// If the message has a set destination, we check that it is for us
-	if message.To != 0 && message.To != m.selfPartyID {
-		return ErrWrongDestination
 	}
 
 	// The message is the one we are currently accepting

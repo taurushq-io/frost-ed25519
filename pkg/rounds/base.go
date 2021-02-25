@@ -20,6 +20,9 @@ const (
 	Abort
 )
 
+// BaseRound can be seen as the basic state that both protocols should have.
+// It provides functionality for handling party IDs, a wrapper for the message queue,
+// as well handling the current execution state.
 type BaseRound struct {
 	// AllPartyIDs is a sorted list of uint32 which represent all parties (including this one)
 	// that are participating in the round
@@ -36,6 +39,8 @@ type BaseRound struct {
 	mtx         sync.Mutex
 	selfPartyID uint32
 	state       RoundState
+
+	isProcessingStep bool
 }
 
 func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []messages.MessageType) (*BaseRound, error) {
@@ -83,22 +88,6 @@ func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []mess
 	return &baseRound, nil
 }
 
-// ID is the uint32 ID of the party executing this round.
-func (b *BaseRound) ID() uint32 {
-	return b.selfPartyID
-}
-
-// StoreMessage takes in an unmarshalled wire message and attempts to store it in the messages.Queue.
-// It returns an error depending on whether the messages.Queue was able to store it.
-func (b *BaseRound) StoreMessage(message *messages.Message) error {
-	return b.messages.Store(message)
-}
-
-// ProcessMessages is implemented here as an empty function so that the BaseRound and subsequent initial round
-// satisfies the Round interface, even when there are no messages to process.
-func (b *BaseRound) ProcessMessages() {
-}
-
 // PrepareNextRound checks whether the state of the round allows us to continue on to the next one.
 // If so, then we update the round number and state, and the caller can then return the next round.
 func (b *BaseRound) PrepareNextRound() bool {
@@ -112,25 +101,7 @@ func (b *BaseRound) PrepareNextRound() bool {
 	return false
 }
 
-func (b *BaseRound) CanProcessMessages() bool {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-
-	return b.state == ProcessMessages && b.messages.ReceivedAll()
-}
-
-func (b *BaseRound) CanProcessRound() bool {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	return b.state == ProcessRound
-}
-
-func (b *BaseRound) CanGenerateMessages() bool {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	return b.state == GenerateMessages
-}
-
+// Abort should be called whenever something bad has happened, where we suspect malicious behaviour.
 func (b *BaseRound) Abort(culprit uint32, err error) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
@@ -143,6 +114,8 @@ func (b *BaseRound) Abort(culprit uint32, err error) {
 	}
 }
 
+// Finish should be called by a defer statement by the last round of the protocol.
+// If an abort happens, then we don't update.
 func (b *BaseRound) Finish() {
 	if b.state == Abort || b.state == Finished {
 		return
@@ -151,20 +124,91 @@ func (b *BaseRound) Finish() {
 	close(b.done)
 }
 
+// WaitForFinish blocks until the protocol has finished,
+// or until an error is returned.
+func (b *BaseRound) WaitForFinish() error {
+	<-b.done
+	return b.finalError
+}
+
+// -----
+// Round life cycle
+//
+// These methods should be called at the beginning of the appropriate round function,
+// accompanied by a defer to NextStep
+// -----
+
+func (b *BaseRound) CanProcessMessages() bool {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	if b.isProcessingStep {
+		return false
+	}
+
+	if b.state == ProcessMessages && b.messages.ReceivedAll() {
+		b.isProcessingStep = true
+		return true
+	}
+
+	return false
+}
+
+func (b *BaseRound) CanProcessRound() bool {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	if b.isProcessingStep {
+		return false
+	}
+
+	if b.state == ProcessRound {
+		b.isProcessingStep = true
+		return true
+	}
+
+	return false
+}
+
+func (b *BaseRound) CanGenerateMessages() bool {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	if b.isProcessingStep {
+		return false
+	}
+
+	if b.state == GenerateMessages {
+		b.isProcessingStep = true
+		return true
+	}
+
+	return false
+}
+
+// NextStep advances the state, but only if the current state was one of the three above functions
 func (b *BaseRound) NextStep() {
 	switch b.state {
 	case ProcessMessages:
+		b.isProcessingStep = false
 		b.state <<= 1
 		b.messages.NextRound()
 	case ProcessRound, GenerateMessages:
+		b.isProcessingStep = false
 		b.state <<= 1
 	}
 }
 
-func (b *BaseRound) IsFinished() bool {
-	return b.state == Finished
+// ----
+// Getters
+// ----
+
+// ID is the uint32 ID of the party executing this round.
+func (b *BaseRound) ID() uint32 {
+	return b.selfPartyID
 }
 
+// RoundNumber returns the current round number
 func (b *BaseRound) RoundNumber() int {
 	return b.roundNumber
 }
@@ -174,11 +218,23 @@ func (b *BaseRound) N() uint32 {
 	return uint32(len(b.AllPartyIDs))
 }
 
-// WaitForFinish blocks until the protocol has finished,
-// or until an error is returned.
-func (b *BaseRound) WaitForFinish() error {
-	<-b.done
-	return b.finalError
+// ----
+// Misc
+// ----
+
+// ProcessMessages is implemented here as an empty function so that the BaseRound and subsequent initial round
+// satisfies the Round interface, even when there are no messages to process.
+func (b *BaseRound) ProcessMessages() {
+}
+
+// -----
+// messages.Queue
+// -----
+
+// StoreMessage takes in an unmarshalled wire message and attempts to store it in the messages.Queue.
+// It returns an error depending on whether the messages.Queue was able to store it.
+func (b *BaseRound) StoreMessage(message *messages.Message) error {
+	return b.messages.Store(message)
 }
 
 // Messages fetches the message from the queue for the current round.

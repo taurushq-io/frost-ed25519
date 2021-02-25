@@ -43,20 +43,21 @@ func TestRound(t *testing.T) {
 	a := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
 		out = make([][]byte, 0, N-1)
 		for _, m := range in {
-
 			msgTmp := messages.Message{}
 			err := msgTmp.UnmarshalBinary(m)
 			assert.NoError(t, err, "failed to store message")
 
-			if msgTmp.From == r.ID() {
-				continue
-			}
+			assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
 
-			if msgTmp.To == 0 {
-				assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-			} else if msgTmp.To == r.ID() {
-				assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-			}
+			//if msgTmp.From == r.ID() {
+			//	continue
+			//}
+			//
+			//if msgTmp.To == 0 {
+			//	assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
+			//} else if msgTmp.To == r.ID() {
+			//	assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
+			//}
 		}
 		r.ProcessMessages()
 		r.ProcessRound()

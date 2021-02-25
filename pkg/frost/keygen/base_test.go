@@ -39,15 +39,7 @@ func TestKeygen(t *testing.T) {
 			err := msgTmp.UnmarshalBinary(m)
 			assert.NoError(t, err, "failed to store message")
 
-			if msgTmp.From == r.ID() {
-				continue
-			}
-
-			if msgTmp.To == 0 {
-				assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-			} else if msgTmp.To == r.ID() {
-				assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-			}
+			assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
 		}
 
 		r.ProcessMessages()

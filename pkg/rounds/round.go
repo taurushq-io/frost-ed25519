@@ -8,7 +8,7 @@ import (
 type Round interface {
 	// A Round represents the state of protocol from the perspective of the party.
 	//
-	//
+	// The functions should be called in this given order.
 
 	// StoreMessage accepts any unmarshalled message and attempts to store it for later use in the round
 	// It check whether the message is for the right protocol, and whether relevant fields are not nil.
@@ -29,16 +29,6 @@ type Round interface {
 	// NextRound will return the next round that is possible at the time.
 	// If it is not possible to advance to the next round, then the current one is returned.
 	NextRound() Round
-
-	Info
-}
-
-type Info interface {
-	// ID of the signer.
-	ID() uint32
-
-	// RoundNumber indicates which run the protocol is in.
-	RoundNumber() int
 
 	// WaitForFinish blocks until the protocol has succeeded, or an error has occurred.
 	// If so the error is returned.
