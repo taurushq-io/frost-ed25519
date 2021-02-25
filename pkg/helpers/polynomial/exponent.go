@@ -32,8 +32,7 @@ func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
 		return p.coefficients[0]
 	}
 
-	//return p.evaluateClassic(index)
-	//return p.evaluateHorner(index)
+	// We chose evaluateVar since it is the fastest in CPU time, even though it uses more memory
 	return p.evaluateVar(index)
 }
 

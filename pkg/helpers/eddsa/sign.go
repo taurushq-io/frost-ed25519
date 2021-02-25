@@ -12,7 +12,7 @@ func ComputeMessageHash(message []byte) []byte {
 	return digest[:]
 }
 
-// ComputeChallenge computes the value H(Ri, A, M), and assumes nothing about whether M is hashed.
+// ComputeChallenge computes the value H(R, A, M), and assumes nothing about whether M is hashed.
 // It returns a Scalar.
 func ComputeChallenge(R, groupKey *edwards25519.Point, message []byte) *edwards25519.Scalar {
 	var s edwards25519.Scalar

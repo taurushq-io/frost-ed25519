@@ -12,10 +12,9 @@ import (
 
 func TestKeyGen1_MarshalBinary(t *testing.T) {
 	from := rand.Uint32()
-	params := ""
 	deg := uint32(10)
 	secret := scalar.NewScalarRandom()
-	proof, _ := zk.NewSchnorrProof(secret, from, params)
+	proof, _ := zk.NewSchnorrProof(secret, from)
 
 	poly := polynomial.NewPolynomial(deg, secret)
 	comm := polynomial.NewPolynomialExponent(poly)

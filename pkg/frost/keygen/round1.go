@@ -16,7 +16,7 @@ func (round *round1) ProcessMessages() {
 	msgs := round.Messages()
 
 	for _, msg := range msgs {
-		if !msg.KeyGen1.Proof.Verify(msg.KeyGen1.Commitments.Evaluate(0), msg.From, "") {
+		if !msg.KeyGen1.Proof.Verify(msg.KeyGen1.Commitments.Evaluate(0), msg.From) {
 			round.Abort(msg.From, errors.New("ZK Schnorr failed"))
 			return
 		}

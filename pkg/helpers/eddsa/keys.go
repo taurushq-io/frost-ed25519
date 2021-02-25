@@ -85,5 +85,5 @@ func (pk *PublicKey) Point() *edwards25519.Point {
 }
 
 func (pk *PublicKey) Equal(pk0 *PublicKey) bool {
-	return 1 == pk.pk.Equal(&pk0.pk)
+	return pk.pk.Equal(&pk0.pk) == 1
 }

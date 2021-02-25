@@ -26,5 +26,4 @@ func TestPolynomial_Evaluate(t *testing.T) {
 			require.Equal(t, 1, expectedResult.Equal(computedResult))
 		}
 	}
-
 }

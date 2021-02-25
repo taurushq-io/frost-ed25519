@@ -54,7 +54,6 @@ func Benchmark_Evaluate(b *testing.B) {
 			polyExp.evaluateVar(randomIndex)
 		}
 	})
-
 }
 
 func TestSum(t *testing.T) {

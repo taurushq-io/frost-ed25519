@@ -34,7 +34,7 @@ func (round *round0) GenerateMessages() []*messages.Message {
 	secret := round.Polynomial.Evaluate(0)
 
 	// Generate proof of knowledge of a_i,0 = f(0)
-	proof, _ := zk.NewSchnorrProof(secret, round.ID(), "")
+	proof, _ := zk.NewSchnorrProof(secret, round.ID())
 
 	msg := messages.NewKeyGen1(round.ID(), proof, round.CommitmentsSum)
 

@@ -46,18 +46,7 @@ func TestRound(t *testing.T) {
 			msgTmp := messages.Message{}
 			err := msgTmp.UnmarshalBinary(m)
 			assert.NoError(t, err, "failed to store message")
-
 			assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-
-			//if msgTmp.From == r.ID() {
-			//	continue
-			//}
-			//
-			//if msgTmp.To == 0 {
-			//	assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-			//} else if msgTmp.To == r.ID() {
-			//	assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
-			//}
 		}
 		r.ProcessMessages()
 		r.ProcessRound()
@@ -104,13 +93,11 @@ func TestRound(t *testing.T) {
 
 	// Check all publicKeys return the same sig
 	for _, id := range partyIDs {
-
 		comparedSig, _ := Rounds[id].WaitForSignOutput()
 		comparedSigBytes, _ := comparedSig.MarshalBinary()
 		require.NoError(t, err)
 		assert.True(t, bytes.Equal(sigBytes, comparedSigBytes))
 	}
-
 }
 
 func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, eddsa.PublicKeyShares, map[uint32]*eddsa.PrivateKey) {

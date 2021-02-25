@@ -13,7 +13,6 @@ import (
 
 func TestKeygen(t *testing.T) {
 	N := uint32(10)
-	//T := N-1
 	T := N / 2
 
 	partyIDs := make([]uint32, 0, N)
@@ -34,7 +33,6 @@ func TestKeygen(t *testing.T) {
 	doRound := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
 		out = make([][]byte, 0, N-1)
 		for _, m := range in {
-
 			msgTmp := messages.Message{}
 			err := msgTmp.UnmarshalBinary(m)
 			assert.NoError(t, err, "failed to store message")
@@ -101,5 +99,4 @@ func TestKeygen(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, groupKey.Point().Equal(&pk))
-
 }

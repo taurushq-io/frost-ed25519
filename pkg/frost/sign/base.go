@@ -60,7 +60,7 @@ func NewRound(selfID uint32, publicKeys eddsa.PublicKeyShares, partyIDs []uint32
 
 		pkShare, ok := publicKeys[id]
 		if !ok {
-			return nil, errors.New("missing public key of ...")
+			return nil, fmt.Errorf("missing public key from %d", id)
 		}
 
 		lagrange := polynomial.LagrangeCoefficient(id, partyIDs)
@@ -93,9 +93,9 @@ func (round *round0) WaitForSignOutput() (signature *eddsa.Signature, err error)
 	round.Reset()
 	if err != nil {
 		return nil, err
-	} else {
-		return round.Signature, nil
 	}
+
+	return round.Signature, nil
 }
 
 func (round *round0) Reset() {

@@ -36,7 +36,7 @@ func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint
 
 // NewSchnorrProof is generates a ZK proof of knowledge of privateInput.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string) (*Schnorr, *edwards25519.Point) {
+func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32) (*Schnorr, *edwards25519.Point) {
 	var public edwards25519.Point
 	var proof Schnorr
 
@@ -58,7 +58,7 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string
 
 // Schnorr.Verify verifies that the zero knowledge proof is valid.
 // Follows https://tools.ietf.org/html/rfc8235#section-3
-func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params string) bool {
+func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32) bool {
 	var commitmentComputed edwards25519.Point
 
 	// Check that the public point is not the identity

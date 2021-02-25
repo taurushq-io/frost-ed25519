@@ -83,7 +83,6 @@ func (m *Message) Size() int {
 		}
 	}
 	panic("message contains no data")
-	return -1
 }
 
 func (m *Message) MarshalBinary() ([]byte, error) {

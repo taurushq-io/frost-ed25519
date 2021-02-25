@@ -18,12 +18,6 @@ func TestNewScalarUInt32(t *testing.T) {
 	tests := []uint32{1, 2, 200, 499, 1025}
 
 	for _, test := range tests {
-		//if test == 200 {
-		//	a := big.NewInt(1 << 12 + 1 << 30)
-		//	ab := a.Bytes()
-		//	c, _ := NewScalarUInt32(1 << 12 + 1 << 30)
-		//	print(a, c, ab)
-		//}
 		computed := NewScalarUInt32(test)
 		newScalar := edwards25519.NewScalar()
 		for i := uint32(0); i < test; i++ {

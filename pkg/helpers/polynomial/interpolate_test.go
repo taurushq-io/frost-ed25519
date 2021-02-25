@@ -17,5 +17,4 @@ func TestLagrangeCoefficient(t *testing.T) {
 	p := edwards25519.NewIdentityPoint().ScalarBaseMult(s)
 	p2 := edwards25519.NewIdentityPoint().ScalarMult(one, p)
 	assert.Equal(t, 1, p.Equal(p2))
-
 }
