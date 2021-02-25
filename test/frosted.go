@@ -7,12 +7,14 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	round2 "github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
+// Handler holds the information for a certain round by a participant.
+// It makes it easier to work with the underlying Round interface.
 type Handler struct {
 	id              uint32
-	round           round2.Round
+	round           rounds.Round
 	sendingChannels map[uint32]chan []byte
 }
 
@@ -55,7 +57,7 @@ func FROSTest(N, T uint32) {
 
 	party1 := partyIDs[0]
 	// obtain the public key from the first party and wait for the others
-	pk, _, _, err := keygenHandlers[party1].round.(round2.KeyGenRound).WaitForKeygenOutput()
+	pk, _, _, err := keygenHandlers[party1].round.(rounds.KeyGenRound).WaitForKeygenOutput()
 	if err != nil {
 		panic(err)
 	}
@@ -69,7 +71,7 @@ func FROSTest(N, T uint32) {
 
 	done = make(chan struct{})
 	for _, id := range signerIDs {
-		pkOther, pkShares, secret, _ := keygenHandlers[id].round.(round2.KeyGenRound).WaitForKeygenOutput()
+		pkOther, pkShares, secret, _ := keygenHandlers[id].round.(rounds.KeyGenRound).WaitForKeygenOutput()
 		r, err := sign.NewRound(id, pkShares, signerIDs, secret, message)
 		if err != nil {
 			panic(err)
@@ -86,7 +88,7 @@ func FROSTest(N, T uint32) {
 		go signHandlers[id].HandleMessage(done)
 	}
 
-	_, err = signHandlers[party1].round.(round2.SignRound).WaitForSignOutput()
+	_, err = signHandlers[party1].round.(rounds.SignRound).WaitForSignOutput()
 	if err != nil {
 		panic(err)
 	}
@@ -94,7 +96,7 @@ func FROSTest(N, T uint32) {
 	failures := 0
 
 	for _, h := range signHandlers {
-		s, _ := h.round.(round2.SignRound).WaitForSignOutput()
+		s, _ := h.round.(rounds.SignRound).WaitForSignOutput()
 		if !s.Verify(message, pk) {
 			failures++
 		}
