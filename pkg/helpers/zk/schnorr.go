@@ -18,19 +18,18 @@ type Schnorr struct {
 
 var edwards25519GeneratorBytes = edwards25519.NewGeneratorPoint().Bytes()
 
-func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32, params string) *edwards25519.Scalar {
+func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32) *edwards25519.Scalar {
 	var challenge edwards25519.Scalar
+	// c = H(G || V || public || partyID)
 
-	// Compute challenge
-	// c = H(G || V || public || partyID || params)
-	h := sha512.New()
-	_, _ = h.Write(edwards25519GeneratorBytes)
-	_, _ = h.Write(commitmentPublic.Bytes())
-	_, _ = h.Write(public.Bytes())
-	_ = binary.Write(h, binary.BigEndian, partyID)
-	_, _ = h.Write([]byte(params))
+	hashBuffer := make([]byte, 0, 32+32+32+4)
+	hashBuffer = append(hashBuffer, edwards25519GeneratorBytes...)
+	hashBuffer = append(hashBuffer, commitmentPublic.Bytes()...)
+	hashBuffer = append(hashBuffer, public.Bytes()...)
+	binary.BigEndian.PutUint32(hashBuffer, partyID)
 
-	challenge.SetUniformBytes(h.Sum(nil))
+	digest := sha512.Sum512(hashBuffer)
+	challenge.SetUniformBytes(digest[:])
 
 	return &challenge
 }
@@ -49,7 +48,7 @@ func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32, params string
 	commitmentSecret := scalar.NewScalarRandom()      // = v
 	proof.commitment.ScalarBaseMult(commitmentSecret) // V = v•G
 
-	challenge := computeChallenge(&proof.commitment, &public, partyID, params)
+	challenge := computeChallenge(&proof.commitment, &public, partyID)
 
 	proof.response.Multiply(challenge, private)                // = c•private
 	proof.response.Subtract(commitmentSecret, &proof.response) // r = v - c•private
@@ -68,7 +67,7 @@ func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32, params 
 	}
 	// TODO: Check cofactor?
 
-	challenge := computeChallenge(&proof.commitment, public, partyID, params)
+	challenge := computeChallenge(&proof.commitment, public, partyID)
 
 	commitmentComputed.VarTimeDoubleScalarBaseMult(challenge, public, &proof.response) // = r•G + c•Public
 
