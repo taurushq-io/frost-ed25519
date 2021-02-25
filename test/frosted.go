@@ -8,21 +8,38 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 )
 
-func FROSTest(N, T uint32) {
+func setupUDP(IDs []uint32) map[uint32]*communication.UDP {
+	comms := map[uint32]*communication.UDP{}
+	addresses := map[uint32]string{}
+	for _, id := range IDs {
+		comms[id], _, addresses[id] = communication.NewUDPCommunicator(id)
+	}
+	for id1, c := range comms {
+		for id2, addr := range addresses {
+			if id1 != id2 {
+				c.AddPeer(id2, addr)
+			}
+		}
+		c.Start()
+	}
+	return comms
+}
 
+func FROSTest(N, T uint32) {
 	fmt.Printf("(n, t) = (%v, %v): ", N, T)
 
 	message := []byte("hello")
 
-	keygenIDs := make([]uint32, N)
-	signIDs := make([]uint32, T+1)
+	keygenIDs := make([]uint32, 0, N)
 	for id := uint32(0); id < N; id++ {
-		keygenIDs[id] = 2*id + 10
+		keygenIDs = append(keygenIDs, 2*id+10)
 	}
+
+	signIDs := make([]uint32, T+1)
 	copy(signIDs, keygenIDs)
 
+	//keygenComm := setupUDP(keygenIDs)
 	keygenComm := communication.NewChannelCommunicatorForAll(keygenIDs)
-
 	keygenHandlers := make(map[uint32]*pkg.KeyGenHandler, N)
 	for _, id := range keygenIDs {
 		keygenHandlers[id], _ = pkg.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
@@ -38,7 +55,8 @@ func FROSTest(N, T uint32) {
 		}
 	}
 
-	signComm := communication.NewChannelCommunicatorForAll(signIDs)
+	signComm := setupUDP(signIDs)
+	//signComm := communication.NewChannelCommunicatorForAll(signIDs)
 	signHandlers := make(map[uint32]*pkg.SignHandler, T+1)
 	for _, id := range signIDs {
 		_, publicShares, secretShare, err := keygenHandlers[id].WaitForKeygenOutput()
@@ -51,14 +69,12 @@ func FROSTest(N, T uint32) {
 	failures := 0
 
 	for _, h := range signHandlers {
-		s, err := h.WaitForSignOutput()
-		if err != nil {
-			fmt.Println(err)
-		}
+		s, _ := h.WaitForSignOutput()
 		if !s.Verify(message, groupKey) {
 			failures++
 		}
 	}
+
 	if failures != 0 {
 		fmt.Printf("%v signatures verifications failed\n", failures)
 	} else {

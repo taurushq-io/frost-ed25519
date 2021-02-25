@@ -26,10 +26,8 @@ func (c *Channel) Send(msg *messages.Message) error {
 				ch <- b
 			}
 		}
-	} else {
-		if msg.To != c.receiver {
-			c.channels[msg.To] <- b
-		}
+	} else if msg.To != c.receiver {
+		c.channels[msg.To] <- b
 	}
 	return nil
 }
