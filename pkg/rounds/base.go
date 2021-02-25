@@ -25,7 +25,7 @@ const (
 // as well handling the current execution state.
 type BaseRound struct {
 	// AllPartyIDs is a sorted list of uint32 which represent all parties (including this one)
-	// that are participating in the round
+	// that are participating in the Round
 	AllPartyIDs []uint32
 
 	// OtherPartyIDs is a set of IDs from all other parties. It is not ordered, and is mostly used to
@@ -82,14 +82,14 @@ func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []mess
 
 	baseRound.done = make(chan struct{})
 
-	// The first round will not have ProcessMessages function, so we give the sentinel to ProcessRound
+	// The first Round will not have ProcessMessages function, so we give the sentinel to ProcessRound
 	baseRound.state = ProcessRound
 
 	return &baseRound, nil
 }
 
-// PrepareNextRound checks whether the state of the round allows us to continue on to the next one.
-// If so, then we update the round number and state, and the caller can then return the next round.
+// PrepareNextRound checks whether the state of the Round allows us to continue on to the next one.
+// If so, then we update the Round number and state, and the caller can then return the next Round.
 func (b *BaseRound) PrepareNextRound() bool {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
@@ -114,7 +114,7 @@ func (b *BaseRound) Abort(culprit uint32, err error) {
 	}
 }
 
-// Finish should be called by a defer statement by the last round of the protocol.
+// Finish should be called by a defer statement by the last Round of the protocol.
 // If an abort happens, then we don't update.
 func (b *BaseRound) Finish() {
 	if b.state == Abort || b.state == Finished {
@@ -134,7 +134,7 @@ func (b *BaseRound) WaitForFinish() error {
 // -----
 // Round life cycle
 //
-// These methods should be called at the beginning of the appropriate round function,
+// These methods should be called at the beginning of the appropriate Round function,
 // accompanied by a defer to NextStep
 // -----
 
@@ -203,12 +203,12 @@ func (b *BaseRound) NextStep() {
 // Getters
 // ----
 
-// ID is the uint32 ID of the party executing this round.
+// ID is the uint32 ID of the party executing this Round.
 func (b *BaseRound) ID() uint32 {
 	return b.selfPartyID
 }
 
-// RoundNumber returns the current round number
+// RoundNumber returns the current Round number
 func (b *BaseRound) RoundNumber() int {
 	return b.roundNumber
 }
@@ -222,7 +222,7 @@ func (b *BaseRound) N() uint32 {
 // Misc
 // ----
 
-// ProcessMessages is implemented here as an empty function so that the BaseRound and subsequent initial round
+// ProcessMessages is implemented here as an empty function so that the BaseRound and subsequent initial Round
 // satisfies the Round interface, even when there are no messages to process.
 func (b *BaseRound) ProcessMessages() {
 }
@@ -237,7 +237,7 @@ func (b *BaseRound) StoreMessage(message *messages.Message) error {
 	return b.messages.Store(message)
 }
 
-// Messages fetches the message from the queue for the current round.
+// Messages fetches the message from the queue for the current Round.
 func (b *BaseRound) Messages() map[uint32]*messages.Message {
 	return b.messages.Messages()
 }

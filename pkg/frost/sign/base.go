@@ -44,7 +44,7 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, publicKeys eddsa.PublicKeyShares, partyIDs []uint32, secret *eddsa.PrivateKey, message []byte) (rounds.Round, error) {
+func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, publicKeys eddsa.PublicKeyShares, message []byte) (rounds.Round, error) {
 	var (
 		round round0
 		err   error
