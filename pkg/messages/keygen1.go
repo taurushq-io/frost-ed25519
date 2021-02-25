@@ -70,3 +70,17 @@ func (m *KeyGen1) UnmarshalBinary(data []byte) error {
 func (m *KeyGen1) Size() int {
 	return m.Proof.Size() + m.Commitments.Size()
 }
+
+func (m *KeyGen1) Equal(other interface{}) bool {
+	otherMsg, ok := other.(*KeyGen1)
+	if !ok {
+		return false
+	}
+	if !otherMsg.Proof.Equal(m.Proof) {
+		return false
+	}
+	if !otherMsg.Commitments.Equal(m.Commitments) {
+		return false
+	}
+	return true
+}

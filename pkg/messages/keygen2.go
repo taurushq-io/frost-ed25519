@@ -43,3 +43,14 @@ func (m *KeyGen2) UnmarshalBinary(data []byte) error {
 func (m *KeyGen2) Size() int {
 	return sizeKeygen2
 }
+
+func (m *KeyGen2) Equal(other interface{}) bool {
+	otherMsg, ok := other.(*KeyGen2)
+	if !ok {
+		return false
+	}
+	if otherMsg.Share.Equal(&m.Share) != 1 {
+		return false
+	}
+	return true
+}

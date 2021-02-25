@@ -13,20 +13,30 @@ var (
 )
 
 type Queue struct {
-	messages map[uint32]*Message
-	queue    []*Message
+	// queue holds all the messages that cannot be accepted for this current round.
+	queue []*Message
 
-	currentType   MessageType
-	startingType  MessageType
+	//
 	acceptedTypes []MessageType
 
-	otherPartyIDs map[uint32]bool
-	selfPartyID   uint32
+	// messages holds all messages received up to now for the current round
+	messages map[uint32]*Message
 
-	sync.Mutex
+	// otherPartyIDs is a set of parties without selfPartyID
+	otherPartyIDs map[uint32]bool
+	mtx           sync.Mutex
+
+	selfPartyID uint32
+	// currentType we are accepting
+	currentType MessageType
 }
 
+// NewMessageQueue creates a new Queue for the protocol.
+// acceptedTypes should by a slice of all messages that will be accepted, and in order.
+// This helps Queue figure out which message can be accepted and at the right moment.
 func NewMessageQueue(selfID uint32, otherPartyIDs map[uint32]bool, acceptedTypes []MessageType) (*Queue, error) {
+	// Make sure the types are sorted.
+	// We assume the types are in increasing order
 	for i := range acceptedTypes {
 		if i >= 1 {
 			if acceptedTypes[i] == acceptedTypes[i-1] {
@@ -45,7 +55,6 @@ func NewMessageQueue(selfID uint32, otherPartyIDs map[uint32]bool, acceptedTypes
 		messages:      make(map[uint32]*Message, N),
 		queue:         make([]*Message, 0, N*len(acceptedTypes)),
 		currentType:   acceptedTypes[0],
-		startingType:  acceptedTypes[0],
 		acceptedTypes: acceptedTypes,
 		otherPartyIDs: otherPartyIDs,
 		selfPartyID:   selfID,
@@ -53,9 +62,12 @@ func NewMessageQueue(selfID uint32, otherPartyIDs map[uint32]bool, acceptedTypes
 	return &m, nil
 }
 
+// Store performs checks to make sure we can accept the given message.
+// If the message is not for the current round, we store it in a queue.
+// If it is, it goes into a map, with one message per party.
 func (m *Queue) Store(message *Message) error {
-	m.Lock()
-	defer m.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	return m.store(message)
 }
 
@@ -95,9 +107,11 @@ func (m *Queue) store(message *Message) error {
 	return nil
 }
 
+// ReceivedAll indicates whether we have received a message from all parties for this round.
+// It also transfers any messages from the queue into the map
 func (m *Queue) ReceivedAll() bool {
-	m.Lock()
-	defer m.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	return m.receivedAll()
 }
@@ -117,9 +131,12 @@ func (m *Queue) receivedAll() bool {
 	return false
 }
 
+// NextRound should be called when a round is transitioning.
+// We clear the map of received messages, process the queue,
+// and update the current receiving type.
 func (m *Queue) NextRound() {
-	m.Lock()
-	defer m.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	if !m.receivedAll() {
 		return
@@ -150,9 +167,12 @@ func (m *Queue) isAcceptedType(msgType MessageType) bool {
 	return false
 }
 
+// Messages returns a map of messages for the current round.
+// There is one message per party which is why it is a map.
+// If not all messages have been received, we return nothing.
 func (m *Queue) Messages() map[uint32]*Message {
-	m.Lock()
-	defer m.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	if m.receivedAll() {
 		return m.messages
@@ -160,6 +180,7 @@ func (m *Queue) Messages() map[uint32]*Message {
 	return nil
 }
 
+// extractFromQueue goes over the queue and adds messages for the current round to the map.
 func (m *Queue) extractFromQueue() {
 	var msg *Message
 	b := m.queue[:0]

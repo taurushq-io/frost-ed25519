@@ -9,6 +9,8 @@ import (
 const sizeSign1 = 32 + 32
 
 type Sign1 struct {
+	// Di = [di] B
+	// Ei = [ei] B
 	Di, Ei edwards25519.Point
 }
 
@@ -56,4 +58,18 @@ func (m *Sign1) UnmarshalBinary(data []byte) error {
 
 func (m *Sign1) Size() int {
 	return sizeSign1
+}
+
+func (m *Sign1) Equal(other interface{}) bool {
+	otherMsg, ok := other.(*Sign1)
+	if !ok {
+		return false
+	}
+	if otherMsg.Di.Equal(&m.Di) != 1 {
+		return false
+	}
+	if otherMsg.Ei.Equal(&m.Ei) != 1 {
+		return false
+	}
+	return true
 }

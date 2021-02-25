@@ -85,3 +85,17 @@ func (s *Signature) BytesAppend(existing []byte) ([]byte, error) {
 func (s *Signature) Size() int {
 	return MessageLengthSig
 }
+
+func (s *Signature) Equal(other interface{}) bool {
+	otherSignature, ok := other.(*Signature)
+	if !ok {
+		return false
+	}
+	if otherSignature.R.Equal(&s.R) != 1 {
+		return false
+	}
+	if otherSignature.S.Equal(&s.S) != 1 {
+		return false
+	}
+	return true
+}

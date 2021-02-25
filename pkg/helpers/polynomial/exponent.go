@@ -214,3 +214,19 @@ func (p *Exponent) Copy() *Exponent {
 	}
 	return &q
 }
+
+func (p *Exponent) Equal(other interface{}) bool {
+	otherExponent, ok := other.(*Exponent)
+	if !ok {
+		return false
+	}
+	if len(p.coefficients) != len(otherExponent.coefficients) {
+		return false
+	}
+	for i := range p.coefficients {
+		if p.coefficients[i].Equal(otherExponent.coefficients[i]) != 1 {
+			return false
+		}
+	}
+	return true
+}

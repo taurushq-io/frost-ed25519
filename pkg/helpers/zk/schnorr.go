@@ -108,3 +108,17 @@ func (proof *Schnorr) BytesAppend(existing []byte) (data []byte, err error) {
 func (proof *Schnorr) Size() int {
 	return 64
 }
+
+func (proof *Schnorr) Equal(other interface{}) bool {
+	otherProof, ok := other.(*Schnorr)
+	if !ok {
+		return false
+	}
+	if otherProof.commitment.Equal(&proof.commitment) != 1 {
+		return false
+	}
+	if otherProof.response.Equal(&proof.response) != 1 {
+		return false
+	}
+	return true
+}

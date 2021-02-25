@@ -47,3 +47,14 @@ func (m *Sign2) UnmarshalBinary(data []byte) error {
 func (m *Sign2) Size() int {
 	return sizeSign2
 }
+
+func (m *Sign2) Equal(other interface{}) bool {
+	otherMsg, ok := other.(*Sign2)
+	if !ok {
+		return false
+	}
+	if otherMsg.Zi.Equal(&m.Zi) != 1 {
+		return false
+	}
+	return true
+}

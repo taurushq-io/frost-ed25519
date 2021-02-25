@@ -11,6 +11,7 @@ var (
 
 type MessageType uint8
 
+// MessageType s must be increasing.
 const (
 	MessageTypeKeyGen1 MessageType = iota
 	MessageTypeKeyGen2
@@ -18,6 +19,10 @@ const (
 	MessageTypeSign2
 )
 
+// headerSize is
+//  1 for MessageType
+//  4 for Sender
+//  4 for receiver
 const headerSize = 1 + 8
 
 type Message struct {
@@ -77,6 +82,7 @@ func (m *Message) Size() int {
 			return headerSize + m.Sign2.Size()
 		}
 	}
+	panic("message contains no data")
 	return -1
 }
 
@@ -115,4 +121,43 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 		return m.Sign2.UnmarshalBinary(data[headerSize:])
 	}
 	return errors.New("message type not recognized")
+}
+
+func (m *Message) Equal(other interface{}) bool {
+	otherMsg, ok := other.(*Message)
+	if !ok {
+		return false
+	}
+
+	if m.Type != otherMsg.Type {
+		return false
+	}
+
+	if m.From != otherMsg.From {
+		return false
+	}
+
+	if m.To != otherMsg.To {
+		return false
+	}
+
+	switch m.Type {
+	case MessageTypeKeyGen1:
+		if m.KeyGen1 != nil && otherMsg.KeyGen1 != nil {
+			return m.KeyGen1.Equal(otherMsg.KeyGen1)
+		}
+	case MessageTypeKeyGen2:
+		if m.KeyGen2 != nil && otherMsg.KeyGen2 != nil {
+			return m.KeyGen2.Equal(otherMsg.KeyGen2)
+		}
+	case MessageTypeSign1:
+		if m.Sign1 != nil && otherMsg.Sign1 != nil {
+			return m.Sign1.Equal(otherMsg.Sign1)
+		}
+	case MessageTypeSign2:
+		if m.Sign2 != nil && otherMsg.Sign2 != nil {
+			return m.Sign2.Equal(otherMsg.Sign2)
+		}
+	}
+	return false
 }
