@@ -14,9 +14,10 @@ func (round *round1) ProcessMessages() {
 	defer round.NextStep()
 
 	msgs := round.Messages()
+	ctx := make([]byte, 32)
 
 	for _, msg := range msgs {
-		if !msg.KeyGen1.Proof.Verify(msg.KeyGen1.Commitments.Evaluate(0), msg.From) {
+		if !msg.KeyGen1.Proof.Verify(msg.From, msg.KeyGen1.Commitments.Evaluate(0), ctx) {
 			round.Abort(msg.From, errors.New("ZK Schnorr failed"))
 			return
 		}

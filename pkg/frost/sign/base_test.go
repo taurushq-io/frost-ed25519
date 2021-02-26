@@ -100,7 +100,7 @@ func TestRound(t *testing.T) {
 	}
 }
 
-func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, eddsa.PublicKeyShares, map[uint32]*eddsa.PrivateKey) {
+func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, *eddsa.Shares, map[uint32]*eddsa.PrivateKey) {
 	allParties := make([]uint32, n)
 	for i := uint32(0); i < n; i++ {
 		allParties[i] = i + 1
@@ -111,13 +111,12 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, eddsa.Pub
 	shares := poly.EvaluateMultiple(allParties)
 
 	secrets := map[uint32]*eddsa.PrivateKey{}
-	parties := eddsa.PublicKeyShares{}
+	sharesPublic := map[uint32]*edwards25519.Point{}
 
 	for _, id := range allParties {
-		pk := new(edwards25519.Point).ScalarBaseMult(shares[id])
-		parties[id] = eddsa.NewPublicKeyFromPoint(pk)
-		secrets[id] = eddsa.NewPrivateKeyFromScalar(shares[id], parties[id])
+		sharesPublic[id] = new(edwards25519.Point).ScalarBaseMult(shares[id])
+		secrets[id] = eddsa.NewPrivateKeyFromScalar(shares[id])
 	}
 
-	return secret, allParties, parties, secrets
+	return secret, allParties, eddsa.NewShares(sharesPublic, t), secrets
 }

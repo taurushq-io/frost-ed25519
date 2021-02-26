@@ -33,7 +33,7 @@ type Round interface {
 
 type KeyGenRound interface {
 	Round
-	WaitForKeygenOutput() (groupKey *eddsa.PublicKey, groupKeyShares eddsa.PublicKeyShares, secretKeyShare *eddsa.PrivateKey, err error)
+	WaitForKeygenOutput() (groupKey *eddsa.PublicKey, publicShares *eddsa.Shares, secretKeyShare *eddsa.PrivateKey, err error)
 }
 
 type SignRound interface {

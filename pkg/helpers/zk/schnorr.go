@@ -11,67 +11,84 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
+// Schnorr is a Non-Interactive Zero-Knowledge proof of knowledge of
+// the discrete logarithm of public = [secret] B
+//
+// The public parameters are:
+//   partyID: prover's uint32 ID
+//   context: 32 byte context string,
+//   public:  [secret] B
+//
 type Schnorr struct {
-	commitment edwards25519.Point  // commitment = v•G for random v
-	response   edwards25519.Scalar // response = v - privateInput * challenge
+	// S = H( ID || CTX || public || M )
+	// R = k + secret • s
+	S, R edwards25519.Scalar
 }
 
-var edwards25519GeneratorBytes = edwards25519.NewGeneratorPoint().Bytes()
+// challenge computes the hash H(partyID, context, public, M), where
+//   partyID: prover's uint32 ID
+//   context: 32 byte context string,
+//   public:  [secret] B
+//   M:       [k] B
+func challenge(partyID uint32, context []byte, public, M *edwards25519.Point) *edwards25519.Scalar {
+	// S = H( ID || CTX || Public || M )
+	var S edwards25519.Scalar
 
-func computeChallenge(commitmentPublic, public *edwards25519.Point, partyID uint32) *edwards25519.Scalar {
-	var challenge edwards25519.Scalar
-	// c = H(G || V || public || partyID)
-
-	hashBuffer := make([]byte, 0, 32+32+32+4)
-	hashBuffer = append(hashBuffer, edwards25519GeneratorBytes...)
-	hashBuffer = append(hashBuffer, commitmentPublic.Bytes()...)
-	hashBuffer = append(hashBuffer, public.Bytes()...)
+	hashBuffer := make([]byte, 4, 4+32+32+32)
 	binary.BigEndian.PutUint32(hashBuffer, partyID)
+	hashBuffer = append(hashBuffer, context[:32]...)
+	hashBuffer = append(hashBuffer, public.Bytes()...)
+	hashBuffer = append(hashBuffer, M.Bytes()...)
 
 	digest := sha512.Sum512(hashBuffer)
-	challenge.SetUniformBytes(digest[:])
+	S.SetUniformBytes(digest[:])
 
-	return &challenge
+	return &S
 }
 
-// NewSchnorrProof is generates a ZK proof of knowledge of privateInput.
-// Follows https://tools.ietf.org/html/rfc8235#section-3
-func NewSchnorrProof(private *edwards25519.Scalar, partyID uint32) (*Schnorr, *edwards25519.Point) {
-	var public edwards25519.Point
-	var proof Schnorr
-
-	// public = x•G
-	public.ScalarBaseMult(private)
+// NewSchnorrProof computes a NIZK proof of knowledge of discrete.
+//    partyID is the uint32 ID of the prover
+//    public is the point [private]•B
+//    context is a 32 byte context (if it is set to [0 ... 0] then we may be susceptible to replay attacks)
+//    private is the discrete log of public
+//
+// We sample a random Scalar k, and obtain M = [k]•B
+// S := H(ID,CTX,Public,M)
+// R := k + private•S
+//
+// The proof returned is the tuple (S,R)
+func NewSchnorrProof(partyID uint32, public *edwards25519.Point, context []byte, private *edwards25519.Scalar) *Schnorr {
+	var (
+		proof Schnorr
+		M     edwards25519.Point
+	)
 
 	// Compute commitment for random nonce
-	// V = v•G
-	commitmentSecret := scalar.NewScalarRandom()      // = v
-	proof.commitment.ScalarBaseMult(commitmentSecret) // V = v•G
+	k := scalar.NewScalarRandom()
+	// M = [k] B
+	M.ScalarBaseMult(k)
 
-	challenge := computeChallenge(&proof.commitment, &public, partyID)
+	S := challenge(partyID, context, public, &M)
+	proof.S.Set(S)
+	proof.R.MultiplyAdd(private, S, k)
 
-	proof.response.Multiply(challenge, private)                // = c•private
-	proof.response.Subtract(commitmentSecret, &proof.response) // r = v - c•private
-
-	return &proof, &public
+	return &proof
 }
 
-// Schnorr.Verify verifies that the zero knowledge proof is valid.
-// Follows https://tools.ietf.org/html/rfc8235#section-3
-func (proof *Schnorr) Verify(public *edwards25519.Point, partyID uint32) bool {
-	var commitmentComputed edwards25519.Point
+// Verify verifies that the zero knowledge proof is valid.
+//    partyID is the uint32 ID of the prover
+//    public is the point [private]•B
+//    context is a 32 byte context (if it is set to [0 ... 0] then we may be susceptible to replay attacks)
+func (proof *Schnorr) Verify(partyID uint32, public *edwards25519.Point, context []byte) bool {
+	var MPrime, publicNeg edwards25519.Point
 
-	// Check that the public point is not the identity
-	if public.Equal(edwards25519.NewIdentityPoint()) == 1 {
-		return false
-	}
-	// TODO: Check cofactor?
+	publicNeg.Negate(public)
 
-	challenge := computeChallenge(&proof.commitment, public, partyID)
+	MPrime.VarTimeDoubleScalarBaseMult(&proof.S, &publicNeg, &proof.R)
 
-	commitmentComputed.VarTimeDoubleScalarBaseMult(challenge, public, &proof.response) // = r•G + c•Public
+	SPrime := challenge(partyID, context, public, &MPrime)
 
-	return commitmentComputed.Equal(&proof.commitment) == 1
+	return proof.S.Equal(SPrime) == 1
 }
 
 //
@@ -87,12 +104,14 @@ func (proof *Schnorr) UnmarshalBinary(data []byte) error {
 	if len(data) != 64 {
 		return errors.New("length is wrong")
 	}
+	//proof.S.SetBytesWithClamping(data[:32])
+	//proof.R.SetBytesWithClamping(data[32:])
 	var err error
-	_, err = proof.commitment.SetBytes(data[:32])
+	_, err = proof.S.SetCanonicalBytes(data[:32])
 	if err != nil {
 		return err
 	}
-	_, err = proof.response.SetCanonicalBytes(data[32:])
+	_, err = proof.R.SetCanonicalBytes(data[32:])
 	if err != nil {
 		return err
 	}
@@ -100,8 +119,8 @@ func (proof *Schnorr) UnmarshalBinary(data []byte) error {
 }
 
 func (proof *Schnorr) BytesAppend(existing []byte) (data []byte, err error) {
-	existing = append(existing, proof.commitment.Bytes()...)
-	existing = append(existing, proof.response.Bytes()...)
+	existing = append(existing, proof.S.Bytes()...)
+	existing = append(existing, proof.R.Bytes()...)
 	return existing, nil
 }
 
@@ -114,10 +133,10 @@ func (proof *Schnorr) Equal(other interface{}) bool {
 	if !ok {
 		return false
 	}
-	if otherProof.commitment.Equal(&proof.commitment) != 1 {
+	if otherProof.S.Equal(&proof.S) != 1 {
 		return false
 	}
-	if otherProof.response.Equal(&proof.response) != 1 {
+	if otherProof.R.Equal(&proof.R) != 1 {
 		return false
 	}
 	return true

@@ -4,6 +4,7 @@ import (
 	"crypto/sha512"
 	"encoding"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"filippo.io/edwards25519"
@@ -20,10 +21,18 @@ func (round *round1) ProcessMessages() {
 	}
 	defer round.NextStep()
 
+	identity := edwards25519.NewIdentityPoint()
+
 	for id, msg := range round.Messages() {
 		if id == round.ID() {
 			continue
 		}
+
+		if msg.Sign1.Di.Equal(identity) == 1 ||
+			msg.Sign1.Ei.Equal(identity) == 1 {
+			round.Abort(id, errors.New("commitment Ei or Di was the identity"))
+		}
+
 		party := round.Parties[id]
 		party.Di.Set(&msg.Sign1.Di)
 		party.Ei.Set(&msg.Sign1.Ei)

@@ -39,11 +39,12 @@ func (round *round2) ProcessRound() {
 	defer round.Finish()
 
 	for id := range round.OtherPartyIDs {
-		round.GroupKeyShares[id] = eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Evaluate(id))
+		round.GroupKeyShares[id] = round.CommitmentsSum.Evaluate(id)
 	}
-	round.GroupKeyShares[round.ID()] = eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Evaluate(round.ID()))
+	round.GroupKeyShares[round.ID()] = round.CommitmentsSum.Evaluate(round.ID())
+
 	round.GroupKey = eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Evaluate(0))
-	round.SecretKeyShare = eddsa.NewPrivateKeyFromScalar(&round.Secret, round.GroupKeyShares[round.ID()])
+	round.SecretKeyShare = eddsa.NewPrivateKeyFromScalar(&round.Secret)
 }
 
 func (round *round2) GenerateMessages() []*messages.Message {

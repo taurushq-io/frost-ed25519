@@ -31,10 +31,12 @@ func (round *round0) GenerateMessages() []*messages.Message {
 	}
 	defer round.NextStep()
 
+	ctx := make([]byte, 32)
 	secret := round.Polynomial.Evaluate(0)
+	public := round.CommitmentsSum.Evaluate(0)
 
 	// Generate proof of knowledge of a_i,0 = f(0)
-	proof, _ := zk.NewSchnorrProof(secret, round.ID())
+	proof := zk.NewSchnorrProof(round.ID(), public, ctx, secret)
 
 	msg := messages.NewKeyGen1(round.ID(), proof, round.CommitmentsSum)
 

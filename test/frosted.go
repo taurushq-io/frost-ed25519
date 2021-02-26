@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/taurusgroup/frost-ed25519/pkg"
+	frost "github.com/taurusgroup/frost-ed25519/pkg"
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 )
 
@@ -40,9 +40,9 @@ func FROSTest(N, T uint32) {
 
 	//keygenComm := setupUDP(keygenIDs)
 	keygenComm := communication.NewChannelCommunicatorForAll(keygenIDs)
-	keygenHandlers := make(map[uint32]*pkg.KeyGenHandler, N)
+	keygenHandlers := make(map[uint32]*frost.KeyGenHandler, N)
 	for _, id := range keygenIDs {
-		keygenHandlers[id], _ = pkg.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
+		keygenHandlers[id], _ = frost.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
 	}
 
 	party1 := keygenIDs[0]
@@ -57,13 +57,13 @@ func FROSTest(N, T uint32) {
 
 	signComm := setupUDP(signIDs)
 	//signComm := communication.NewChannelCommunicatorForAll(signIDs)
-	signHandlers := make(map[uint32]*pkg.SignHandler, T+1)
+	signHandlers := make(map[uint32]*frost.SignHandler, T+1)
 	for _, id := range signIDs {
 		_, publicShares, secretShare, err := keygenHandlers[id].WaitForKeygenOutput()
 		if err != nil {
 			panic(err)
 		}
-		signHandlers[id], _ = pkg.NewSignHandler(signComm[id], id, signIDs, secretShare, publicShares, message)
+		signHandlers[id], _ = frost.NewSignHandler(signComm[id], id, signIDs, secretShare, publicShares, message)
 	}
 
 	failures := 0

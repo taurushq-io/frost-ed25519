@@ -1,7 +1,7 @@
 package zk
 
 import (
-	"math/rand"
+	"fmt"
 	"testing"
 
 	"filippo.io/edwards25519"
@@ -10,21 +10,43 @@ import (
 )
 
 func TestSchnorrProof(t *testing.T) {
-	partyID := rand.Uint32()
-
+	partyID := uint32(42)
 	private := scalar.NewScalarRandom()
-	proof, public := NewSchnorrProof(private, partyID)
+	public := new(edwards25519.Point).ScalarBaseMult(private)
+	ctx := make([]byte, 32)
+	proof := NewSchnorrProof(partyID, public, ctx, private)
 	publicComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(private)
 	require.True(t, publicComputed.Equal(public) == 1)
-	require.True(t, proof.Verify(public, partyID))
+	require.True(t, proof.Verify(partyID, public, ctx))
 }
 
 func TestSchnorrProofFail(t *testing.T) {
-	partyID := rand.Uint32()
+	partyID := uint32(42)
 
-	private := edwards25519.NewScalar()
-	proof, public := NewSchnorrProof(private, partyID)
-	publicComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(private)
-	require.True(t, publicComputed.Equal(public) == 1)
-	require.False(t, proof.Verify(public, partyID))
+	secret := edwards25519.NewScalar()
+	public := new(edwards25519.Point).ScalarBaseMult(secret)
+
+	ctx := make([]byte, 32)
+	proof := NewSchnorrProof(partyID, public, ctx, secret)
+	data, _ := proof.MarshalBinary()
+	var proof2 Schnorr
+	proof2.UnmarshalBinary(data)
+
+	require.False(t, proof2.Verify(partyID, public, ctx))
+}
+
+func TestSchnorrCofactor(t *testing.T) {
+	partyID := uint32(42)
+
+	secret := edwards25519.NewScalar()
+	public := new(edwards25519.Point).ScalarBaseMult(secret)
+
+	ctx := make([]byte, 32)
+	proof := NewSchnorrProof(partyID, public, ctx, secret)
+	data, _ := proof.MarshalBinary()
+	var proof2 Schnorr
+	proof2.UnmarshalBinary(data)
+	fmt.Println(1, proof.S.Bytes(), proof.R.Bytes())
+	fmt.Println(2, proof2.S.Bytes(), proof2.R.Bytes())
+	require.False(t, proof2.Verify(partyID, public, ctx))
 }

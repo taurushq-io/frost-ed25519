@@ -15,7 +15,6 @@ type (
 	PublicKey struct {
 		pk edwards25519.Point
 	}
-	PublicKeyShares map[uint32]*PublicKey
 )
 
 func NewKeyPair(key ed25519.PrivateKey) (*PrivateKey, *PublicKey) {
@@ -32,14 +31,13 @@ func NewKeyPair(key ed25519.PrivateKey) (*PrivateKey, *PublicKey) {
 	return &sk, &pk
 }
 
-func NewPrivateKeyFromScalar(secret *edwards25519.Scalar, public *PublicKey) *PrivateKey {
-	var sk PrivateKey
-	if public == nil {
-		var pk PublicKey
-		pk.pk.ScalarBaseMult(secret)
-		public = &pk
-	}
-	sk.pk = public
+func NewPrivateKeyFromScalar(secret *edwards25519.Scalar) *PrivateKey {
+	var (
+		sk PrivateKey
+		pk PublicKey
+	)
+	pk.pk.ScalarBaseMult(secret)
+	sk.pk = &pk
 	sk.sk.Set(secret)
 	return &sk
 }

@@ -1,11 +1,13 @@
 package keygen
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
@@ -68,35 +70,89 @@ func TestKeygen(t *testing.T) {
 	for id := range Rounds {
 		doRound(msgsOut2, Rounds[id])
 	}
-	var tmp, pk edwards25519.Point
-	var sk edwards25519.Scalar
 
-	allPartyIDs := make([]uint32, 0, N)
-	for id := uint32(1); id <= N; id++ {
-		allPartyIDs = append(allPartyIDs, id)
+	id1 := partyIDs[0]
+	groupKey1, publicShares1, _, _ := Rounds[id1].WaitForKeygenOutput()
+	secrets := map[uint32]*eddsa.PrivateKey{}
+	for _, id2 := range partyIDs {
+		groupKey2, publicShares2, secret2, err := Rounds[id2].WaitForKeygenOutput()
+		secrets[id2] = secret2
+		assert.NoError(t, err, "output failed")
+		assert.NoError(t, CompareOutput(groupKey1, groupKey2, publicShares1, publicShares2), "comparison failed")
+	}
+	assert.NoError(t, ValidateSecrets(secrets, groupKey1, publicShares1))
+}
+
+func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicShares2 *eddsa.Shares) error {
+	partyIDs1 := publicShares1.PartyIDs()
+	partyIDs2 := publicShares2.PartyIDs()
+	if len(partyIDs1) != len(partyIDs2) {
+		return errors.New("partyIDs are not the same length")
 	}
 
-	sk.Set(edwards25519.NewScalar())
-	pk.Set(edwards25519.NewIdentityPoint())
-
-	groupKey, publicShares, _, err := Rounds[1].WaitForKeygenOutput()
-	assert.NoError(t, err, "failed to get output")
-	for id, round := range Rounds {
-		groupKeyCmp, publicSharesCmp, secretCmp, err := round.WaitForKeygenOutput()
-		assert.NoError(t, err, "failed to get output")
-
-		for id2, share := range publicSharesCmp {
-			assert.True(t, publicShares[id2].Equal(share))
+	for i, id1 := range partyIDs1 {
+		if id1 != partyIDs2[i] {
+			return errors.New("partyIDs are not the same")
 		}
-		assert.Equal(t, 1, tmp.ScalarBaseMult(secretCmp.Scalar()).Equal(publicShares[id].Point()))
-		assert.True(t, groupKeyCmp.Equal(groupKey))
 
-		lagrange := polynomial.LagrangeCoefficient(id, allPartyIDs)
-		lagrange.Multiply(lagrange, secretCmp.Scalar())
-		sk.Add(&sk, lagrange)
-		tmp.ScalarBaseMult(lagrange)
-		pk.Add(&pk, &tmp)
+		public1, err := publicShares1.Share(partyIDs1[i])
+		if err != nil {
+			return err
+		}
+		public2, err := publicShares2.Share(partyIDs2[i])
+		if err != nil {
+			return err
+		}
+
+		if !public1.Equal(public2) {
+			return errors.New("different public keys")
+		}
 	}
 
-	assert.Equal(t, 1, groupKey.Point().Equal(&pk))
+	groupKeyComp1, err := publicShares1.GroupKey(nil)
+	if err != nil {
+		return err
+	}
+	groupKeyComp2, err := publicShares2.GroupKey(nil)
+	if err != nil {
+		return err
+	}
+
+	if !groupKey1.Equal(groupKeyComp1) {
+		return errors.New("groupKey1 is not computed the same way")
+	}
+	if !groupKey2.Equal(groupKeyComp2) {
+		return errors.New("groupKey2 is not computed the same way")
+	}
+	return nil
+}
+
+func ValidateSecrets(secrets map[uint32]*eddsa.PrivateKey, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
+	fullSecret := edwards25519.NewScalar()
+	allIDs := shares.PartyIDs()
+
+	for id, secret := range secrets {
+		pk1 := secret.PublicKey()
+		pk2, err := shares.Share(id)
+		if err != nil {
+			return err
+		}
+		if !pk1.Equal(pk2) {
+			return errors.New("pk not the same")
+		}
+
+		lagrange := polynomial.LagrangeCoefficient(id, allIDs)
+		fullSecret.MultiplyAdd(lagrange, secret.Scalar(), fullSecret)
+	}
+
+	fullSk := eddsa.NewPrivateKeyFromScalar(fullSecret)
+	fullPk := eddsa.NewPublicKeyFromPoint(new(edwards25519.Point).ScalarBaseMult(fullSecret))
+	if !fullSk.PublicKey().Equal(fullPk) {
+		return errors.New("computed groupKey does not match")
+	}
+	if !groupKey.Equal(fullPk) {
+		return errors.New("computed groupKey does not match")
+	}
+
+	return nil
 }

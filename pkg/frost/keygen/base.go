@@ -36,7 +36,7 @@ type (
 
 		// GroupKeyShares are the Shamir shares of the public key,
 		// "in-the-exponent".
-		GroupKeyShares eddsa.PublicKeyShares
+		GroupKeyShares map[uint32]*edwards25519.Point
 
 		// SecretKeyShare is the party's Shamir share of the secret of the GroupKey.
 		SecretKeyShare *eddsa.PrivateKey
@@ -61,13 +61,13 @@ func NewRound(selfID uint32, threshold uint32, partyIDs []uint32) (rounds.KeyGen
 		BaseRound:         baseRound,
 		Threshold:         threshold,
 		CommitmentsOthers: make(map[uint32]*polynomial.Exponent, N),
-		GroupKeyShares:    make(eddsa.PublicKeyShares, N),
+		GroupKeyShares:    make(map[uint32]*edwards25519.Point, N),
 	}
 
 	return &r, nil
 }
 
-func (round *round0) WaitForKeygenOutput() (*eddsa.PublicKey, eddsa.PublicKeyShares, *eddsa.PrivateKey, error) {
+func (round *round0) WaitForKeygenOutput() (*eddsa.PublicKey, *eddsa.Shares, *eddsa.PrivateKey, error) {
 	err := round.WaitForFinish()
 	round.Reset()
 	if err != nil {
@@ -75,7 +75,7 @@ func (round *round0) WaitForKeygenOutput() (*eddsa.PublicKey, eddsa.PublicKeySha
 	}
 
 	groupKey := *round.GroupKey
-	groupKeyShares := round.GroupKeyShares
+	groupKeyShares := eddsa.NewShares(round.GroupKeyShares, round.Threshold)
 	secretKeyShare := *round.SecretKeyShare
 
 	return &groupKey, groupKeyShares, &secretKeyShare, nil

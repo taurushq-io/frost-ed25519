@@ -44,7 +44,7 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, publicKeys eddsa.PublicKeyShares, message []byte) (rounds.Round, error) {
+func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, error) {
 	var (
 		round round0
 		err   error
@@ -57,15 +57,12 @@ func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, public
 		if id == 0 {
 			return nil, errors.New("id 0 is not valid")
 		}
-
-		pkShare, ok := publicKeys[id]
-		if !ok {
-			return nil, fmt.Errorf("missing public key from %d", id)
+		publicKeyNormalized, err := shares.ShareNormalized(id, partyIDs)
+		if err != nil {
+			return nil, err
 		}
 
-		lagrange := polynomial.LagrangeCoefficient(id, partyIDs)
-
-		party.Public.ScalarMult(lagrange, pkShare.Point())
+		party.Public.Set(publicKeyNormalized.Point())
 
 		round.GroupKey.Add(&round.GroupKey, &party.Public)
 
