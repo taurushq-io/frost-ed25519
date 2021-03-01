@@ -13,8 +13,11 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 )
 
-var ErrNotEnoughParties = errors.New("partyIDs does not contain a threshold number of parties")
-var ErrTooManyParties = errors.New("partyIDs includes too many parties")
+var (
+	ErrNotEnoughParties = errors.New("partyIDs does not contain a threshold number of parties")
+	ErrTooManyParties   = errors.New("partyIDs includes too many parties")
+	ErrPartySetWrong    = errors.New("given partyIDs is not a subset of the original partyIDs")
+)
 
 // Shares holds the public keys generated during a key generation protocol.
 // It should
@@ -50,6 +53,9 @@ func (s *Shares) GroupKey(partyIDs []uint32) (*PublicKey, error) {
 	} else if len(partyIDs) > len(s.allPartyIDs) {
 		return nil, ErrTooManyParties
 	}
+	if !s.partySliceIsSubset(partyIDs) {
+		return nil, ErrPartySetWrong
+	}
 
 	var tmp edwards25519.Point
 	groupKey := edwards25519.NewIdentityPoint()
@@ -73,6 +79,9 @@ func (s *Shares) ShareNormalized(index uint32, partyIDs []uint32) (*PublicKey, e
 	if len(partyIDs) < int(s.threshold)+1 {
 		return nil, ErrNotEnoughParties
 	}
+	if !s.partySliceIsSubset(partyIDs) {
+		return nil, ErrPartySetWrong
+	}
 	pk, err := s.Share(index)
 	if err != nil {
 		return nil, err
@@ -90,7 +99,6 @@ func (s *Shares) Threshold() uint32 {
 	return s.threshold
 }
 
-/*
 func (s *Shares) partySliceIsSubset(partyIDs []uint32) bool {
 	for _, id := range partyIDs {
 		if !s.partyIDsSet[id] {
@@ -99,7 +107,6 @@ func (s *Shares) partySliceIsSubset(partyIDs []uint32) bool {
 	}
 	return true
 }
-*/
 
 func (s *Shares) MarshalBinary() ([]byte, error) {
 	offset := 0

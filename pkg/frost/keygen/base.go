@@ -2,6 +2,7 @@ package keygen
 
 import (
 	"fmt"
+	"time"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
@@ -49,11 +50,15 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, threshold uint32, partyIDs []uint32) (rounds.KeyGenRound, error) {
+func NewRound(selfID uint32, threshold uint32, partyIDs []uint32, messageTimeout, globalTimeout time.Duration) (rounds.KeyGenRound, error) {
 	accepted := []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
-	baseRound, err := rounds.NewBaseRound(selfID, partyIDs, accepted)
+	baseRound, err := rounds.NewBaseRound(selfID, partyIDs, accepted, messageTimeout, globalTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
+	}
+
+	if int(threshold) >= len(partyIDs) {
+		return nil, fmt.Errorf("threshold %d is invalid with number of signers %d", threshold, len(partyIDs))
 	}
 
 	N := len(partyIDs)

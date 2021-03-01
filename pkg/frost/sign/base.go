@@ -3,6 +3,7 @@ package sign
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
@@ -44,7 +45,7 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, error) {
+func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte, messageTimeout, globalTimeout time.Duration) (rounds.Round, error) {
 	var (
 		round round0
 		err   error
@@ -73,7 +74,7 @@ func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, shares
 	}
 
 	accepted := []messages.MessageType{messages.MessageTypeSign1, messages.MessageTypeSign2}
-	round.BaseRound, err = rounds.NewBaseRound(selfID, partyIDs, accepted)
+	round.BaseRound, err = rounds.NewBaseRound(selfID, partyIDs, accepted, messageTimeout, globalTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
 	}

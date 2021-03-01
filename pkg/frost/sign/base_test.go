@@ -32,7 +32,7 @@ func TestRound(t *testing.T) {
 	message := []byte("hello")
 
 	for _, id := range partyIDs {
-		r0, _ := NewRound(id, partyIDs, secrets[id], publicKeys, message)
+		r0, _ := NewRound(id, partyIDs, secrets[id], publicKeys, message, 0, 0)
 		Rounds[id] = r0.(rounds.SignRound)
 	}
 

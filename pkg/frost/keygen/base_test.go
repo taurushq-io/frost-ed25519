@@ -28,7 +28,7 @@ func TestKeygen(t *testing.T) {
 	msgsOut2 := make([][]byte, 0, N*(N-1)/2)
 
 	for _, id := range partyIDs {
-		r0, _ := NewRound(id, T, partyIDs)
+		r0, _ := NewRound(id, T, partyIDs, 0, 0)
 		Rounds[id] = r0.(*round0)
 	}
 
