@@ -90,36 +90,6 @@ func (c *MonkeyChannel) handleByteChan() {
 	}
 }
 
-func NewMonkeyChannelCommunicatorForAll(partyIDs []uint32, chosentype messages.MessageType) map[uint32]*MonkeyChannel {
-	var wg sync.WaitGroup
-
-	n := len(partyIDs)
-	wg.Add(n)
-	done := make(chan struct{})
-
-	byteChannels := make(map[uint32]chan []byte, n)
-	for _, id := range partyIDs {
-		byteChannels[id] = make(chan []byte, n)
-	}
-	go waitForFinish(&wg, done, byteChannels)
-
-	cs := make(map[uint32]*MonkeyChannel, n)
-	for _, id := range partyIDs {
-		incoming := make(chan *messages.Message, n)
-		c := &MonkeyChannel{
-			channels:   byteChannels,
-			incoming:   incoming,
-			receiver:   id,
-			wg:         &wg,
-			done:       done,
-			chosenType: chosentype,
-		}
-		go c.handleByteChan()
-		cs[id] = c
-	}
-	return cs
-}
-
 var order8 []*edwards25519.Point
 
 func init() {

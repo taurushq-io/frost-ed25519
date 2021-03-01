@@ -229,3 +229,9 @@ func (p *Exponent) Equal(other interface{}) bool {
 	}
 	return true
 }
+
+func (p *Exponent) AddConstant(c *edwards25519.Point) *Exponent {
+	q := p.Copy()
+	q.coefficients[0].Add(q.coefficients[0], c)
+	return q
+}

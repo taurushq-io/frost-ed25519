@@ -68,32 +68,3 @@ func (c *Channel) handleByteChan() {
 		}
 	}
 }
-
-func NewChannelCommunicatorForAll(partyIDs []uint32) map[uint32]*Channel {
-	var wg sync.WaitGroup
-
-	n := len(partyIDs)
-	wg.Add(n)
-	done := make(chan struct{})
-
-	byteChannels := make(map[uint32]chan []byte, n)
-	for _, id := range partyIDs {
-		byteChannels[id] = make(chan []byte, n)
-	}
-	go waitForFinish(&wg, done, byteChannels)
-
-	cs := make(map[uint32]*Channel, n)
-	for _, id := range partyIDs {
-		incoming := make(chan *messages.Message, n)
-		c := &Channel{
-			channels: byteChannels,
-			incoming: incoming,
-			receiver: id,
-			wg:       &wg,
-			done:     done,
-		}
-		go c.handleByteChan()
-		cs[id] = c
-	}
-	return cs
-}

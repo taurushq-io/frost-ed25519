@@ -125,18 +125,21 @@ func (b *BaseRound) PrepareNextRound() bool {
 func (b *BaseRound) Abort(culprit uint32, err error) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
+	if b.state == Abort || b.state == Finished {
+		return
+	}
 	b.state = Abort
 	if b.finalError == nil {
 		b.finalError = fmt.Errorf("abort: party %d: %w", culprit, err)
 		close(b.done)
-	} else {
-		b.finalError = fmt.Errorf("%v, abort: party %d: %w", b.finalError, culprit, err)
 	}
 }
 
 // Finish should be called by a defer statement by the last Round of the protocol.
 // If an abort happens, then we don't update.
 func (b *BaseRound) Finish() {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 	if b.state == Abort || b.state == Finished {
 		return
 	}
