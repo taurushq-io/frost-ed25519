@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
@@ -18,6 +19,11 @@ const (
 
 	Finished
 	Abort
+)
+
+var (
+	ErrMessageTimeout = errors.New("message timeout")
+	ErrGlobalTimeout  = errors.New("global timeout")
 )
 
 // BaseRound can be seen as the basic state that both protocols should have.
@@ -41,9 +47,12 @@ type BaseRound struct {
 	state       RoundState
 
 	isProcessingStep bool
+
+	globalTimeout, messageTimeout time.Duration
+	globalTimer, messageTimer     *time.Timer
 }
 
-func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []messages.MessageType) (*BaseRound, error) {
+func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []messages.MessageType, messageTimeout, globalTimeout time.Duration) (*BaseRound, error) {
 	var baseRound BaseRound
 	if selfPartyID == 0 {
 		return nil, errors.New("selfPartyID cannot be 0")
@@ -84,6 +93,17 @@ func NewBaseRound(selfPartyID uint32, allPartyIDs []uint32, acceptedTypes []mess
 
 	// The first Round will not have ProcessMessages function, so we give the sentinel to ProcessRound
 	baseRound.state = ProcessRound
+
+	baseRound.globalTimeout = globalTimeout
+	baseRound.messageTimeout = messageTimeout
+	if messageTimeout > 0 {
+		f := func() { baseRound.Abort(0, ErrMessageTimeout) }
+		baseRound.messageTimer = time.AfterFunc(messageTimeout, f)
+	}
+	if globalTimeout > 0 {
+		f := func() { baseRound.Abort(0, ErrGlobalTimeout) }
+		baseRound.globalTimer = time.AfterFunc(globalTimeout, f)
+	}
 
 	return &baseRound, nil
 }
@@ -234,6 +254,9 @@ func (b *BaseRound) ProcessMessages() {
 // StoreMessage takes in an unmarshalled wire message and attempts to store it in the messages.Queue.
 // It returns an error depending on whether the messages.Queue was able to store it.
 func (b *BaseRound) StoreMessage(message *messages.Message) error {
+	if b.messageTimer != nil {
+		b.messageTimer.Reset(b.messageTimeout)
+	}
 	return b.messages.Store(message)
 }
 

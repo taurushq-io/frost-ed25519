@@ -2,6 +2,7 @@ package frost
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
@@ -17,6 +18,8 @@ type handler struct {
 	comm     communication.Communicator
 	finished chan struct{}
 }
+
+var timeout = 2 * time.Second
 
 type (
 	KeyGenHandler struct {
@@ -78,7 +81,7 @@ func (h *handler) ProcessAll() {
 }
 
 func NewKeyGenHandler(comm communication.Communicator, ID uint32, IDs []uint32, T uint32) (*KeyGenHandler, error) {
-	r, err := keygen.NewRound(ID, T, IDs)
+	r, err := keygen.NewRound(ID, T, IDs, timeout, time.Duration(len(IDs))*timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +95,7 @@ func NewKeyGenHandler(comm communication.Communicator, ID uint32, IDs []uint32, 
 }
 
 func NewSignHandler(comm communication.Communicator, ID uint32, IDs []uint32, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
-	r, err := sign.NewRound(ID, IDs, secret, publicShares, message)
+	r, err := sign.NewRound(ID, IDs, secret, publicShares, message, timeout, time.Duration(len(IDs))*timeout)
 	if err != nil {
 		return nil, err
 	}
