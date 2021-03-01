@@ -85,7 +85,7 @@ func FROSTest(N, T uint32) error {
 
 	if failures != 0 {
 		return fmt.Errorf("%v signatures verifications failed\n", failures)
-	} 
+	}
 	return nil
 }
 
