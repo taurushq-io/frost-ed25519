@@ -46,7 +46,10 @@ func (s *Shares) GroupKey(partyIDs []uint32) (*PublicKey, error) {
 		partyIDs = s.allPartyIDs[:s.threshold+1]
 	} else if len(partyIDs) < int(s.threshold)+1 {
 		return nil, ErrNotEnoughParties
+	} else if len(partyIDs) > len(allPartyIDs) {
+		return nil, ErrTooManyParties
 	}
+
 	var tmp edwards25519.Point
 	groupKey := edwards25519.NewIdentityPoint()
 	for _, id := range partyIDs {
