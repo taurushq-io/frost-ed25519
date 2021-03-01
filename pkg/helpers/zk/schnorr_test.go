@@ -52,7 +52,6 @@ func init() {
 		"26E8958FC2B227B045C3F489F2EF98F0D5DFAC05D3C63339B13802886D53FC05",
 		"26E8958FC2B227B045C3F489F2EF98F0D5DFAC05D3C63339B13802886D53FC85",
 	}
-	order8 = make([]*edwards25519.Point, 0, 8)
 	for _, h := range order8Hex {
 		b, _ := hex.DecodeString(h)
 		p, _ := new(edwards25519.Point).SetBytes(b)
