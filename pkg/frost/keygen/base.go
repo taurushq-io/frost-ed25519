@@ -57,6 +57,14 @@ func NewRound(selfID uint32, threshold uint32, partyIDs []uint32) (rounds.KeyGen
 	}
 
 	N := len(partyIDs)
+
+	if int(threshold) == 0 {
+		return nil, fmt.Errorf("threshold must be at least 1, or a minimum of T+1=2 signers")
+	}
+	if int(threshold) > N-1 {
+		return nil, fmt.Errorf("threshold must be at most N-1, or a maximum of T+1=N signers")
+	}
+
 	r := round0{
 		BaseRound:         baseRound,
 		Threshold:         threshold,
