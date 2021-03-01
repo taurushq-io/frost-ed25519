@@ -1,11 +1,11 @@
 package eddsa
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 const MessageLengthSig = 32 + 32
@@ -20,29 +20,55 @@ type Signature struct {
 func NewSignature(message []byte, secretKey *PrivateKey, publicKey *PublicKey) *Signature {
 	var sig Signature
 
-	r := scalar.NewScalarRandom()
+	var (
+		r      edwards25519.Scalar
+		rBytes [64]byte
+	)
+
+	if _, err := rand.Reader.Read(rBytes[:]); err != nil {
+		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
+	}
+	r.SetUniformBytes(rBytes[:])
 
 	// R = [r] • B
-	sig.R.ScalarBaseMult(r)
+	sig.R.ScalarBaseMult(&r)
 
 	// C = H(R, A, M)
-	c := ComputeChallenge(&sig.R, publicKey.Point(), message)
+	c := ComputeChallenge(&sig.R, publicKey, message)
+
+	// S = sk * c + r
 	sig.S.Multiply(secretKey.Scalar(), c)
-	sig.S.Add(&sig.S, r)
+	sig.S.Add(&sig.S, &r)
 
 	return &sig
 }
 
+func Verify(c, s *edwards25519.Scalar, public *PublicKey, R *edwards25519.Point) bool {
+	var publicNeg, RPrime edwards25519.Point
+	publicNeg.Negate(public.Point())
+
+	// RPrime = [8](R - (-[c]A + [s]B))
+	RPrime.VarTimeDoubleScalarBaseMult(c, &publicNeg, s)
+	RPrime.Negate(&RPrime)
+	RPrime.Add(&RPrime, R)
+	RPrime.MultByCofactor(&RPrime)
+	return RPrime.Equal(edwards25519.NewIdentityPoint()) == 1
+}
+
 // Verify checks that the signature is valid
 func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
-	var RPrime edwards25519.Point
+	k := ComputeChallenge(&s.R, publicKey, message)
 
-	k := ComputeChallenge(&s.R, publicKey.Point(), message)
-	k.Negate(k)
-	// RPrime = [-l]A + [s]B
-	RPrime.VarTimeDoubleScalarBaseMult(k, publicKey.Point(), &s.S)
-
-	return RPrime.Equal(&s.R) == 1
+	return Verify(k, &s.S, publicKey, &s.R)
+	//A.Negate(&A)
+	//
+	//// RPrime = [8](R - (-[l]A + [s]B))
+	//RPrime.VarTimeDoubleScalarBaseMult(k, &A, &s.S)
+	//RPrime.Negate(&RPrime)
+	//RPrime.Add(&RPrime, &s.R)
+	//RPrime.MultByCofactor(&RPrime)
+	//
+	//return RPrime.Equal(edwards25519.NewIdentityPoint()) == 1
 }
 
 // ToEdDSA returns a signature that can be validated by ed25519.Verify.

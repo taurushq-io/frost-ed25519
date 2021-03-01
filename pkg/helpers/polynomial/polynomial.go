@@ -78,5 +78,4 @@ func (p *Polynomial) Reset() {
 	for i := range p.coefficients {
 		p.coefficients[i].Set(zero)
 	}
-	p.coefficients = []edwards25519.Scalar{}
 }

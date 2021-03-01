@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
@@ -18,12 +18,7 @@ type UDP struct {
 	id       uint32
 }
 
-func NewUDPCommunicator(ID uint32) (c *UDP, id uint32, ip string) {
-	if ID == 0 {
-		ID = rand.Uint32()
-	}
-	id = ID
-
+func NewUDPCommunicator(id uint32, laddr *net.UDPAddr) (c *UDP, ip string) {
 	l, err := net.ListenUDP("udp4", nil)
 	if err != nil {
 		panic(err)
@@ -94,10 +89,22 @@ func (c *UDP) Send(msg *messages.Message) error {
 }
 
 func (c *UDP) Incoming() <-chan *messages.Message {
+	if c.conn == nil {
+		return nil
+	}
 	return c.incoming
 }
 
 func (c *UDP) Done() {
+	if c.conn == nil {
+		return
+	}
 	close(c.incoming)
 	c.conn.Close()
+	c.conn = nil
+}
+
+func (c *UDP) Timeout() time.Duration {
+	return 0
+	return 1500 * time.Millisecond
 }

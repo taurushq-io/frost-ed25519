@@ -10,7 +10,7 @@ func NewUDPCommunicatorMap(IDs []uint32) map[uint32]Communicator {
 	comms := map[uint32]Communicator{}
 	addresses := map[uint32]string{}
 	for _, id := range IDs {
-		comms[id], _, addresses[id] = NewUDPCommunicator(id)
+		comms[id], addresses[id] = NewUDPCommunicator(id, nil)
 	}
 	for id1, c := range comms {
 		for id2, addr := range addresses {

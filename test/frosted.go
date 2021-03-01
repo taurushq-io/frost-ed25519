@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"time"
@@ -51,7 +52,10 @@ func DoSign(T uint32, signIDs []uint32, shares *eddsa.Shares, secrets map[uint32
 	}
 	signHandlers := make(map[uint32]*frost.SignHandler, T+1)
 	for _, id := range signIDs {
-		signHandlers[id], _ = frost.NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
+		signHandlers[id], err = frost.NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
+		if err != nil {
+			return err
+		}
 	}
 
 	failures := 0
@@ -61,8 +65,10 @@ func DoSign(T uint32, signIDs []uint32, shares *eddsa.Shares, secrets map[uint32
 
 		if err != nil {
 			failures++
-		} else if s != nil && !s.Verify(message, groupKey) {
-			failures++
+		} else if s != nil {
+			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEdDSA(), message, s.ToEdDSA()) {
+				failures++
+			}
 		}
 	}
 

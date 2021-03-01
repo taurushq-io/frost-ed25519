@@ -29,14 +29,16 @@ type Round interface {
 	// NextRound will return the next Round that is possible at the time.
 	// If it is not possible to advance to the next Round, then the current one is returned.
 	NextRound() Round
+
+	Error() chan error
 }
 
 type KeyGenRound interface {
 	Round
-	WaitForKeygenOutput() (groupKey *eddsa.PublicKey, publicShares *eddsa.Shares, secretKeyShare *eddsa.PrivateKey, err error)
+	Output() (groupKey *eddsa.PublicKey, publicShares *eddsa.Shares, secretKeyShare *eddsa.PrivateKey)
 }
 
 type SignRound interface {
 	Round
-	WaitForSignOutput() (signature *eddsa.Signature, err error)
+	Output() *eddsa.Signature
 }

@@ -9,7 +9,6 @@ import (
 const sizeKeygen2 = 32
 
 type KeyGen2 struct {
-	// Share is the
 	Share edwards25519.Scalar
 }
 

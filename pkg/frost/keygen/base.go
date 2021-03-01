@@ -50,9 +50,9 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, threshold uint32, partyIDs []uint32, messageTimeout, globalTimeout time.Duration) (rounds.KeyGenRound, error) {
+func NewRound(selfID uint32, threshold uint32, partyIDs []uint32, timeout time.Duration) (rounds.KeyGenRound, error) {
 	accepted := []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
-	baseRound, err := rounds.NewBaseRound(selfID, partyIDs, accepted, messageTimeout, globalTimeout)
+	baseRound, err := rounds.NewBaseRound(selfID, partyIDs, accepted, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
 	}
@@ -80,18 +80,9 @@ func NewRound(selfID uint32, threshold uint32, partyIDs []uint32, messageTimeout
 	return &r, nil
 }
 
-func (round *round0) WaitForKeygenOutput() (*eddsa.PublicKey, *eddsa.Shares, *eddsa.PrivateKey, error) {
-	err := round.WaitForFinish()
+func (round *round0) Output() (*eddsa.PublicKey, *eddsa.Shares, *eddsa.PrivateKey) {
 	round.Reset()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	groupKey := *round.GroupKey
-	groupKeyShares := eddsa.NewShares(round.GroupKeyShares, round.Threshold)
-	secretKeyShare := *round.SecretKeyShare
-
-	return &groupKey, groupKeyShares, &secretKeyShare, nil
+	return round.GroupKey, eddsa.NewShares(round.GroupKeyShares, round.Threshold), round.SecretKeyShare
 }
 
 func (round *round0) Reset() {
@@ -99,9 +90,12 @@ func (round *round0) Reset() {
 	if round.Polynomial != nil {
 		round.Polynomial.Reset()
 	}
-	round.CommitmentsSum.Reset()
-	for id, p := range round.CommitmentsOthers {
-		p.Reset()
-		delete(round.CommitmentsOthers, id)
+	if round.CommitmentsSum != nil {
+		round.CommitmentsSum.Reset()
+	}
+	for _, p := range round.CommitmentsOthers {
+		if p != nil {
+			p.Reset()
+		}
 	}
 }

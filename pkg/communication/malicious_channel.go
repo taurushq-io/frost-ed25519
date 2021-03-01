@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"sync"
+	"time"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
@@ -59,7 +60,12 @@ func (c *MonkeyChannel) Send(msg *messages.Message) error {
 }
 
 func (c *MonkeyChannel) Incoming() <-chan *messages.Message {
-	return c.incoming
+	select {
+	case <-c.done:
+		return nil
+	default:
+		return c.incoming
+	}
 }
 
 func (c *MonkeyChannel) Done() {
@@ -88,6 +94,10 @@ func (c *MonkeyChannel) handleByteChan() {
 			}
 		}
 	}
+}
+
+func (c *MonkeyChannel) Timeout() time.Duration {
+	return 50 * time.Millisecond
 }
 
 var order8 []*edwards25519.Point

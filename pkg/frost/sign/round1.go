@@ -2,10 +2,7 @@ package sign
 
 import (
 	"crypto/sha512"
-	"encoding"
-	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
@@ -13,7 +10,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-const hashDomainSeparation = "FROST-SHA512"
+var hashDomainSeparation = []byte("FROST-SHA512")
 
 func (round *round1) ProcessMessages() {
 	if !round.CanProcessMessages() {
@@ -28,8 +25,7 @@ func (round *round1) ProcessMessages() {
 			continue
 		}
 
-		if msg.Sign1.Di.Equal(identity) == 1 ||
-			msg.Sign1.Ei.Equal(identity) == 1 {
+		if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
 			round.Abort(id, errors.New("commitment Ei or Di was the identity"))
 		}
 
@@ -52,39 +48,28 @@ func (round *round1) ProcessRound() {
 	//
 	// Start by computing
 	// H ("FROST-SHA512" || Message || B)
-	h := sha512.New()
-	_, _ = h.Write([]byte(hashDomainSeparation))
-	_, _ = h.Write(round.Message)
+	B := make([]byte, 0, len(hashDomainSeparation)+len(round.Message)+round.N()*(4+32+32)+4)
+	B = append(B, hashDomainSeparation...)
+	B = append(B, round.Message...)
 	for _, id := range round.AllPartyIDs {
 		party := round.Parties[id]
-
-		// H ( ... || ID || Di || Ei )
-		_ = binary.Write(h, binary.BigEndian, id)
-		_, _ = h.Write(party.Di.Bytes())
-		_, _ = h.Write(party.Ei.Bytes())
+		B = append(B, party.IDBytes[:]...)
+		B = append(B, party.Di.Bytes()...)
+		B = append(B, party.Ei.Bytes()...)
 	}
 
-	// Save the state of the hash function
-	hashState, err := h.(encoding.BinaryMarshaler).MarshalBinary()
-	if err != nil {
-		panic(fmt.Errorf("failed to save hash function state: %w", err))
-	}
+	// We are going to overwrite the last 4 bytes which contain the ID at every iteration
+	offset := len(B)
 
 	round.R.Set(edwards25519.NewIdentityPoint())
-	for id, party := range round.Parties {
-		// Reset the hash to
-		// H ("FROST-SHA512" || Message || B)
-		if h.(encoding.BinaryUnmarshaler).UnmarshalBinary(hashState) != nil {
-			panic(fmt.Errorf("failed to restore hash function state: %w", err))
-		}
-
-		// Add the ID at the end and compute
-		// H ("FROST-SHA512" || Message || B || ID )
-		_ = binary.Write(h, binary.BigEndian, id)
-
+	for _, party := range round.Parties {
+		copy(B[offset:offset+4], party.IDBytes[:])
 		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
-		party.Pi.SetUniformBytes(h.Sum(nil))
+		digest := sha512.Sum512(B)
+		party.Pi.SetUniformBytes(digest[:])
 
+		// TODO Find a way to do this faster
+		// Since all values are public, we don't need to this in constant time
 		// Ri = D + [ρ] E
 		party.Ri.ScalarMult(&party.Pi, &party.Ei)
 		party.Ri.Add(&party.Ri, &party.Di)
@@ -94,7 +79,7 @@ func (round *round1) ProcessRound() {
 	}
 
 	// c = H(R, GroupKey, M)
-	round.C.Set(eddsa.ComputeChallenge(&round.R, &round.GroupKey, round.Message))
+	round.C.Set(eddsa.ComputeChallenge(&round.R, round.GroupKey, round.Message))
 
 	// Compute z = d + (e • ρ) + 𝛌 • s • c
 	{

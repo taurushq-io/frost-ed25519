@@ -8,7 +8,6 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
@@ -28,7 +27,7 @@ func TestKeygen(t *testing.T) {
 	msgsOut2 := make([][]byte, 0, N*(N-1)/2)
 
 	for _, id := range partyIDs {
-		r0, _ := NewRound(id, T, partyIDs, 0, 0)
+		r0, _ := NewRound(id, T, partyIDs, 0)
 		Rounds[id] = r0.(*round0)
 	}
 
@@ -72,10 +71,15 @@ func TestKeygen(t *testing.T) {
 	}
 
 	id1 := partyIDs[0]
-	groupKey1, publicShares1, _, _ := Rounds[id1].WaitForKeygenOutput()
+	err := <-Rounds[id1].Error()
+	assert.NoError(t, err)
+	groupKey1, publicShares1, _ := Rounds[id1].Output()
 	secrets := map[uint32]*eddsa.PrivateKey{}
 	for _, id2 := range partyIDs {
-		groupKey2, publicShares2, secret2, err := Rounds[id2].WaitForKeygenOutput()
+
+		err := <-Rounds[id2].Error()
+		assert.NoError(t, err)
+		groupKey2, publicShares2, secret2 := Rounds[id2].Output()
 		secrets[id2] = secret2
 		assert.NoError(t, err, "output failed")
 		assert.NoError(t, CompareOutput(groupKey1, groupKey2, publicShares1, publicShares2), "comparison failed")
@@ -141,7 +145,10 @@ func ValidateSecrets(secrets map[uint32]*eddsa.PrivateKey, groupKey *eddsa.Publi
 			return errors.New("pk not the same")
 		}
 
-		lagrange := polynomial.LagrangeCoefficient(id, allIDs)
+		lagrange, err := shares.Lagrange(id, allIDs)
+		if err != nil {
+			return err
+		}
 		fullSecret.MultiplyAdd(lagrange, secret.Scalar(), fullSecret)
 	}
 

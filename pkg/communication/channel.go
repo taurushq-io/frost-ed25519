@@ -3,6 +3,7 @@ package communication
 import (
 	"log"
 	"sync"
+	"time"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
@@ -33,7 +34,12 @@ func (c *Channel) Send(msg *messages.Message) error {
 }
 
 func (c *Channel) Incoming() <-chan *messages.Message {
-	return c.incoming
+	select {
+	case <-c.done:
+		return nil
+	default:
+		return c.incoming
+	}
 }
 
 func (c *Channel) Done() {
@@ -67,4 +73,9 @@ func (c *Channel) handleByteChan() {
 			c.incoming <- &msg
 		}
 	}
+}
+
+func (c *Channel) Timeout() time.Duration {
+	return 0
+	return 500 * time.Millisecond
 }

@@ -78,8 +78,7 @@ func (sk *PrivateKey) Scalar() *edwards25519.Scalar {
 }
 
 func (pk *PublicKey) Point() *edwards25519.Point {
-	var p edwards25519.Point
-	return p.Set(&pk.pk)
+	return &pk.pk
 }
 
 func (pk *PublicKey) Equal(pk0 *PublicKey) bool {

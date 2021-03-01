@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"fmt"
 	"testing"
+	"time"
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
@@ -32,13 +33,13 @@ func TestRound(t *testing.T) {
 	message := []byte("hello")
 
 	for _, id := range partyIDs {
-		r0, _ := NewRound(id, partyIDs, secrets[id], publicKeys, message, 0, 0)
+		r0, _ := NewRound(id, partyIDs, secrets[id], publicKeys, message, 1*time.Second)
 		Rounds[id] = r0.(rounds.SignRound)
 	}
 
 	rTmp := Rounds[1]
 	pk := rTmp.(*round0).GroupKey
-	pkKey := eddsa.NewPublicKeyFromPoint(&pk)
+	pkKey := eddsa.NewPublicKeyFromPoint(pk.Point())
 
 	a := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
 		out = make([][]byte, 0, N-1)
@@ -80,7 +81,9 @@ func TestRound(t *testing.T) {
 		Rounds[id] = nextR.(rounds.SignRound)
 	}
 
-	sig, err := Rounds[1].WaitForSignOutput()
+	errChan := Rounds[1].Error()
+	err := <-errChan
+	sig := Rounds[1].Output()
 	require.NoError(t, err)
 	sigBytes, err := sig.MarshalBinary()
 	require.NoError(t, err)
@@ -93,7 +96,14 @@ func TestRound(t *testing.T) {
 
 	// Check all publicKeys return the same sig
 	for _, id := range partyIDs {
-		comparedSig, _ := Rounds[id].WaitForSignOutput()
+		errChan := Rounds[id].Error()
+		err := <-errChan
+		require.NoError(t, err)
+
+		comparedSig := Rounds[id].Output()
+		sigBytes, err := sig.MarshalBinary()
+		require.NoError(t, err)
+
 		comparedSigBytes, _ := comparedSig.MarshalBinary()
 		require.NoError(t, err)
 		assert.True(t, bytes.Equal(sigBytes, comparedSigBytes))

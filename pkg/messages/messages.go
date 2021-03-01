@@ -5,9 +5,16 @@ import (
 	"errors"
 )
 
-var (
-	ErrInvalidMessage = errors.New("invalid message")
-)
+type Message struct {
+	Type     MessageType
+	From, To uint32
+	KeyGen1  *KeyGen1
+	KeyGen2  *KeyGen2
+	Sign1    *Sign1
+	Sign2    *Sign2
+}
+
+var ErrInvalidMessage = errors.New("invalid message")
 
 type MessageType uint8
 
@@ -24,15 +31,6 @@ const (
 //  4 for Sender
 //  4 for receiver
 const headerSize = 1 + 8
-
-type Message struct {
-	Type     MessageType
-	From, To uint32
-	KeyGen1  *KeyGen1
-	KeyGen2  *KeyGen2
-	Sign1    *Sign1
-	Sign2    *Sign2
-}
 
 func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
 	var header [headerSize]byte

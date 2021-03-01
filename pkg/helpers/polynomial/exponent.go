@@ -153,7 +153,6 @@ func (p *Exponent) Reset() {
 	for i := range p.coefficients {
 		p.coefficients[i].Set(one)
 	}
-	p.coefficients = []*edwards25519.Point{}
 }
 
 //
