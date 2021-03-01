@@ -25,17 +25,8 @@ func setupUDP(IDs []uint32) map[uint32]*communication.UDP {
 	return comms
 }
 
-func FROSTest(N, T uint32) {
+func FROSTest(N, T uint32) error {
 	fmt.Printf("(n, t) = (%v, %v): ", N, T)
-
-	/*
-		if (T == 0) {
-			panic("T must be at least 1, or a minimum of T+1=2 signers")
-		}
-		if (T > N-1) {
-			panic("T must be at most N-1, or a maximum of T+1=N signers")
-		}
-	*/
 
 	message := []byte("hello")
 
@@ -47,20 +38,28 @@ func FROSTest(N, T uint32) {
 	signIDs := make([]uint32, T+1)
 	copy(signIDs, keygenIDs)
 
+	var err error
+
 	//keygenComm := setupUDP(keygenIDs)
 	keygenComm := communication.NewChannelCommunicatorForAll(keygenIDs)
 	keygenHandlers := make(map[uint32]*frost.KeyGenHandler, N)
 	for _, id := range keygenIDs {
-		keygenHandlers[id], _ = frost.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
+		keygenHandlers[id], err = frost.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
+		if err != nil {
+			return err
+		}
 	}
 
 	party1 := keygenIDs[0]
 	// obtain the public key from the first party and wait for the others
-	groupKey, _, _, _ := keygenHandlers[party1].WaitForKeygenOutput()
+	groupKey, _, _, err := keygenHandlers[party1].WaitForKeygenOutput()
+	if err != nil {
+		return err
+	}
 
 	for _, h := range keygenHandlers {
 		if _, _, _, err := h.WaitForKeygenOutput(); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -70,7 +69,7 @@ func FROSTest(N, T uint32) {
 	for _, id := range signIDs {
 		_, publicShares, secretShare, err := keygenHandlers[id].WaitForKeygenOutput()
 		if err != nil {
-			panic(err)
+			return err
 		}
 		signHandlers[id], _ = frost.NewSignHandler(signComm[id], id, signIDs, secretShare, publicShares, message)
 	}
@@ -85,24 +84,53 @@ func FROSTest(N, T uint32) {
 	}
 
 	if failures != 0 {
-		fmt.Printf("%v signatures verifications failed\n", failures)
-	} else {
-		fmt.Printf("ok\n")
+		return fmt.Errorf("%v signatures verifications failed\n", failures)
 	}
+	return nil
 }
 
 func main() {
-	ns := []uint32{5, 10, 50, 100}
+	ns := []uint32{5, 10, 50}
 
+	// what should work
 	for _, n := range ns {
 		start := time.Now()
-		FROSTest(n, n/2)
+		err := FROSTest(n, n/2)
 		elapsed := time.Since(start)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
 		fmt.Printf("%s\n", elapsed)
 
 		start = time.Now()
-		FROSTest(n, n-1)
+		err = FROSTest(n, n-1)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
 		elapsed = time.Since(start)
 		fmt.Printf("%s\n", elapsed)
+	}
+
+	// what should NOT work, but should not panic
+	for _, n := range ns {
+		if FROSTest(n, n) == nil {
+			fmt.Println("ERROR: failed to fail")
+		} else {
+			fmt.Println("ok (failed)")
+		}
+		if FROSTest(n, 0) == nil {
+			fmt.Println("ERROR: failed to fail")
+		} else {
+			fmt.Println("ok (failed)")
+		}
+		if FROSTest(n, n*10) == nil {
+			fmt.Println("ERROR: failed to fail")
+		} else {
+			fmt.Println("ok (failed)")
+		}
 	}
 }
