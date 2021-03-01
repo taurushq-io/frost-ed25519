@@ -43,7 +43,7 @@ func (round *round2) ProcessRound() {
 	}
 	round.GroupKeyShares[round.ID()] = round.CommitmentsSum.Evaluate(round.ID())
 
-	round.GroupKey = eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Evaluate(0))
+	round.GroupKey = eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Constant())
 	round.SecretKeyShare = eddsa.NewPrivateKeyFromScalar(&round.Secret)
 }
 

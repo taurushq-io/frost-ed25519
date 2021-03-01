@@ -32,8 +32,8 @@ func (round *round0) GenerateMessages() []*messages.Message {
 	defer round.NextStep()
 
 	ctx := make([]byte, 32)
-	secret := round.Polynomial.Evaluate(0)
-	public := round.CommitmentsSum.Evaluate(0)
+	secret := round.Polynomial.Constant()
+	public := round.CommitmentsSum.Constant()
 
 	// Generate proof of knowledge of a_i,0 = f(0)
 	proof := zk.NewSchnorrProof(round.ID(), public, ctx, secret)

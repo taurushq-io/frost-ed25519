@@ -29,7 +29,7 @@ func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
 // Evaluate uses any one of the defined evaluation algorithms
 func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
 	if index == 0 {
-		return p.coefficients[0]
+		panic("you should be using .Constant() instead")
 	}
 
 	// We chose evaluateVar since it is the fastest in CPU time, even though it uses more memory
@@ -228,6 +228,12 @@ func (p *Exponent) Equal(other interface{}) bool {
 		}
 	}
 	return true
+}
+
+func (p *Exponent) Constant() *edwards25519.Point {
+	var result edwards25519.Point
+	result.Set(p.coefficients[0])
+	return &result
 }
 
 func (p *Exponent) AddConstant(c *edwards25519.Point) *Exponent {

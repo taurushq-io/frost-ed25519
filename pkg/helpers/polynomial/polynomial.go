@@ -33,7 +33,7 @@ func NewPolynomial(degree uint32, constant *edwards25519.Scalar) *Polynomial {
 // We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
 func (p *Polynomial) Evaluate(index uint32) *edwards25519.Scalar {
 	if index == 0 {
-		return &p.coefficients[0]
+		panic("attempt to leak secret")
 	}
 
 	var result, x edwards25519.Scalar
@@ -43,6 +43,12 @@ func (p *Polynomial) Evaluate(index uint32) *edwards25519.Scalar {
 		// b_n-1 = b_n * x + a_n-1
 		result.MultiplyAdd(&result, &x, &p.coefficients[i])
 	}
+	return &result
+}
+
+func (p *Polynomial) Constant() *edwards25519.Scalar {
+	var result edwards25519.Scalar
+	result.Set(&p.coefficients[0])
 	return &result
 }
 

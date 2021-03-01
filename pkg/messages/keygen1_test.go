@@ -19,7 +19,7 @@ func TestKeyGen1_MarshalBinary(t *testing.T) {
 	poly := polynomial.NewPolynomial(deg, secret)
 	comm := polynomial.NewPolynomialExponent(poly)
 
-	proof := zk.NewSchnorrProof(from, comm.Evaluate(0), context, poly.Evaluate(0))
+	proof := zk.NewSchnorrProof(from, comm.Constant(), context, poly.Constant())
 
 	msg := NewKeyGen1(from, proof, comm)
 
