@@ -28,12 +28,14 @@ func setupUDP(IDs []uint32) map[uint32]*communication.UDP {
 func FROSTest(N, T uint32) {
 	fmt.Printf("(n, t) = (%v, %v): ", N, T)
 
-	if (T == 0) {
-		panic("T must be at least 1, or a minimum of T+1=2 signers")
-	}
-	if (T > N-1) {
-		panic("T must be at most N-1, or a maximum of T+1=N signers")
-	}
+	/*
+		if (T == 0) {
+			panic("T must be at least 1, or a minimum of T+1=2 signers")
+		}
+		if (T > N-1) {
+			panic("T must be at most N-1, or a maximum of T+1=N signers")
+		}
+	*/
 
 	message := []byte("hello")
 
