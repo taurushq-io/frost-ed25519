@@ -62,6 +62,7 @@ func (c *UDP) Start() {
 					return
 				}
 				fmt.Println("read error:", err)
+				return
 			}
 			var msg messages.Message
 			err = msg.UnmarshalBinary(initialBuffer[:n])
