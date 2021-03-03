@@ -46,10 +46,7 @@ func DoKeygen(N uint32, T uint32, keygenIDs []uint32, keygenComm map[uint32]comm
 }
 
 func DoSign(T uint32, signIDs []uint32, shares *eddsa.Shares, secrets map[uint32]*eddsa.PrivateKey, signComm map[uint32]communication.Communicator, message []byte) error {
-	groupKey, err := shares.GroupKey(nil)
-	if err != nil {
-		return err
-	}
+	groupKey := shares.GroupKey(nil)
 	signHandlers := make(map[uint32]*frost.SignHandler, T+1)
 	for _, id := range signIDs {
 		signHandlers[id], err = frost.NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)

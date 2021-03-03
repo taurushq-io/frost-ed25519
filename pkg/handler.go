@@ -53,7 +53,7 @@ func (h *handler) ProcessAll() {
 
 	h.round.ProcessRound()
 
-	msgsOut := h.round.GenerateMessages()
+	msgsOut, _ := h.round.GenerateMessages()
 
 	for _, msg := range msgsOut {
 		err := h.comm.Send(msg)
@@ -78,7 +78,7 @@ func NewKeyGenHandler(comm communication.Communicator, ID uint32, IDs []uint32, 
 }
 
 func NewSignHandler(comm communication.Communicator, ID uint32, IDs []uint32, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
-	r, err := sign.NewRound(ID, IDs, secret, publicShares, message, comm.Timeout())
+	r, _, err := sign.NewRound(ID, IDs, secret, publicShares, message, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}

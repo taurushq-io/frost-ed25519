@@ -1,10 +1,7 @@
 package sign
 
 import (
-	"encoding/binary"
 	"errors"
-	"fmt"
-	"time"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
@@ -12,14 +9,9 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-var acceptedMessageTypes = []messages.MessageType{
-	messages.MessageTypeSign1,
-	messages.MessageTypeSign2,
-}
-
 type (
 	round0 struct {
-		*rounds.BaseRound
+		*rounds.Parameters
 
 		// Message is the message to be signed
 		Message []byte
@@ -39,8 +31,7 @@ type (
 		// R = ∑ Ri
 		R edwards25519.Point
 
-		// Signature is the output
-		Signature *eddsa.Signature
+		Output *Output
 	}
 	round1 struct {
 		*round0
@@ -50,55 +41,53 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte, timeout time.Duration) (rounds.Round, error) {
+type Output struct {
+	*rounds.BaseOutput
+	Signature *eddsa.Signature
+}
+
+func NewRound(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
 	var (
 		round round0
 		err   error
 	)
 
-	round.GroupKey, err = shares.GroupKey(partyIDs)
-	if err != nil {
-		return nil, err
-	}
-	round.Parties = make(map[uint32]*signer, len(partyIDs))
+	partyIDs := params.AllPartyIDs()
+	selfID := params.SelfID()
+
+	round.Parameters = params
+	round.Message = message
+
+	// Get the group key from the shares
+	round.GroupKey = shares.GroupKey()
+
+	round.Parties = make(map[uint32]*signer, params.N())
 	for _, id := range partyIDs {
 		var party signer
 		if id == 0 {
-			return nil, errors.New("id 0 is not valid")
+			return nil, nil, errors.New("id 0 is not valid")
 		}
 		party.Public, err = shares.ShareNormalized(id, partyIDs)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-
-		binary.BigEndian.PutUint32(party.IDBytes[:], id)
-
 		round.Parties[id] = &party
 	}
 	if _, ok := round.Parties[selfID]; !ok {
-		return nil, errors.New("secret data and ID don't match")
+		return nil, nil, errors.New("secret data and ID don't match")
 	}
 
-	round.BaseRound, err = rounds.NewBaseRound(selfID, partyIDs, acceptedMessageTypes, timeout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
-	}
-
-	round.Message = message
-
+	// Normalize secret share so that we can assume we are dealing with an additive sharing
 	lagrange, err := shares.Lagrange(selfID, partyIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
 	round.SecretKeyShare.Multiply(lagrange, secret.Scalar())
 
-	return &round, nil
-}
+	output := &Output{BaseOutput: rounds.NewBaseOutput()}
+	round.Output = output
 
-func (round *round0) Output() *eddsa.Signature {
-	round.Reset()
-	return round.Signature
+	return &round, output, nil
 }
 
 func (round *round0) Reset() {
@@ -117,4 +106,13 @@ func (round *round0) Reset() {
 		p.Reset()
 		delete(round.Parties, id)
 	}
+}
+
+var acceptedMessageTypes = []messages.MessageType{
+	messages.MessageTypeSign1,
+	messages.MessageTypeSign2,
+}
+
+func (round *round0) AcceptedMessageTypes() []messages.MessageType {
+	return acceptedMessageTypes
 }

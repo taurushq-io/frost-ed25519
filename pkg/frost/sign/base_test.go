@@ -33,7 +33,7 @@ func TestRound(t *testing.T) {
 	message := []byte("hello")
 
 	for _, id := range partyIDs {
-		r0, _ := NewRound(id, partyIDs, secrets[id], publicKeys, message, 1*time.Second)
+		r0, _, _ := NewRound(id, partyIDs, secrets[id], publicKeys, message, 1*time.Second)
 		Rounds[id] = r0.(rounds.SignRound)
 	}
 
@@ -51,7 +51,7 @@ func TestRound(t *testing.T) {
 		}
 		r.ProcessMessages()
 		r.ProcessRound()
-		msgsOut := r.GenerateMessages()
+		msgsOut, _ := r.GenerateMessages()
 		for _, msgOut := range msgsOut {
 			if b, err := msgOut.MarshalBinary(); err == nil {
 				out = append(out, b)
@@ -128,5 +128,5 @@ func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, *eddsa.Sh
 		secrets[id] = eddsa.NewPrivateKeyFromScalar(shares[id])
 	}
 
-	return secret, allParties, eddsa.NewShares(sharesPublic, t), secrets
+	return secret, allParties, eddsa.NewShares(sharesPublic, t, nil), secrets
 }

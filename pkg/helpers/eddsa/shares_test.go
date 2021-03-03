@@ -18,7 +18,7 @@ func fakeShares(n, t uint32) *Shares {
 		p := new(edwards25519.Point).ScalarBaseMult(s)
 		shares[id] = p
 	}
-	return NewShares(shares, t)
+	return NewShares(shares, t, nil)
 }
 
 func TestShares_MarshalJSON(t *testing.T) {

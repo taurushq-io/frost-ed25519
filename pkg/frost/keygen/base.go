@@ -1,8 +1,7 @@
 package keygen
 
 import (
-	"fmt"
-	"time"
+	"errors"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
@@ -13,7 +12,11 @@ import (
 
 type (
 	round0 struct {
-		*rounds.BaseRound
+		*rounds.Parameters
+
+		// Threshold is the degree of the polynomial used for Shamir.
+		// It is the number of tolerated party corruptions.
+		Threshold uint32
 
 		// Secret is first set to the zero coefficient of the polynomial we send to the other parties.
 		// Once all received shares are declared, they are summed here to produce the party's
@@ -22,25 +25,14 @@ type (
 
 		// Polynomial used to sample shares
 		Polynomial *polynomial.Polynomial
+
 		// CommitmentsSum is the sum of all commitments, we use it to compute public key shares
 		CommitmentsSum *polynomial.Exponent
-		// CommitmentsOthers contains all other parties commitment polynomials
-		CommitmentsOthers map[uint32]*polynomial.Exponent
 
-		// Threshold is the degree of the polynomial used for Shamir.
-		// It is the number of tolerated party corruptions.
-		Threshold uint32
+		// Commitments contains all other parties commitment polynomials
+		Commitments map[uint32]*polynomial.Exponent
 
-		// GroupKey is the public key for the entire group.
-		// It is Shamir shared.
-		GroupKey *eddsa.PublicKey
-
-		// GroupKeyShares are the Shamir shares of the public key,
-		// "in-the-exponent".
-		GroupKeyShares map[uint32]*edwards25519.Point
-
-		// SecretKeyShare is the party's Shamir share of the secret of the GroupKey.
-		SecretKeyShare *eddsa.PrivateKey
+		Output *Output
 	}
 	round1 struct {
 		*round0
@@ -50,39 +42,30 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, threshold uint32, partyIDs []uint32, timeout time.Duration) (rounds.KeyGenRound, error) {
-	accepted := []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
-	baseRound, err := rounds.NewBaseRound(selfID, partyIDs, accepted, timeout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
-	}
+type Output struct {
+	*rounds.BaseOutput
+	Shares    *eddsa.Shares
+	SecretKey *eddsa.PrivateKey
+}
 
-	if int(threshold) >= len(partyIDs) {
-		return nil, fmt.Errorf("threshold %d is invalid with number of signers %d", threshold, len(partyIDs))
-	}
-
-	N := len(partyIDs)
+func NewRound(params *rounds.Parameters, threshold uint32) (rounds.Round, *Output, error) {
+	N := params.N()
 
 	if int(threshold) == 0 {
-		return nil, fmt.Errorf("threshold must be at least 1, or a minimum of T+1=2 signers")
+		return nil, nil, errors.New("threshold must be at least 1, or a minimum of T+1=2 signers")
 	}
 	if int(threshold) > N-1 {
-		return nil, fmt.Errorf("threshold must be at most N-1, or a maximum of T+1=N signers")
+		return nil, nil, errors.New("threshold must be at most N-1, or a maximum of T+1=N signers")
 	}
 
 	r := round0{
-		BaseRound:         baseRound,
-		Threshold:         threshold,
-		CommitmentsOthers: make(map[uint32]*polynomial.Exponent, N),
-		GroupKeyShares:    make(map[uint32]*edwards25519.Point, N),
+		Parameters:  params,
+		Threshold:   threshold,
+		Commitments: make(map[uint32]*polynomial.Exponent, N),
+		Output:      &Output{BaseOutput: rounds.NewBaseOutput()},
 	}
 
-	return &r, nil
-}
-
-func (round *round0) Output() (*eddsa.PublicKey, *eddsa.Shares, *eddsa.PrivateKey) {
-	round.Reset()
-	return round.GroupKey, eddsa.NewShares(round.GroupKeyShares, round.Threshold), round.SecretKeyShare
+	return &r, r.Output, nil
 }
 
 func (round *round0) Reset() {
@@ -90,12 +73,19 @@ func (round *round0) Reset() {
 	if round.Polynomial != nil {
 		round.Polynomial.Reset()
 	}
-	if round.CommitmentsSum != nil {
-		round.CommitmentsSum.Reset()
-	}
-	for _, p := range round.CommitmentsOthers {
+	for _, p := range round.Commitments {
 		if p != nil {
 			p.Reset()
 		}
 	}
+}
+
+// ---
+// Messages
+// ---
+
+var acceptedMessageTypes = []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
+
+func (round *round0) AcceptedMessageTypes() []messages.MessageType {
+	return acceptedMessageTypes
 }

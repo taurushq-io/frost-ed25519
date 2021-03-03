@@ -7,14 +7,13 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-func (round *round0) ProcessRound() {
-	if !round.CanProcessRound() {
-		return
-	}
-	defer round.NextStep()
+func (round *round0) ProcessMessage(msg *messages.Message) *rounds.Error {
+	return nil
+}
 
+func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	var buf [64]byte
-	party := round.Parties[round.ID()]
+	party := round.Parties[round.SelfID()]
 
 	// Sample d_i, D_i = [d_i] B
 	_, err := rand.Read(buf[:])
@@ -31,23 +30,12 @@ func (round *round0) ProcessRound() {
 	}
 	round.e.SetUniformBytes(buf[:])
 	party.Ei.ScalarBaseMult(&round.e)
-}
 
-func (round *round0) GenerateMessages() []*messages.Message {
-	if !round.CanGenerateMessages() {
-		return nil
-	}
-	defer round.NextStep()
+	msg := messages.NewSign1(round.SelfID(), &party.Di, &party.Ei)
 
-	party := round.Parties[round.ID()]
-	msg := messages.NewSign1(round.ID(), &party.Di, &party.Ei)
-
-	return []*messages.Message{msg}
+	return []*messages.Message{msg}, nil
 }
 
 func (round *round0) NextRound() rounds.Round {
-	if round.PrepareNextRound() {
-		return &round1{round}
-	}
-	return round
+	return &round1{round}
 }

@@ -9,48 +9,39 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-func (round *round2) ProcessMessages() {
-	if !round.CanProcessMessages() {
-		return
-	}
-	defer round.NextStep()
-
-	msgs := round.Messages()
-
+func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 	var computedShareExp edwards25519.Point
-	for id, msg := range msgs {
-		shareExp := round.CommitmentsOthers[id].Evaluate(round.ID())
-		computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
+	computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 
-		if computedShareExp.Equal(shareExp) != 1 {
-			round.Abort(id, errors.New("VSS failed to validate"))
-		}
+	id := msg.From
+	shareExp := round.Commitments[id].Evaluate(round.SelfID())
+
+	if computedShareExp.Equal(shareExp) != 1 {
+		err := rounds.NewError(id, errors.New("VSS failed to validate"))
+		round.Output.Abort(err)
+		return err
 	}
 
-	for id := range round.OtherPartyIDs {
-		round.Secret.Add(&round.Secret, &msgs[id].KeyGen2.Share)
-	}
-}
+	round.Secret.Add(&round.Secret, &msg.KeyGen2.Share)
 
-func (round *round2) ProcessRound() {
-	if !round.CanProcessRound() {
-		return
-	}
-	defer round.Finish()
-
-	for id := range round.OtherPartyIDs {
-		round.GroupKeyShares[id] = round.CommitmentsSum.Evaluate(id)
-	}
-	round.GroupKeyShares[round.ID()] = round.CommitmentsSum.Evaluate(round.ID())
-
-	round.GroupKey = eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Constant())
-	round.SecretKeyShare = eddsa.NewPrivateKeyFromScalar(&round.Secret)
-}
-
-func (round *round2) GenerateMessages() []*messages.Message {
 	return nil
 }
 
+func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
+	shares := make(map[uint32]*edwards25519.Point, round.N())
+	for _, id := range round.AllPartyIDs() {
+		shares[id] = round.CommitmentsSum.Evaluate(id)
+	}
+	round.Output.Shares = eddsa.NewShares(shares, round.Threshold, round.CommitmentsSum.Constant())
+	round.Output.SecretKey = eddsa.NewPrivateKeyFromScalar(&round.Secret)
+	round.Output.Abort(nil)
+	return nil, nil
+}
+
 func (round *round2) NextRound() rounds.Round {
-	return round
+	return nil
+}
+
+func (round *round2) MessageType() messages.MessageType {
+	return messages.MessageTypeKeyGen2
 }

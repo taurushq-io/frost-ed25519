@@ -29,8 +29,6 @@ type signer struct {
 	// Zi = z = d + (e • ρ) + 𝛌 • s • c
 	// This is the share of the final signature
 	Zi edwards25519.Scalar
-
-	IDBytes [4]byte
 }
 
 // Reset sets all values to default.
@@ -41,6 +39,7 @@ func (signer *signer) Reset() {
 
 	signer.Ei.Set(identity)
 	signer.Di.Set(identity)
+
 	signer.Ri.Set(identity)
 
 	signer.Pi.Set(zero)

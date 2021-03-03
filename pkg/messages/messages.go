@@ -20,7 +20,8 @@ type MessageType uint8
 
 // MessageType s must be increasing.
 const (
-	MessageTypeKeyGen1 MessageType = iota
+	MessageTypeNone MessageType = iota
+	MessageTypeKeyGen1
 	MessageTypeKeyGen2
 	MessageTypeSign1
 	MessageTypeSign2

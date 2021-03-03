@@ -14,47 +14,26 @@ var (
 	ErrValidateSignature = errors.New("full signature is invalid")
 )
 
-func (round *round2) ProcessMessages() {
-	if !round.CanProcessMessages() {
-		return
+func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
+	id := msg.From
+	party := round.Parties[id]
+	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, party.Public, &party.Ri) {
+		err := rounds.NewError(id, ErrValidateSigShare)
+		round.Output.Abort(err)
+		return err
 	}
-	defer round.NextStep()
-
-	msgs := round.Messages()
-
-	for id, msg := range msgs {
-		party := round.Parties[id]
-
-		if !eddsa.Verify(&round.C, &msg.Sign2.Zi, party.Public, &party.Ri) {
-			round.Abort(id, ErrValidateSigShare)
-			return
-		}
-	}
-
-	for id, party := range round.Parties {
-		if id == round.ID() {
-			continue
-		}
-		party.Zi.Set(&msgs[id].Sign2.Zi)
-	}
+	party.Zi.Set(&msg.Sign2.Zi)
+	return nil
 }
 
-func (round *round2) ProcessRound() {
-	if !round.CanProcessRound() {
-		return
-	}
-	defer round.NextStep()
-	defer round.Finish()
-
+func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	var S edwards25519.Scalar
 
 	// S = ∑ s_i
-	{
-		S.Set(edwards25519.NewScalar())
-		for _, party := range round.Parties {
-			// s += s_i
-			S.Add(&S, &party.Zi)
-		}
+	S.Set(edwards25519.NewScalar())
+	for _, party := range round.Parties {
+		// s += s_i
+		S.Add(&S, &party.Zi)
 	}
 
 	Signature := &eddsa.Signature{
@@ -64,17 +43,16 @@ func (round *round2) ProcessRound() {
 
 	// Verify the full signature here too.
 	if !Signature.Verify(round.Message, round.GroupKey) {
-		round.Abort(0, ErrValidateSignature)
-		return
+		err := rounds.NewError(0, ErrValidateSignature)
+		round.Output.Abort(err)
+		return nil, err
 	}
 
-	round.Signature = Signature
-}
-
-func (round *round2) GenerateMessages() []*messages.Message {
-	return nil
+	round.Output.Signature = Signature
+	round.Output.Abort(nil)
+	return nil, nil
 }
 
 func (round *round2) NextRound() rounds.Round {
-	return round
+	return nil
 }

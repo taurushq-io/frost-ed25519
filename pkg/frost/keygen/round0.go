@@ -8,12 +8,11 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-func (round *round0) ProcessRound() {
-	if !round.CanProcessRound() {
-		return
-	}
-	defer round.NextStep()
+func (round *round0) ProcessMessage(msg *messages.Message) *rounds.Error {
+	return nil
+}
 
+func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	// Sample a_i,0 which is the constant factor of the polynomial
 	secret := scalar.NewScalarRandom()
 
@@ -21,32 +20,24 @@ func (round *round0) ProcessRound() {
 	// of degree t.
 	round.Polynomial = polynomial.NewPolynomial(round.Threshold, secret)
 
+	// We use the variable Secret to hold the sum of all shares received.
+	// Therefore, we can set it to the share we would send to our selves.
+	round.Secret.Set(round.Polynomial.Evaluate(round.SelfID()))
+
 	// Generate all commitments [a_i,j] B for j = 0, 1, ..., t
-	round.CommitmentsSum = polynomial.NewPolynomialExponent(round.Polynomial)
-}
-
-func (round *round0) GenerateMessages() []*messages.Message {
-	if !round.CanGenerateMessages() {
-		return nil
-	}
-	defer round.NextStep()
-
+	commitments := polynomial.NewPolynomialExponent(round.Polynomial)
 	ctx := make([]byte, 32)
-	secret := round.Polynomial.Constant()
-	public := round.CommitmentsSum.Constant()
-
+	public := commitments.Constant()
 	// Generate proof of knowledge of a_i,0 = f(0)
-	proof := zk.NewSchnorrProof(round.ID(), public, ctx, secret)
+	proof := zk.NewSchnorrProof(round.SelfID(), public, ctx, secret)
 
-	msg := messages.NewKeyGen1(round.ID(), proof, round.CommitmentsSum)
+	// CommitmentsSum holds the sum of all commitments, so we initialize it to our commitment
+	round.CommitmentsSum = commitments
 
-	return []*messages.Message{msg}
+	msg := messages.NewKeyGen1(round.SelfID(), proof, commitments)
+	return []*messages.Message{msg}, nil
 }
 
 func (round *round0) NextRound() rounds.Round {
-	if round.PrepareNextRound() {
-		return &round1{round}
-	}
-
-	return round
+	return &round1{round}
 }

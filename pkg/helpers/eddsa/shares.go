@@ -26,48 +26,46 @@ type Shares struct {
 	allPartyIDs []uint32
 	partyIDsSet map[uint32]bool
 	shares      map[uint32]*edwards25519.Point
+	groupKey    *edwards25519.Point
 }
 
-func NewShares(shares map[uint32]*edwards25519.Point, threshold uint32) *Shares {
+func NewShares(shares map[uint32]*edwards25519.Point, threshold uint32, groupKey *edwards25519.Point) *Shares {
 	n := len(shares)
 	s := &Shares{
 		threshold:   threshold,
 		allPartyIDs: make([]uint32, 0, n),
 		partyIDsSet: make(map[uint32]bool, n),
 		shares:      shares,
+		groupKey:    groupKey,
 	}
 	for id := range shares {
 		s.allPartyIDs = append(s.allPartyIDs, id)
 		s.partyIDsSet[id] = true
 	}
+
+	if groupKey == nil {
+		s.computeGroupKey()
+	}
+
 	sortSliceUInt32(s.allPartyIDs)
 	return s
 }
 
-func (s *Shares) GroupKey(partyIDs []uint32) (*PublicKey, error) {
-	// if we aren't given a set of IDs, we simply take the first T+1
-	if partyIDs == nil {
-		partyIDs = s.allPartyIDs[:s.threshold+1]
-	} else if len(partyIDs) < int(s.threshold)+1 {
-		return nil, ErrNotEnoughParties
-	} else if len(partyIDs) > len(s.allPartyIDs) {
-		return nil, ErrTooManyParties
-	}
-	if !s.partySliceIsSubset(partyIDs) {
-		return nil, ErrPartySetWrong
-	}
-
+func (s *Shares) computeGroupKey() *PublicKey {
 	var tmp edwards25519.Point
 	groupKey := edwards25519.NewIdentityPoint()
+	partyIDs := s.allPartyIDs[:s.threshold+1]
+
 	for _, id := range partyIDs {
-		lagrange, err := s.Lagrange(id, partyIDs)
-		if err != nil {
-			return nil, err
-		}
+		lagrange, _ := s.Lagrange(id, partyIDs)
 		tmp.ScalarMult(lagrange, s.shares[id])
 		groupKey.Add(groupKey, &tmp)
 	}
-	return NewPublicKeyFromPoint(groupKey), nil
+	return NewPublicKeyFromPoint(groupKey)
+}
+
+func (s *Shares) GroupKey() *PublicKey {
+	return NewPublicKeyFromPoint(s.groupKey)
 }
 
 func (s *Shares) Share(index uint32) (*PublicKey, error) {
@@ -190,6 +188,7 @@ func (s *Shares) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sharesJSON)
 }
 
+// TODO verify group key
 func (s *Shares) UnmarshalJSON(data []byte) error {
 	type SharesJSON struct {
 		Threshold int               `json:"t"`

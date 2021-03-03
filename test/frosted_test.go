@@ -19,7 +19,7 @@ func FakeKeygen(partyIDs []uint32) (*eddsa.Shares, map[uint32]*eddsa.PrivateKey)
 		secrets[id] = eddsa.NewPrivateKeyFromScalar(sk)
 		shares[id] = pk.ScalarBaseMult(sk)
 	}
-	return eddsa.NewShares(shares, uint32(n-1)), secrets
+	return eddsa.NewShares(shares, uint32(n-1), nil), secrets
 }
 
 func TestSetup(t *testing.T) {
