@@ -1,15 +1,13 @@
-package rounds
+package state
 
 import (
 	"sync"
+
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
-type Output interface {
-	WaitForError() error
-}
-
 type BaseOutput struct {
-	doneChan chan *Error
+	doneChan chan *rounds.Error
 	err      error
 	mtx      sync.Mutex
 }
@@ -18,7 +16,7 @@ func NewBaseOutput() *BaseOutput {
 	return &BaseOutput{
 		// We use a buffered channel of capacity 1 so that
 		// we never block if no one is listening
-		doneChan: make(chan *Error, 1),
+		doneChan: make(chan *rounds.Error, 1),
 	}
 }
 

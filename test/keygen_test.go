@@ -1,15 +1,15 @@
-package keygen
+package main
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"filippo.io/edwards25519"
-	"github.com/stretchr/testify/assert"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 func TestKeygen(t *testing.T) {
@@ -21,70 +21,66 @@ func TestKeygen(t *testing.T) {
 		partyIDs = append(partyIDs, id)
 	}
 
-	Rounds := make(map[uint32]rounds.KeyGenRound)
+	states := map[uint32]*state.State{}
+	outputs := map[uint32]*keygen.Output{}
+
+	for _, id := range partyIDs {
+		p, err := rounds.NewParameters(id, partyIDs, 0)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		states[id], outputs[id], err = frost.NewKeygenState(p, T, 0)
+	}
 
 	msgsOut1 := make([][]byte, 0, N)
 	msgsOut2 := make([][]byte, 0, N*(N-1)/2)
 
-	for _, id := range partyIDs {
-		r0, _ := NewRound(id, T, partyIDs, 0)
-		Rounds[id] = r0.(*round0)
-	}
-
-	doRound := func(in [][]byte, r rounds.Round) (out [][]byte, rNext rounds.Round) {
-		out = make([][]byte, 0, N-1)
-		for _, m := range in {
-			msgTmp := messages.Message{}
-			err := msgTmp.UnmarshalBinary(m)
-			assert.NoError(t, err, "failed to store message")
-
-			assert.NoError(t, r.StoreMessage(&msgTmp), "failed to store message")
+	for id, s := range states {
+		msgs1, err := partyRoutine(nil, s, outputs[id].BaseOutput)
+		if err != nil {
+			t.Error(err)
 		}
-
-		r.ProcessMessages()
-		r.ProcessRound()
-		for _, msgOut := range r.GenerateMessages() {
-			if b, err := msgOut.MarshalBinary(); err == nil {
-				out = append(out, b)
-			} else {
-				fmt.Println(err)
-				return
-			}
-		}
-		return out, r.NextRound()
-	}
-
-	for id, r0 := range Rounds {
-		msgs1, nextR := doRound(nil, r0)
 		msgsOut1 = append(msgsOut1, msgs1...)
-		Rounds[id] = nextR.(rounds.KeyGenRound)
 	}
 
-	for id, r1 := range Rounds {
-		msgs2, nextR := doRound(msgsOut1, r1)
+	for id, s := range states {
+		msgs2, err := partyRoutine(msgsOut1, s, outputs[id].BaseOutput)
+		if err != nil {
+			t.Error(err)
+		}
 		msgsOut2 = append(msgsOut2, msgs2...)
-		Rounds[id] = nextR.(rounds.KeyGenRound)
 	}
 
-	for id := range Rounds {
-		doRound(msgsOut2, Rounds[id])
+	for id, s := range states {
+		_, err := partyRoutine(msgsOut2, s, outputs[id].BaseOutput)
+		if err != nil {
+			t.Error(err)
+		}
 	}
 
 	id1 := partyIDs[0]
-	err := <-Rounds[id1].Error()
-	assert.NoError(t, err)
-	groupKey1, publicShares1, _ := Rounds[id1].Output()
+	if err := outputs[id1].WaitForError(); err != nil {
+		t.Error(err)
+	}
+	groupKey1 := outputs[id1].Shares.GroupKey()
+	publicShares1 := outputs[id1].Shares
 	secrets := map[uint32]*eddsa.PrivateKey{}
 	for _, id2 := range partyIDs {
-
-		err := <-Rounds[id2].Error()
-		assert.NoError(t, err)
-		groupKey2, publicShares2, secret2 := Rounds[id2].Output()
-		secrets[id2] = secret2
-		assert.NoError(t, err, "output failed")
-		assert.NoError(t, CompareOutput(groupKey1, groupKey2, publicShares1, publicShares2), "comparison failed")
+		if err := outputs[id2].WaitForError(); err != nil {
+			t.Error(err)
+		}
+		groupKey2 := outputs[id2].Shares.GroupKey()
+		publicShares2 := outputs[id2].Shares
+		secrets[id2] = outputs[id2].SecretKey
+		if err := CompareOutput(groupKey1, groupKey2, publicShares1, publicShares2); err != nil {
+			t.Error(err)
+		}
 	}
-	assert.NoError(t, ValidateSecrets(secrets, groupKey1, publicShares1))
+
+	if err := ValidateSecrets(secrets, groupKey1, publicShares1); err != nil {
+		t.Error(err)
+	}
 }
 
 func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicShares2 *eddsa.Shares) error {
@@ -113,14 +109,8 @@ func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicS
 		}
 	}
 
-	groupKeyComp1, err := publicShares1.GroupKey(nil)
-	if err != nil {
-		return err
-	}
-	groupKeyComp2, err := publicShares2.GroupKey(nil)
-	if err != nil {
-		return err
-	}
+	groupKeyComp1 := publicShares1.GroupKey()
+	groupKeyComp2 := publicShares2.GroupKey()
 
 	if !groupKey1.Equal(groupKeyComp1) {
 		return errors.New("groupKey1 is not computed the same way")

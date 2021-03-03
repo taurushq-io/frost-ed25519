@@ -13,12 +13,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
-var (
-	ErrNotEnoughParties = errors.New("partyIDs does not contain a threshold number of parties")
-	ErrTooManyParties   = errors.New("partyIDs includes too many parties")
-	ErrPartySetWrong    = errors.New("given partyIDs is not a subset of the original partyIDs")
-)
-
 // Shares holds the public keys generated during a key generation protocol.
 // It should
 type Shares struct {
@@ -43,25 +37,25 @@ func NewShares(shares map[uint32]*edwards25519.Point, threshold uint32, groupKey
 		s.partyIDsSet[id] = true
 	}
 
+	sortSliceUInt32(s.allPartyIDs)
+
 	if groupKey == nil {
 		s.computeGroupKey()
 	}
 
-	sortSliceUInt32(s.allPartyIDs)
 	return s
 }
 
-func (s *Shares) computeGroupKey() *PublicKey {
+func (s *Shares) computeGroupKey() {
 	var tmp edwards25519.Point
-	groupKey := edwards25519.NewIdentityPoint()
+	s.groupKey = edwards25519.NewIdentityPoint()
 	partyIDs := s.allPartyIDs[:s.threshold+1]
 
 	for _, id := range partyIDs {
 		lagrange, _ := s.Lagrange(id, partyIDs)
 		tmp.ScalarMult(lagrange, s.shares[id])
-		groupKey.Add(groupKey, &tmp)
+		s.groupKey.Add(s.groupKey, &tmp)
 	}
-	return NewPublicKeyFromPoint(groupKey)
 }
 
 func (s *Shares) GroupKey() *PublicKey {
@@ -78,10 +72,10 @@ func (s *Shares) Share(index uint32) (*PublicKey, error) {
 
 func (s *Shares) ShareNormalized(index uint32, partyIDs []uint32) (*PublicKey, error) {
 	if len(partyIDs) < int(s.threshold)+1 {
-		return nil, ErrNotEnoughParties
+		return nil, errors.New("partyIDs does not contain a threshold number of parties")
 	}
 	if !s.partySliceIsSubset(partyIDs) {
-		return nil, ErrPartySetWrong
+		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
 	}
 
 	pk, err := s.Share(index)
@@ -116,12 +110,15 @@ func (s *Shares) partySliceIsSubset(partyIDs []uint32) bool {
 
 func (s *Shares) MarshalBinary() ([]byte, error) {
 	offset := 0
-	size := 4 + 4 + len(s.allPartyIDs)*(4+32)
+	size := 4 + 4 + 32 + len(s.allPartyIDs)*(4+32)
 	out := make([]byte, size)
 	binary.BigEndian.PutUint32(out[offset:], uint32(len(s.allPartyIDs)))
 	offset += 4
 	binary.BigEndian.PutUint32(out[offset:], s.threshold)
 	offset += 4
+	copy(out[offset:], s.groupKey.Bytes())
+	offset += 32
+
 	for _, id := range s.allPartyIDs {
 		binary.BigEndian.PutUint32(out[offset:], id)
 		offset += 4
@@ -135,7 +132,7 @@ func (s *Shares) UnmarshalBinary(data []byte) error {
 	var err error
 	offset := 0
 	n := binary.BigEndian.Uint32(data[offset:])
-	if len(data) != int(8+n*(4+32)) {
+	if len(data) != int(8+32+n*(4+32)) {
 		return errors.New("encoded n is inconsistent with data length")
 	}
 
@@ -145,6 +142,14 @@ func (s *Shares) UnmarshalBinary(data []byte) error {
 	if t+1 > n {
 		return errors.New("t should be < n - 1")
 	}
+
+	var groupKey edwards25519.Point
+	_, err = groupKey.SetBytes(data[offset : offset+32])
+	if err != nil {
+		return err
+	}
+	offset += 32
+
 	partyIDs := make([]uint32, n)
 	sharesSlice := make([]edwards25519.Point, n)
 	shares := make(map[uint32]*edwards25519.Point, n)
@@ -167,40 +172,47 @@ func (s *Shares) UnmarshalBinary(data []byte) error {
 	s.allPartyIDs = partyIDs
 	s.partyIDsSet = partyIDsSet
 	s.shares = shares
+
+	s.computeGroupKey()
+	if groupKey.Equal(s.groupKey) != 1 {
+		return errors.New("stored GroupKey does not correspond")
+	}
+
 	return nil
 }
 
+type sharesJSON struct {
+	Threshold int               `json:"t"`
+	GroupKey  string            `json:"groupkey"`
+	Shares    map[string]string `json:"shares"`
+}
+
 func (s *Shares) MarshalJSON() ([]byte, error) {
-	type SharesJSON struct {
-		Threshold int               `json:"t"`
-		Shares    map[string]string `json:"shares"`
-	}
 	sharesText := make(map[string]string, len(s.shares))
 	for _, id := range s.allPartyIDs {
 		idText := strconv.FormatUint(uint64(id), 10)
 		shareHex := hex.EncodeToString(s.shares[id].Bytes())
 		sharesText[idText] = shareHex
 	}
-	sharesJSON := SharesJSON{
+
+	groupKeyHex := hex.EncodeToString(s.groupKey.Bytes())
+	sharesJson := sharesJSON{
 		Threshold: int(s.threshold),
 		Shares:    sharesText,
+		GroupKey:  groupKeyHex,
 	}
-	return json.Marshal(sharesJSON)
+	return json.Marshal(sharesJson)
 }
 
 // TODO verify group key
 func (s *Shares) UnmarshalJSON(data []byte) error {
-	type SharesJSON struct {
-		Threshold int               `json:"t"`
-		Shares    map[string]string `json:"shares"`
-	}
-	var sharesJSON SharesJSON
-	err := json.Unmarshal(data, &sharesJSON)
+	var sharesJson sharesJSON
+	err := json.Unmarshal(data, &sharesJson)
 	if err != nil {
 		return err
 	}
-	n := uint32(len(sharesJSON.Shares))
-	t := uint32(sharesJSON.Threshold)
+	n := uint32(len(sharesJson.Shares))
+	t := uint32(sharesJson.Threshold)
 	if t+1 > n {
 		return errors.New("t should be < n - 1")
 	}
@@ -210,7 +222,7 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 	shares := make(map[uint32]*edwards25519.Point, n)
 	partyIDsSet := make(map[uint32]bool, n)
 
-	for idText, pointHex := range sharesJSON.Shares {
+	for idText, pointHex := range sharesJson.Shares {
 		id64, err := strconv.ParseUint(idText, 10, 32)
 		if err != nil {
 			return err
@@ -235,6 +247,19 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 	s.allPartyIDs = partyIDs
 	s.partyIDsSet = partyIDsSet
 	s.shares = shares
+
+	var groupKey edwards25519.Point
+	s.computeGroupKey()
+	groupKeyBytes, err := hex.DecodeString(sharesJson.GroupKey)
+	_, err = groupKey.SetBytes(groupKeyBytes)
+	if err != nil {
+		return err
+	}
+
+	if groupKey.Equal(s.groupKey) != 1 {
+		return errors.New("stored GroupKey does not correspond")
+	}
+
 	return nil
 }
 
@@ -252,6 +277,10 @@ func (s *Shares) Equal(s2 *Shares) bool {
 	}
 
 	if s.threshold != s2.threshold {
+		return false
+	}
+
+	if s.groupKey.Equal(s2.groupKey) != 1 {
 		return false
 	}
 
@@ -297,7 +326,7 @@ func sortSliceUInt32(a []uint32) {
 //			(x_0 - x_j) ... (x_k - x_j)
 func (s *Shares) Lagrange(idx uint32, partyIDs []uint32) (*edwards25519.Scalar, error) {
 	if !s.partySliceIsSubset(partyIDs) {
-		return nil, ErrPartySetWrong
+		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
 	}
 
 	var xM edwards25519.Scalar

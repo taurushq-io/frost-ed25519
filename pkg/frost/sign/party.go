@@ -2,7 +2,7 @@ package sign
 
 import (
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 )
 
 // A signer represents the state we store for one particular

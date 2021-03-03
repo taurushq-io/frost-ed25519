@@ -1,18 +1,22 @@
 package rounds
 
+import (
+	"fmt"
+)
+
 type Error struct {
-	partyID     uint32
-	roundNumber int
+	PartyID     uint32
+	RoundNumber int
 	err         error
 }
 
 func NewError(partyID uint32, err error) *Error {
 	return &Error{
-		partyID: partyID,
+		PartyID: partyID,
 		err:     err,
 	}
 }
 
 func (e *Error) Error() string {
-	return e.err.Error()
+	return fmt.Sprintf("party %d: round %d: %s", e.PartyID, e.RoundNumber, e.err.Error())
 }

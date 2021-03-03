@@ -1,5 +1,6 @@
 package frost
 
+/*
 import (
 	"fmt"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
-
 // handler holds the information for a certain Round by a participant.
 // It makes it easier to work with the underlying Round interface.
 type handler struct {
@@ -103,3 +103,5 @@ func (h *SignHandler) WaitForSignOutput() (signature *eddsa.Signature, err error
 	signature = h.round.(rounds.SignRound).Output()
 	return
 }
+
+*/

@@ -4,10 +4,11 @@ import (
 	"errors"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
@@ -43,7 +44,7 @@ type (
 )
 
 type Output struct {
-	*rounds.BaseOutput
+	*state.BaseOutput
 	Shares    *eddsa.Shares
 	SecretKey *eddsa.PrivateKey
 }
@@ -62,7 +63,7 @@ func NewRound(params *rounds.Parameters, threshold uint32) (rounds.Round, *Outpu
 		Parameters:  params,
 		Threshold:   threshold,
 		Commitments: make(map[uint32]*polynomial.Exponent, N),
-		Output:      &Output{BaseOutput: rounds.NewBaseOutput()},
+		Output:      &Output{BaseOutput: state.NewBaseOutput()},
 	}
 
 	return &r, r.Output, nil

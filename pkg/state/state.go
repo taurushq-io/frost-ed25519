@@ -1,14 +1,12 @@
-package rounds
+package state
 
 import (
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
 type State struct {
@@ -17,57 +15,42 @@ type State struct {
 	queue            []*messages.Message
 	queueMtx         sync.Mutex
 
-	timer *time.Timer
+	timeout time.Duration
+	timer   *time.Timer
 
 	roundNumber int
 
-	round Round
+	round rounds.Round
 
 	output *BaseOutput
 
-	*Parameters
+	*rounds.Parameters
 }
 
-func newState(params *Parameters, round Round, output *BaseOutput) *State {
+func NewBaseState(params *rounds.Parameters, round rounds.Round, output *BaseOutput, timeout time.Duration) *State {
 	s := &State{
-		acceptedTypes:    append([]messages.MessageType{}, round.AcceptedMessageTypes()...),
+		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[uint32]*messages.Message, params.N()),
 		queue:            make([]*messages.Message, 0, params.N()),
 		timer:            nil,
 		roundNumber:      0,
 		round:            round,
+		output:           output,
+		Parameters:       params,
 	}
 
-	if params.timeout > 0 {
+	for id := range params.OtherPartyIDsSet() {
+		s.receivedMessages[id] = nil
+	}
+
+	if timeout > 0 {
 		f := func() {
-			s.Abort(NewError(0, errors.New("message timeout")))
+			s.Abort(rounds.NewError(0, errors.New("message timeout")))
 		}
-		s.timer = time.AfterFunc(params.timeout, f)
+		s.timer = time.AfterFunc(timeout, f)
 	}
 
 	return s
-}
-
-func NewSignState(params *Parameters, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (*State, *sign.Output, error) {
-	p := params.Copy()
-	round, output, err := sign.NewRound(p, secret, shares, message)
-	if err != nil {
-		return nil, nil, err
-	}
-	s := newState(p, round, output.BaseOutput)
-
-	return s, output, nil
-}
-
-func NewKeygenState(params *Parameters, threshold uint32) (*State, *keygen.Output, error) {
-	p := params.Copy()
-	round, output, err := keygen.NewRound(p, threshold)
-	if err != nil {
-		return nil, nil, err
-	}
-	s := newState(p, round, output.BaseOutput)
-
-	return s, output, nil
 }
 
 // HandleMessage takes in an unmarshalled wire message and attempts to store it in the messages.Queue.
@@ -109,6 +92,10 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 		return errors.New("message type is not accepted for this type of round")
 	}
 
+	if s.timer != nil {
+		s.timer.Reset(s.timeout)
+	}
+
 	if msg.Type == s.acceptedTypes[0] {
 		s.receivedMessages[senderID] = msg
 	} else {
@@ -142,33 +129,28 @@ func (s *State) ProcessAll() []*messages.Message {
 		s.Abort(err)
 		return nil
 	}
-	return newMessages
-}
-
-func (s *State) NextRound() error {
-	s.queueMtx.Lock()
-	defer s.queueMtx.Unlock()
 
 	s.roundNumber++
 	s.round = s.round.NextRound()
 
 	s.acceptedTypes = s.acceptedTypes[1:]
-	if len(s.acceptedTypes) != 0 {
-
+	if len(s.acceptedTypes) > 0 {
+		for _, msg := range s.queue {
+			s.receivedMessages[msg.From] = msg
+		}
 	}
 
-	return nil
+	return newMessages
 }
 
-func (s *State) Abort(err *Error) {
+func (s *State) Abort(err *rounds.Error) {
 	if s.timer != nil {
 		s.timer.Stop()
 	}
 
-	err.roundNumber = s.roundNumber
+	err.RoundNumber = s.roundNumber
 	s.round.Reset()
 	s.round = nil
-
 }
 
 func (s *State) isAcceptedType(msgType messages.MessageType) bool {

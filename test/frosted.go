@@ -1,5 +1,17 @@
 package main
 
+/*
+import (
+	"crypto/ed25519"
+	"errors"
+	"fmt"
+
+	"github.com/taurusgroup/frost-ed25519/pkg/communication"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+)
+
+
 import (
 	"crypto/ed25519"
 	"errors"
@@ -8,7 +20,7 @@ import (
 
 	frost "github.com/taurusgroup/frost-ed25519/pkg"
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
 
@@ -220,3 +232,6 @@ func main() {
 		}
 	}
 }
+
+
+*/

@@ -1,13 +1,16 @@
 package main
 
+/*
 import (
 	"testing"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
+
+
 
 func FakeKeygen(partyIDs []uint32) (*eddsa.Shares, map[uint32]*eddsa.PrivateKey) {
 	n := len(partyIDs)
@@ -34,3 +37,5 @@ func TestSetup(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+*/

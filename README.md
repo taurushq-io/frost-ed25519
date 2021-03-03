@@ -9,17 +9,18 @@ Our FROST protocol is also inspired from that in the IETF
 Draft [Threshold Modes in Elliptic Curves ](https://www.ietf.org/id/draft-hallambaker-threshold-05.html).
 
 
-### Ed25519
+## Ed25519
 
 Ed25519 is an instance of the EdDSA construction, defined over the Edwards 25519 elliptic curve.
 FROST-Ed25519 is compatible with Ed25519, in the sense that public keys follow the same prescribed format,
 and that the same verification algorithm can be used.
 
-See [RFC 8032](https://tools.ietf.org/html/rfc8032) for more information about Ed25519.
+Specifically, we implement the _PureEdDSA_ variant as detailed in [RFC 8032](https://tools.ietf.org/html/rfc8032)
+(as opposed to HashEdDSA/Ed25519ph or ContextEdDSA/Ed25519ctx.).
 
 We denote `B` the base point of the Edwards 25519 elliptic curve.
 
-#### Keys
+### Keys
 
 We represent private keys as `eddsa.PrivateKey`, and are incompatible with Ed25519.
 
@@ -29,19 +30,32 @@ They can be used to represent both a _GroupKey_, or a single party's _Share_ of 
 An `ed25519.PublicKey` compatible with `ed25519.Verify` can be obtained by calling `.ToEdDSA()` on the public key.
 
 Mathematically, we can think of the private key as a scalar `s`, where `A = [s] B` is the public key.
-
-#### Signatures
+```
+s || prefix = H(x)
+A = [s] B
+```
+### Signatures
 
 Signatures for a message `M` are defined as a pair `(R, S)` where 
 
 - The _Nonce_ `R` represents an elliptic curve point, whose discrete log `r` is unknown (`R = [r] B`).
-
-- `S` derived from a private key and is computed as `S = (r + k * s) mod L`, where `k = SHA-512(R || A || M)`.
+- `S` is a scalar derived from a private key `s` and is computed as:
+```
+R = [r] B
+k = SHA-512(R || A || M)
+S = (r + k * s) mod L
+```
+    
 
 In FROST-Ed25519, signatures are represented by `eddsa.Signature` and can be converted to a `[]byte` slice compatible with `ed25519.Verify`
 by calling `.ToEdDSA()` on it.
 
-#### Verification
+In the original Ed25519 scheme, the nonce `R = [r] B` is generated deterministically using the `prefix` in the keygen:
+```
+r = H( prefix || M )
+```
+
+### Verification
 
 The verification algorithm takes a public key `A`, the signed message `M` and the signature `(R,S)`.
 It does the following:
@@ -52,27 +66,20 @@ It does the following:
 
 ## Protocol version implemented
 
-The FROST paper proposes two variants of hte 
-
+The FROST paper proposes two variants of the protocol. 
 We implement the "single-round" version of FROST, rather than the 4-round variant
 FROST-Interactive.
 
 The single-round version actually does one "offline" round, followed
 by one "online" round, where the offline round does not need the message
 and can therefore be precomputed.
+For simplicity, we group both steps together and achieve a 2 round protocol that requires less state handling.
+We also ignore the role of _signature aggregator_ and instead let the parties broadcast the signature shares to each other to obtain the full signature.
 
 This variant is the one that is proposed for practical implementations,
 however it does not have a full security proof, unlike
 FROST-Interactive (see [Section
 6.2](https://eprint.iacr.org/2020/852.pdf) of the FROST paper).
-
-
-Moreover 
-
-### Ed25519 version
-
-We support the original Ed25519, which follows the construction known as
-PureEdDSA, as opposed to HashEdDSA/Ed25519ph or ContextEdDSA/Ed25519ctx.
 
 ### Deterministic nonce generation
 

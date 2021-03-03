@@ -10,7 +10,6 @@ type Parameters struct {
 	id          uint32
 	allPartyIDs []uint32
 	partyIDsSet map[uint32]bool
-	timeout     time.Duration
 }
 
 func NewParameters(selfPartyID uint32, allPartyIDs []uint32, timeout time.Duration) (*Parameters, error) {
@@ -27,14 +26,14 @@ func NewParameters(selfPartyID uint32, allPartyIDs []uint32, timeout time.Durati
 			return nil, errors.New("IDs in allPartyIDs cannot be 0")
 		}
 
+		if _, alreadyAdded := otherPartyIDs[id]; !alreadyAdded {
+			sortedAllPartyIDs = append(sortedAllPartyIDs, id)
+		}
+
 		if id == selfPartyID {
 			foundSelfIDInAll = true
 		} else {
 			otherPartyIDs[id] = true
-		}
-
-		if _, alreadyAdded := otherPartyIDs[id]; !alreadyAdded {
-			sortedAllPartyIDs = append(sortedAllPartyIDs, id)
 		}
 	}
 	if !foundSelfIDInAll {
@@ -51,7 +50,6 @@ func NewParameters(selfPartyID uint32, allPartyIDs []uint32, timeout time.Durati
 		id:          selfPartyID,
 		allPartyIDs: sortedAllPartyIDs,
 		partyIDsSet: otherPartyIDs,
-		timeout:     timeout,
 	}
 	return p, nil
 }
@@ -91,7 +89,6 @@ func (p *Parameters) Copy() *Parameters {
 		id:          p.id,
 		allPartyIDs: append([]uint32{}, p.allPartyIDs...),
 		partyIDsSet: partyIDsSet,
-		timeout:     p.timeout,
 	}
 	return q
 }

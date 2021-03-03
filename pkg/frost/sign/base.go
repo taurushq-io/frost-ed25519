@@ -4,9 +4,10 @@ import (
 	"errors"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
@@ -42,7 +43,7 @@ type (
 )
 
 type Output struct {
-	*rounds.BaseOutput
+	*state.BaseOutput
 	Signature *eddsa.Signature
 }
 
@@ -84,7 +85,7 @@ func NewRound(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *eddsa
 	}
 	round.SecretKeyShare.Multiply(lagrange, secret.Scalar())
 
-	output := &Output{BaseOutput: rounds.NewBaseOutput()}
+	output := &Output{BaseOutput: state.NewBaseOutput()}
 	round.Output = output
 
 	return &round, output, nil
