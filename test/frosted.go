@@ -8,23 +8,24 @@ import (
 
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
 
-func Setup(N, T uint32) (message []byte, keygenIDs, signIDs []uint32) {
+func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
 	message = []byte("hello")
-	keygenIDs = make([]uint32, 0, N)
-	for id := uint32(0); id < N; id++ {
+	keygenIDs = make([]party.ID, 0, N)
+	for id := party.Size(0); id < N; id++ {
 		keygenIDs = append(keygenIDs, 42+id)
 	}
-	signIDs = make([]uint32, T+1)
+	signIDs = make([]party.ID, T+1)
 	copy(signIDs, keygenIDs)
 	return
 }
 
-func DoKeygen(N uint32, T uint32, keygenIDs []uint32, keygenComm map[uint32]communication.Communicator) (*eddsa.Shares, map[uint32]*eddsa.PrivateKey, error) {
+func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Shares, map[party.ID]*eddsa.PrivateKey, error) {
 	var err error
-	keygenHandlers := make(map[uint32]*KeyGenHandler, N)
+	keygenHandlers := make(map[party.ID]*KeyGenHandler, N)
 	for _, id := range keygenIDs {
 		keygenHandlers[id], err = NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
 		if err != nil {
@@ -33,7 +34,7 @@ func DoKeygen(N uint32, T uint32, keygenIDs []uint32, keygenComm map[uint32]comm
 	}
 
 	var shares *eddsa.Shares
-	secrets := map[uint32]*eddsa.PrivateKey{}
+	secrets := map[party.ID]*eddsa.PrivateKey{}
 	for id, h := range keygenHandlers {
 		var secret *eddsa.PrivateKey
 		if _, shares, secret, err = h.WaitForKeygenOutput(); err != nil {
@@ -44,9 +45,9 @@ func DoKeygen(N uint32, T uint32, keygenIDs []uint32, keygenComm map[uint32]comm
 	return shares, secrets, nil
 }
 
-func DoSign(T uint32, signIDs []uint32, shares *eddsa.Shares, secrets map[uint32]*eddsa.PrivateKey, signComm map[uint32]communication.Communicator, message []byte) error {
+func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[party.ID]*eddsa.PrivateKey, signComm map[party.ID]communication.Communicator, message []byte) error {
 	groupKey := shares.GroupKey()
-	signHandlers := make(map[uint32]*SignHandler, T+1)
+	signHandlers := make(map[party.ID]*SignHandler, T+1)
 	var err error
 	for _, id := range signIDs {
 		signHandlers[id], err = NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
@@ -75,7 +76,7 @@ func DoSign(T uint32, signIDs []uint32, shares *eddsa.Shares, secrets map[uint32
 	return nil
 }
 
-func FROSTestUDP(N, T uint32) error {
+func FROSTestUDP(N, T party.Size) error {
 	fmt.Printf("Using UDP:\n(n, t) = (%v, %v): ", N, T)
 
 	message, keygenIDs, signIDs := Setup(N, T)
@@ -92,7 +93,7 @@ func FROSTestUDP(N, T uint32) error {
 	return DoSign(T, signIDs, shares, secrets, signComm, message)
 }
 
-func FROSTestChannel(N, T uint32) error {
+func FROSTestChannel(N, T party.Size) error {
 	fmt.Printf("Using Channels:\n(n, t) = (%v, %v): ", N, T)
 
 	message, keygenIDs, signIDs := Setup(N, T)
@@ -109,13 +110,13 @@ func FROSTestChannel(N, T uint32) error {
 	return DoSign(T, signIDs, shares, secrets, signComm, message)
 }
 
-func destroyCommMap(m map[uint32]communication.Communicator) {
+func destroyCommMap(m map[party.ID]communication.Communicator) {
 	for _, c := range m {
 		c.Done()
 	}
 }
 
-func FROSTestMonkey(N, T uint32) error {
+func FROSTestMonkey(N, T party.Size) error {
 	fmt.Printf("Using Monkey Channels:\n(n, t) = (%v, %v): ", N, T)
 
 	message, keygenIDs, signIDs := Setup(N, T)
@@ -155,7 +156,7 @@ func FROSTestMonkey(N, T uint32) error {
 }
 
 func main() {
-	ns := []uint32{5, 10, 50}
+	ns := []party.Size{5, 10, 50}
 
 	// what should work
 	for _, n := range ns {

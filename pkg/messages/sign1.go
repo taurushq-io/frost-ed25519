@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
 const sizeSign1 = 32 + 32
@@ -14,7 +15,7 @@ type Sign1 struct {
 	Di, Ei edwards25519.Point
 }
 
-func NewSign1(from uint32, commitmentD, commitmentE *edwards25519.Point) *Message {
+func NewSign1(from party.ID, commitmentD, commitmentE *edwards25519.Point) *Message {
 	return &Message{
 		Type: MessageTypeSign1,
 		From: from,

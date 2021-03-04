@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
 const sizeSign2 = 32
@@ -14,7 +15,7 @@ type Sign2 struct {
 	Zi edwards25519.Scalar
 }
 
-func NewSign2(from uint32, signatureShare *edwards25519.Scalar) *Message {
+func NewSign2(from party.ID, signatureShare *edwards25519.Scalar) *Message {
 	return &Message{
 		Type:  MessageTypeSign2,
 		From:  from,

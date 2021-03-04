@@ -5,6 +5,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
@@ -64,7 +65,7 @@ func (h *handler) ProcessAll() {
 	}
 }
 
-func NewKeyGenHandler(comm communication.Communicator, ID uint32, IDs []uint32, T uint32) (*KeyGenHandler, error) {
+func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, T party.Size) (*KeyGenHandler, error) {
 	p, err := rounds.NewParameters(ID, IDs)
 	if err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ func NewKeyGenHandler(comm communication.Communicator, ID uint32, IDs []uint32, 
 	}, nil
 }
 
-func NewSignHandler(comm communication.Communicator, ID uint32, IDs []uint32, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
+func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
 	p, err := rounds.NewParameters(ID, IDs)
 	if err != nil {
 		return nil, err

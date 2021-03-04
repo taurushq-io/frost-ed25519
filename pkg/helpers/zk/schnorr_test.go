@@ -7,11 +7,12 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 func TestSchnorrProof(t *testing.T) {
-	partyID := uint32(42)
+	partyID := party.ID(42)
 	private := scalar.NewScalarRandom()
 	public := new(edwards25519.Point).ScalarBaseMult(private)
 	ctx := make([]byte, 32)
@@ -22,7 +23,7 @@ func TestSchnorrProof(t *testing.T) {
 }
 
 func TestSchnorrCofactor(t *testing.T) {
-	partyID := uint32(42)
+	partyID := party.ID(42)
 
 	secret := edwards25519.NewScalar()
 	public := new(edwards25519.Point).ScalarBaseMult(secret)

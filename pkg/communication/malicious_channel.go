@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
 
 type MonkeyChannel struct {
-	channels map[uint32]chan []byte
+	channels map[party.ID]chan []byte
 	incoming chan *messages.Message
-	receiver uint32
+	receiver party.ID
 	wg       *sync.WaitGroup
 	done     chan struct{}
 

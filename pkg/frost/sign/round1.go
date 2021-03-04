@@ -2,11 +2,11 @@ package sign
 
 import (
 	"crypto/sha512"
-	"encoding/binary"
 	"errors"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
@@ -33,13 +33,10 @@ func (round *round1) computeRhos() {
 		We need to compute a very simple hash N times, and Go's caching isn't great for hashing.
 		Therefore, we can simply change the buffer and rehash it many times.
 	*/
-
-	IDBytes := make([]byte, 4)
-
 	messageHash := sha512.Sum512(round.Message)
 
-	sizeB := round.N() * (4 + 32 + 32)
-	bufferHeader := len(hashDomainSeparation) + 4 + len(messageHash)
+	sizeB := int(round.N() * (party.ByteSize + 32 + 32))
+	bufferHeader := len(hashDomainSeparation) + party.ByteSize + len(messageHash)
 	sizeBuffer := bufferHeader + sizeB
 	offsetID := len(hashDomainSeparation)
 
@@ -56,21 +53,20 @@ func (round *round1) computeRhos() {
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
 	buffer = append(buffer, hashDomainSeparation...)
-	buffer = append(buffer, IDBytes...)
+	buffer = append(buffer, round.SelfID().Bytes()...)
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
 	for _, id := range round.AllPartyIDs() {
 		party := round.Parties[id]
-		binary.BigEndian.PutUint32(IDBytes, id)
-		buffer = append(buffer, IDBytes...)
+		buffer = append(buffer, id.Bytes()...)
 		buffer = append(buffer, party.Di.Bytes()...)
 		buffer = append(buffer, party.Ei.Bytes()...)
 	}
 
 	for id, party := range round.Parties {
 		// Update the four bytes with the ID
-		binary.BigEndian.PutUint32(buffer[offsetID:], id)
+		copy(buffer[offsetID:], id.Bytes())
 
 		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
 		digest := sha512.Sum512(buffer)
@@ -82,14 +78,14 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	round.computeRhos()
 
 	round.R.Set(edwards25519.NewIdentityPoint())
-	for _, party := range round.Parties {
+	for _, p := range round.Parties {
 		// TODO Find a way to do this faster since we don't need constant time
 		// Ri = D + [ρ] E
-		party.Ri.ScalarMult(&party.Pi, &party.Ei)
-		party.Ri.Add(&party.Ri, &party.Di)
+		p.Ri.ScalarMult(&p.Pi, &p.Ei)
+		p.Ri.Add(&p.Ri, &p.Di)
 
 		// R += Ri
-		round.R.Add(&round.R, &party.Ri)
+		round.R.Add(&round.R, &p.Ri)
 	}
 
 	// c = H(R, GroupKey, M)

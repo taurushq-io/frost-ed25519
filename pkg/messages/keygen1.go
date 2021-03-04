@@ -3,6 +3,7 @@ package messages
 import (
 	"fmt"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
 )
@@ -12,7 +13,7 @@ type KeyGen1 struct {
 	Commitments *polynomial.Exponent
 }
 
-func NewKeyGen1(from uint32, proof *zk.Schnorr, commitments *polynomial.Exponent) *Message {
+func NewKeyGen1(from party.ID, proof *zk.Schnorr, commitments *polynomial.Exponent) *Message {
 	return &Message{
 		Type: MessageTypeKeyGen1,
 		From: from,

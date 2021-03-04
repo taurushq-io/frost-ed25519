@@ -5,13 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
 type State struct {
 	acceptedTypes    []messages.MessageType
-	receivedMessages map[uint32]*messages.Message
+	receivedMessages map[party.ID]*messages.Message
 	queue            []*messages.Message
 
 	timer
@@ -32,7 +33,7 @@ type State struct {
 func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Duration) *State {
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
-		receivedMessages: make(map[uint32]*messages.Message, params.N()),
+		receivedMessages: make(map[party.ID]*messages.Message, params.N()),
 		queue:            make([]*messages.Message, 0, params.N()),
 		round:            round,
 		doneChan:         make(chan struct{}),
@@ -121,7 +122,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	}
 
 	// Only continue if we received messages from all
-	if len(s.receivedMessages) != s.params.N()-1 {
+	if len(s.receivedMessages) != int(s.params.N()-1) {
 		return nil
 	}
 

@@ -29,7 +29,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 		if id == round.SelfID() {
 			continue
 		}
-		msgsOut = append(msgsOut, messages.NewKeyGen2(round.SelfID(), id, round.Polynomial.Evaluate(id)))
+		msgsOut = append(msgsOut, messages.NewKeyGen2(round.SelfID(), id, round.Polynomial.Evaluate(id.Scalar())))
 	}
 
 	// Now that we have received the commitment from every one,

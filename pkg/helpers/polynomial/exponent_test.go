@@ -2,22 +2,22 @@ package polynomial
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 func TestExponent_Evaluate(t *testing.T) {
 	for x := 0; x < 5; x++ {
-		N := uint32(1000)
+		N := party.Size(1000)
 		secret := scalar.NewScalarRandom()
 		poly := NewPolynomial(N, secret)
 		polyExp := NewPolynomialExponent(poly)
 
-		randomIndex := uint32(rand.Int31n(4096))
+		randomIndex := party.RandID().Scalar()
 
 		lhs := edwards25519.NewIdentityPoint().ScalarBaseMult(poly.Evaluate(randomIndex))
 		rhs1 := polyExp.evaluateHorner(randomIndex)
@@ -31,26 +31,26 @@ func TestExponent_Evaluate(t *testing.T) {
 }
 
 func Benchmark_Evaluate(b *testing.B) {
-	N := uint32(100)
+	N := party.Size(100)
 	secret := scalar.NewScalarRandom()
 	poly := NewPolynomial(N, secret)
 	polyExp := NewPolynomialExponent(poly)
 
 	b.Run("normal", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			randomIndex := uint32(rand.Uint64())
+			randomIndex := party.RandID().Scalar()
 			polyExp.evaluateClassic(randomIndex)
 		}
 	})
 	b.Run("horner", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			randomIndex := uint32(rand.Uint64())
+			randomIndex := party.RandID().Scalar()
 			polyExp.evaluateHorner(randomIndex)
 		}
 	})
 	b.Run("vartime", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			randomIndex := uint32(rand.Uint64())
+			randomIndex := party.RandID().Scalar()
 			polyExp.evaluateVar(randomIndex)
 		}
 	})
@@ -58,9 +58,9 @@ func Benchmark_Evaluate(b *testing.B) {
 
 func TestSum(t *testing.T) {
 	N := 20
-	Deg := uint32(10)
+	Deg := party.Size(10)
 
-	randomIndex := uint32(rand.Int31n(4096))
+	randomIndex := party.RandID().Scalar()
 
 	// compute f1(x) + f2(x) + ...
 	evaluationScalar := edwards25519.NewScalar()

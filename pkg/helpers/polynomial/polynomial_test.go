@@ -1,11 +1,11 @@
 package polynomial
 
 import (
-	"math/rand"
 	"testing"
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
@@ -16,13 +16,13 @@ func TestPolynomial_Evaluate(t *testing.T) {
 		polynomial.coefficients[2].Set(scalar.NewScalarUInt32(1))
 
 		for index := uint32(0); index < 100; index++ {
-			x := rand.Uint32()
+			x := party.RandID()
 			if x > 1<<16 {
 				continue
 			}
 			result := 1 + x*x
-			computedResult := polynomial.Evaluate(index)
-			expectedResult := scalar.NewScalarUInt32(result)
+			computedResult := polynomial.Evaluate(party.ID(index).Scalar())
+			expectedResult := result.Scalar()
 			require.Equal(t, 1, expectedResult.Equal(computedResult))
 		}
 	}

@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 func TestKeyGen2_MarshalBinary(t *testing.T) {
-	from := rand.Uint32()
-	to := rand.Uint32()
+	from := party.ID(rand.Uint32())
+	to := party.ID(rand.Uint32())
 	secret := scalar.NewScalarRandom()
 
 	msg := NewKeyGen2(from, to, secret)

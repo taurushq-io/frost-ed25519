@@ -10,6 +10,7 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
@@ -18,15 +19,15 @@ import (
 )
 
 func TestSign(t *testing.T) {
-	N := uint32(50)
+	N := party.Size(50)
 	T := N - 1
 
 	_, AllPartyIDs, shares, secrets := generateFakeParties(T, N)
 
 	partyIDs := AllPartyIDs[:T+1]
 
-	states := map[uint32]*state.State{}
-	outputs := map[uint32]*sign.Output{}
+	states := map[party.ID]*state.State{}
+	outputs := map[party.ID]*sign.Output{}
 
 	msgsOut1 := make([][]byte, 0, N)
 	msgsOut2 := make([][]byte, 0, N)
@@ -111,20 +112,21 @@ func TestSign(t *testing.T) {
 	}
 }
 
-func generateFakeParties(t, n uint32) (*edwards25519.Scalar, []uint32, *eddsa.Shares, map[uint32]*eddsa.PrivateKey) {
-	allParties := make([]uint32, n)
-	for i := uint32(0); i < n; i++ {
+func generateFakeParties(t, n party.Size) (*edwards25519.Scalar, []party.ID, *eddsa.Shares, map[party.ID]*eddsa.PrivateKey) {
+	allParties := make([]party.ID, n)
+	for i := party.ID(0); i < n; i++ {
 		allParties[i] = i + 1
 	}
 
 	secret := scalar.NewScalarRandom()
 	poly := polynomial.NewPolynomial(t, secret)
-	shares := poly.EvaluateMultiple(allParties)
 
-	secrets := map[uint32]*eddsa.PrivateKey{}
-	sharesPublic := map[uint32]*edwards25519.Point{}
+	shares := map[party.ID]*edwards25519.Scalar{}
+	secrets := map[party.ID]*eddsa.PrivateKey{}
+	sharesPublic := map[party.ID]*edwards25519.Point{}
 
 	for _, id := range allParties {
+		shares[id] = poly.Evaluate(id.Scalar())
 		sharesPublic[id] = new(edwards25519.Point).ScalarBaseMult(shares[id])
 		secrets[id] = eddsa.NewPrivateKeyFromScalar(shares[id])
 	}

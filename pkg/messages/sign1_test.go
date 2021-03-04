@@ -5,6 +5,7 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
@@ -14,7 +15,7 @@ func TestSign1_MarshalBinary(t *testing.T) {
 	D := new(edwards25519.Point).ScalarBaseMult(d)
 	E := new(edwards25519.Point).ScalarBaseMult(e)
 
-	from := uint32(42)
+	from := party.ID(42)
 
 	msg := NewSign1(from, D, E)
 

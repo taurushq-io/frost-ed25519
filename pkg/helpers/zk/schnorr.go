@@ -1,10 +1,10 @@
 package zk
 
 import (
-	"encoding/binary"
 	"errors"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 
 	"crypto/sha512"
 
@@ -30,12 +30,12 @@ type Schnorr struct {
 //   context: 32 byte context string,
 //   public:  [secret] B
 //   M:       [k] B
-func challenge(partyID uint32, context []byte, public, M *edwards25519.Point) *edwards25519.Scalar {
+func challenge(partyID party.ID, context []byte, public, M *edwards25519.Point) *edwards25519.Scalar {
 	// S = H( ID || CTX || Public || M )
 	var S edwards25519.Scalar
 
-	hashBuffer := make([]byte, 4, 4+32+32+32)
-	binary.BigEndian.PutUint32(hashBuffer, partyID)
+	hashBuffer := make([]byte, 0, party.ByteSize+32+32+32)
+	hashBuffer = append(hashBuffer, partyID.Bytes()...)
 	hashBuffer = append(hashBuffer, context[:32]...)
 	hashBuffer = append(hashBuffer, public.Bytes()...)
 	hashBuffer = append(hashBuffer, M.Bytes()...)
@@ -57,7 +57,7 @@ func challenge(partyID uint32, context []byte, public, M *edwards25519.Point) *e
 // R := k + private•S
 //
 // The proof returned is the tuple (S,R)
-func NewSchnorrProof(partyID uint32, public *edwards25519.Point, context []byte, private *edwards25519.Scalar) *Schnorr {
+func NewSchnorrProof(partyID party.ID, public *edwards25519.Point, context []byte, private *edwards25519.Scalar) *Schnorr {
 	var (
 		proof Schnorr
 		M     edwards25519.Point
@@ -79,7 +79,7 @@ func NewSchnorrProof(partyID uint32, public *edwards25519.Point, context []byte,
 //    partyID is the uint32 ID of the prover
 //    public is the point [private]•B
 //    context is a 32 byte context (if it is set to [0 ... 0] then we may be susceptible to replay attacks)
-func (proof *Schnorr) Verify(partyID uint32, public *edwards25519.Point, context []byte) bool {
+func (proof *Schnorr) Verify(partyID party.ID, public *edwards25519.Point, context []byte) bool {
 	var MPrime, publicNeg edwards25519.Point
 
 	publicNeg.Negate(public)
@@ -104,8 +104,6 @@ func (proof *Schnorr) UnmarshalBinary(data []byte) error {
 	if len(data) != 64 {
 		return errors.New("length is wrong")
 	}
-	//proof.S.SetBytesWithClamping(data[:32])
-	//proof.R.SetBytesWithClamping(data[32:])
 	var err error
 	_, err = proof.S.SetCanonicalBytes(data[:32])
 	if err != nil {

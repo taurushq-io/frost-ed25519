@@ -2,15 +2,17 @@ package rounds
 
 import (
 	"fmt"
+
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
 type Error struct {
-	PartyID     uint32
+	PartyID     party.ID
 	RoundNumber int
 	err         error
 }
 
-func NewError(partyID uint32, err error) *Error {
+func NewError(partyID party.ID, err error) *Error {
 	return &Error{
 		PartyID: partyID,
 		err:     err,

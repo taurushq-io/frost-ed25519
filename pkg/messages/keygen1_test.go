@@ -1,18 +1,18 @@
 package messages
 
 import (
-	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
 )
 
 func TestKeyGen1_MarshalBinary(t *testing.T) {
-	from := rand.Uint32()
-	deg := uint32(10)
+	from := party.RandID()
+	deg := party.RandIDn(100)
 	secret := scalar.NewScalarRandom()
 	context := make([]byte, 32)
 

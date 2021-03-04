@@ -8,17 +8,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
 
 type UDP struct {
-	peers    map[uint32]*net.UDPAddr
+	peers    map[party.ID]*net.UDPAddr
 	incoming chan *messages.Message
 	conn     *net.UDPConn
-	id       uint32
+	id       party.ID
 }
 
-func NewUDPCommunicator(id uint32, laddr *net.UDPAddr) (c *UDP, ip string) {
+func NewUDPCommunicator(id party.ID, laddr *net.UDPAddr) (c *UDP, ip string) {
 	l, err := net.ListenUDP("udp4", nil)
 	if err != nil {
 		panic(err)
@@ -26,7 +27,7 @@ func NewUDPCommunicator(id uint32, laddr *net.UDPAddr) (c *UDP, ip string) {
 	ip = l.LocalAddr().String()
 
 	c = &UDP{
-		peers:    map[uint32]*net.UDPAddr{},
+		peers:    map[party.ID]*net.UDPAddr{},
 		incoming: make(chan *messages.Message, 10),
 		conn:     l,
 		id:       id,
@@ -34,7 +35,7 @@ func NewUDPCommunicator(id uint32, laddr *net.UDPAddr) (c *UDP, ip string) {
 	return
 }
 
-func (c *UDP) AddPeer(id uint32, ip string) {
+func (c *UDP) AddPeer(id party.ID, ip string) {
 	addr, _ := net.ResolveUDPAddr("udp4", ip)
 	c.peers[id] = addr
 }

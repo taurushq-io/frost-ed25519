@@ -3,21 +3,25 @@ package eddsa
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
-func fakeShares(n, t uint32) (*Shares, *edwards25519.Scalar) {
-	shares := make(map[uint32]*edwards25519.Point, n)
+func fakeShares(n, t party.Size) (*Shares, *edwards25519.Scalar) {
+	shares := make(map[party.ID]*edwards25519.Point, n)
 	secret := scalar.NewScalarRandom()
 	poly := polynomial.NewPolynomial(t, secret)
 	for i := 0; i < int(n); i++ {
-		id := rand.Uint32()
-		s := poly.Evaluate(id)
+		id := party.RandID() + 1
+		if _, ok := shares[id]; ok {
+			i--
+			continue
+		}
+		s := poly.Evaluate(id.Scalar())
 		p := new(edwards25519.Point).ScalarBaseMult(s)
 		shares[id] = p
 	}
@@ -26,15 +30,15 @@ func fakeShares(n, t uint32) (*Shares, *edwards25519.Scalar) {
 
 func TestShares_GroupKey(t *testing.T) {
 	var public edwards25519.Point
-	var N, T uint32 = 50, 40
+	var N, T party.Size = 50, 40
 
-	shares := make(map[uint32]*edwards25519.Point, N)
+	shares := make(map[party.ID]*edwards25519.Point, N)
 	secret := scalar.NewScalarRandom()
 	public.ScalarBaseMult(secret)
 	poly := polynomial.NewPolynomial(T, secret)
 	for i := 0; i < int(N); i++ {
-		id := rand.Uint32()
-		s := poly.Evaluate(id)
+		id := party.RandID()
+		s := poly.Evaluate(id.Scalar())
 		p := new(edwards25519.Point).ScalarBaseMult(s)
 		shares[id] = p
 	}

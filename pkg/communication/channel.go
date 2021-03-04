@@ -5,13 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
 
 type Channel struct {
-	channels map[uint32]chan []byte
+	channels map[party.ID]chan []byte
 	incoming chan *messages.Message
-	receiver uint32
+	receiver party.ID
 	wg       *sync.WaitGroup
 	done     chan struct{}
 }
@@ -48,7 +49,7 @@ func (c *Channel) Done() {
 	close(c.incoming)
 }
 
-func waitForFinish(wg *sync.WaitGroup, done chan struct{}, chans map[uint32]chan []byte) {
+func waitForFinish(wg *sync.WaitGroup, done chan struct{}, chans map[party.ID]chan []byte) {
 	wg.Wait()
 	for _, c := range chans {
 		close(c)

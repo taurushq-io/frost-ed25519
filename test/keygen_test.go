@@ -8,21 +8,22 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 func TestKeygen(t *testing.T) {
-	N := uint32(100)
+	N := party.Size(50)
 	T := N / 2
 
-	partyIDs := make([]uint32, 0, N)
-	for id := uint32(1); id <= N; id++ {
+	partyIDs := make([]party.ID, 0, N)
+	for id := party.ID(1); id <= N; id++ {
 		partyIDs = append(partyIDs, id)
 	}
 
-	states := map[uint32]*state.State{}
-	outputs := map[uint32]*keygen.Output{}
+	states := map[party.ID]*state.State{}
+	outputs := map[party.ID]*keygen.Output{}
 
 	for _, id := range partyIDs {
 		p, err := rounds.NewParameters(id, partyIDs)
@@ -69,7 +70,7 @@ func TestKeygen(t *testing.T) {
 	}
 	groupKey1 := outputs[id1].Shares.GroupKey()
 	publicShares1 := outputs[id1].Shares
-	secrets := map[uint32]*eddsa.PrivateKey{}
+	secrets := map[party.ID]*eddsa.PrivateKey{}
 	for _, id2 := range partyIDs {
 		if err := states[id2].WaitForError(); err != nil {
 			t.Error(err)
@@ -125,7 +126,7 @@ func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicS
 	return nil
 }
 
-func ValidateSecrets(secrets map[uint32]*eddsa.PrivateKey, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
+func ValidateSecrets(secrets map[party.ID]*eddsa.PrivateKey, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
 	fullSecret := edwards25519.NewScalar()
 	allIDs := shares.PartyIDs()
 

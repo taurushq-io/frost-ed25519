@@ -33,7 +33,7 @@ func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	// We use the variable Secret to hold the sum of all shares received.
 	// Therefore, we can set it to the share we would send to our selves.
 	// Bonus, we overwrite the original secret which is no longer needed.
-	round.Secret.Set(round.Polynomial.Evaluate(round.SelfID()))
+	round.Secret.Set(round.Polynomial.Evaluate(round.SelfID().Scalar()))
 
 	msg := messages.NewKeyGen1(round.SelfID(), proof, round.CommitmentsSum)
 	return []*messages.Message{msg}, nil

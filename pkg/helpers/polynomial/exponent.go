@@ -1,10 +1,10 @@
 package polynomial
 
 import (
-	"encoding/binary"
 	"errors"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
@@ -27,8 +27,8 @@ func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
 }
 
 // Evaluate uses any one of the defined evaluation algorithms
-func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
-	if index == 0 {
+func (p *Exponent) Evaluate(index *edwards25519.Scalar) *edwards25519.Point {
+	if index.Equal(edwards25519.NewScalar()) == 1 {
 		panic("you should be using .Constant() instead")
 	}
 
@@ -38,20 +38,19 @@ func (p *Exponent) Evaluate(index uint32) *edwards25519.Point {
 
 // evaluateClassic evaluates a polynomial in a given variable index
 // We do the classic method.
-func (p *Exponent) evaluateClassic(index uint32) *edwards25519.Point {
+func (p *Exponent) evaluateClassic(index *edwards25519.Scalar) *edwards25519.Point {
 	var result, tmp edwards25519.Point
 
-	x := scalar.NewScalarUInt32(index)
-	x0 := scalar.NewScalarUInt32(1)
+	x := scalar.NewScalarUInt32(1)
 
 	zero := edwards25519.NewScalar()
 
 	result.Set(edwards25519.NewIdentityPoint())
 	for i := range p.coefficients {
-		tmp.VarTimeDoubleScalarBaseMult(x0, p.coefficients[i], zero)
+		tmp.VarTimeDoubleScalarBaseMult(x, p.coefficients[i], zero)
 		result.Add(&result, &tmp)
 
-		x0.Multiply(x0, x)
+		x.Multiply(x, index)
 	}
 	return &result
 }
@@ -61,10 +60,8 @@ func (p *Exponent) evaluateClassic(index uint32) *edwards25519.Point {
 // than other Point ops, but this requires us to have access to an array of powers of index.
 //
 //
-func (p *Exponent) evaluateVar(index uint32) *edwards25519.Point {
+func (p *Exponent) evaluateVar(index *edwards25519.Scalar) *edwards25519.Point {
 	var result edwards25519.Point
-
-	x := scalar.NewScalarUInt32(index)
 
 	powers := make([]edwards25519.Scalar, len(p.coefficients))
 	powersPointers := make([]*edwards25519.Scalar, len(p.coefficients))
@@ -74,9 +71,9 @@ func (p *Exponent) evaluateVar(index uint32) *edwards25519.Point {
 		case i == 0:
 			powersPointers[i] = scalar.SetScalarUInt32(&powers[0], 1)
 		case i == 1:
-			powersPointers[i] = powers[1].Set(x)
+			powersPointers[i] = powers[1].Set(index)
 		default:
-			powersPointers[i] = powers[i].Multiply(&powers[i-1], x)
+			powersPointers[i] = powers[i].Multiply(&powers[i-1], index)
 		}
 	}
 	return result.VarTimeMultiScalarMult(powersPointers, p.coefficients)
@@ -85,9 +82,8 @@ func (p *Exponent) evaluateVar(index uint32) *edwards25519.Point {
 // evaluateHorner evaluates a polynomial in a given variable index
 // We create a list of all powers of index, and use VarTimeMultiScalarMult
 // to speed things up
-func (p *Exponent) evaluateHorner(index uint32) *edwards25519.Point {
+func (p *Exponent) evaluateHorner(index *edwards25519.Scalar) *edwards25519.Point {
 	var result edwards25519.Point
-	x := scalar.NewScalarUInt32(index)
 
 	zero := edwards25519.NewScalar()
 
@@ -95,24 +91,24 @@ func (p *Exponent) evaluateHorner(index uint32) *edwards25519.Point {
 
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		// B_n-1 = [x]B_n  + A_n-1
-		result.VarTimeDoubleScalarBaseMult(x, &result, zero)
+		result.VarTimeDoubleScalarBaseMult(index, &result, zero)
 		result.Add(&result, p.coefficients[i])
 	}
 	return &result
 }
 
 // EvaluateMulti evaluates a polynomial in a many given points.
-func (p *Exponent) EvaluateMulti(indices []uint32) map[uint32]*edwards25519.Point {
-	evaluations := make(map[uint32]*edwards25519.Point, len(indices))
+func (p *Exponent) EvaluateMulti(indices []party.ID) map[party.ID]*edwards25519.Point {
+	evaluations := make(map[party.ID]*edwards25519.Point, len(indices))
 
 	for _, id := range indices {
-		evaluations[id] = p.Evaluate(id)
+		evaluations[id] = p.Evaluate(id.Scalar())
 	}
 	return evaluations
 }
 
-func (p *Exponent) Degree() uint32 {
-	return uint32(len(p.coefficients)) - 1
+func (p *Exponent) Degree() party.Size {
+	return party.Size(len(p.coefficients)) - 1
 }
 
 func (p *Exponent) Add(q *Exponent) error {
@@ -165,12 +161,12 @@ func (p *Exponent) MarshalBinary() (data []byte, err error) {
 }
 
 func (p *Exponent) UnmarshalBinary(data []byte) error {
-	coefficientCount := binary.BigEndian.Uint32(data[:4])
+	coefficientCount := party.FromBytes(data) + 1
+	remaining := data[party.ByteSize:]
 
 	coefficients := make([]edwards25519.Point, coefficientCount)
 	p.coefficients = make([]*edwards25519.Point, coefficientCount)
 
-	remaining := data[4:]
 	count := len(remaining)
 	if count%32 != 0 {
 		return errors.New("length of data is wrong")
@@ -180,8 +176,8 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 	}
 	var err error
 	for i := 0; i < len(p.coefficients); i++ {
-		NextScalarBytes := remaining[i*32 : (i+1)*32]
-		p.coefficients[i], err = coefficients[i].SetBytes(NextScalarBytes)
+		p.coefficients[i], err = coefficients[i].SetBytes(remaining[:32])
+		remaining = remaining[32:]
 		if err != nil {
 			return err
 		}
@@ -190,9 +186,7 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 }
 
 func (p *Exponent) BytesAppend(existing []byte) (data []byte, err error) {
-	var size [4]byte
-	binary.BigEndian.PutUint32(size[:], uint32(len(p.coefficients)))
-	existing = append(existing, size[:]...)
+	existing = append(existing, p.Degree().Bytes()...)
 	for i := range p.coefficients {
 		existing = append(existing, p.coefficients[i].Bytes()...)
 	}
@@ -200,7 +194,7 @@ func (p *Exponent) BytesAppend(existing []byte) (data []byte, err error) {
 }
 
 func (p *Exponent) Size() int {
-	return 4 + 32*len(p.coefficients)
+	return party.ByteSize + 32*len(p.coefficients)
 }
 
 func (p *Exponent) Copy() *Exponent {
