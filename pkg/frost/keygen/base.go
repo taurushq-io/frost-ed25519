@@ -13,7 +13,7 @@ import (
 
 type (
 	round0 struct {
-		*rounds.Parameters
+		partySet *party.SetWithSelf
 
 		// Threshold is the degree of the polynomial used for Shamir.
 		// It is the number of tolerated party corruptions.
@@ -48,8 +48,8 @@ type Output struct {
 	SecretKey *eddsa.PrivateKey
 }
 
-func NewRound(params *rounds.Parameters, threshold party.Size) (rounds.Round, *Output, error) {
-	N := params.N()
+func NewRound(partySet *party.SetWithSelf, threshold party.Size) (rounds.Round, *Output, error) {
+	N := partySet.N()
 
 	if threshold == 0 {
 		return nil, nil, errors.New("threshold must be at least 1, or a minimum of T+1=2 signers")
@@ -59,7 +59,7 @@ func NewRound(params *rounds.Parameters, threshold party.Size) (rounds.Round, *O
 	}
 
 	r := round0{
-		Parameters:  params,
+		partySet:    partySet,
 		Threshold:   threshold,
 		Commitments: make(map[party.ID]*polynomial.Exponent, N),
 		Output:      &Output{},

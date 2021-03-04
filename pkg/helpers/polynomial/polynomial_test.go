@@ -17,7 +17,8 @@ func TestPolynomial_Evaluate(t *testing.T) {
 
 		for index := uint32(0); index < 100; index++ {
 			x := party.RandID()
-			if x > 1<<16 {
+			max := 1 << 8 * int64(party.ByteSize)
+			if int64(x) > max {
 				continue
 			}
 			result := 1 + x*x

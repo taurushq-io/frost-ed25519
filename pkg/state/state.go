@@ -25,19 +25,20 @@ type State struct {
 	done     bool
 	err      *rounds.Error
 
-	params *rounds.Parameters
+	partySet *party.SetWithSelf
 
 	mtx sync.Mutex
 }
 
-func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Duration) *State {
+func NewBaseState(partySet *party.SetWithSelf, round rounds.Round, timeout time.Duration) (*State, error) {
+	N := partySet.N()
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
-		receivedMessages: make(map[party.ID]*messages.Message, params.N()),
-		queue:            make([]*messages.Message, 0, params.N()),
+		receivedMessages: make(map[party.ID]*messages.Message, N),
+		queue:            make([]*messages.Message, 0, N),
 		round:            round,
 		doneChan:         make(chan struct{}),
-		params:           params,
+		partySet:         partySet,
 	}
 
 	s.timer = newTimer(timeout, func() {
@@ -46,11 +47,13 @@ func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Du
 		s.mtx.Unlock()
 	})
 
-	for id := range params.OtherPartyIDsSet() {
-		s.receivedMessages[id] = nil
+	for id := range partySet.Range() {
+		if id != partySet.Self() {
+			s.receivedMessages[id] = nil
+		}
 	}
 
-	return s
+	return s, nil
 }
 
 // HandleMessage should be called on an unmarshalled messages.Message appropriate for the protocol execution.
@@ -80,15 +83,15 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	senderID := msg.From
 
 	// Ignore messages from self
-	if senderID == s.params.SelfID() {
+	if senderID == s.partySet.Self() {
 		return nil
 	}
 	// Ignore message not addressed to us
-	if msg.To != 0 && msg.To != s.params.SelfID() {
+	if msg.To != 0 && msg.To != s.partySet.Self() {
 		return nil
 	}
 	// Is the sender in our list of participants?
-	if !s.params.IsParticipating(senderID) {
+	if !s.partySet.Contains(senderID) {
 		return errors.New("sender is not a party")
 	}
 
@@ -122,7 +125,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	}
 
 	// Only continue if we received messages from all
-	if len(s.receivedMessages) != int(s.params.N()-1) {
+	if len(s.receivedMessages) != int(s.partySet.N()-1) {
 		return nil
 	}
 

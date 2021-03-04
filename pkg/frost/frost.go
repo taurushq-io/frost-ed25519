@@ -7,28 +7,28 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func NewKeygenState(params *rounds.Parameters, threshold party.Size, timeout time.Duration) (*state.State, *keygen.Output, error) {
-	p := params.Copy()
-	round, output, err := keygen.NewRound(p, threshold)
+func NewKeygenState(partySet *party.SetWithSelf, threshold party.Size, timeout time.Duration) (*state.State, *keygen.Output, error) {
+	round, output, err := keygen.NewRound(partySet, threshold)
 	if err != nil {
 		return nil, nil, err
 	}
-	s := state.NewBaseState(p, round, timeout)
+	s, err := state.NewBaseState(partySet, round, timeout)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return s, output, nil
 }
 
-func NewSignState(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte, timeout time.Duration) (*state.State, *sign.Output, error) {
-	p := params.Copy()
-	round, output, err := sign.NewRound(p, secret, shares, message)
+func NewSignState(partySet *party.SetWithSelf, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte, timeout time.Duration) (*state.State, *sign.Output, error) {
+	round, output, err := sign.NewRound(partySet, secret, shares, message)
 	if err != nil {
 		return nil, nil, err
 	}
-	s := state.NewBaseState(p, round, timeout)
+	s, _ := state.NewBaseState(partySet, round, timeout)
 
 	return s, output, nil
 }

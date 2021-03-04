@@ -7,28 +7,16 @@ import (
 	"filippo.io/edwards25519"
 )
 
-type (
-	PrivateKey struct {
-		sk edwards25519.Scalar
-		pk *PublicKey
-	}
-	PublicKey struct {
-		pk edwards25519.Point
-	}
-)
+// PrivateKey represents a FROST-Ed25519 signing key.
+// It contains a reference to PublicKey.
+type PrivateKey struct {
+	sk edwards25519.Scalar
+	pk *PublicKey
+}
 
-func NewKeyPair(key ed25519.PrivateKey) (*PrivateKey, *PublicKey) {
-	var (
-		sk PrivateKey
-		pk PublicKey
-	)
-	digest := sha512.Sum512(key[:32])
-
-	sk.sk.SetBytesWithClamping(digest[:32])
-	pk.pk.ScalarBaseMult(&sk.sk)
-	sk.pk = &pk
-
-	return &sk, &pk
+// PublicKey represents a FROST-Ed25519 verification key.
+type PublicKey struct {
+	pk edwards25519.Point
 }
 
 func NewPrivateKeyFromScalar(secret *edwards25519.Scalar) *PrivateKey {
@@ -50,37 +38,51 @@ func NewPublicKeyFromPoint(public *edwards25519.Point) *PublicKey {
 	return &pk
 }
 
-func NewPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
-	var (
-		err error
-		pk  PublicKey
-	)
-	_, err = pk.pk.SetBytes(key)
-	if err != nil {
+func newPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
+	var pk PublicKey
+	if _, err := pk.pk.SetBytes(key); err != nil {
 		return nil, err
 	}
 	return &pk, nil
 }
 
+func newKeyPair(key ed25519.PrivateKey) (*PrivateKey, *PublicKey) {
+	var (
+		sk PrivateKey
+		pk PublicKey
+	)
+	digest := sha512.Sum512(key[:32])
+
+	sk.sk.SetBytesWithClamping(digest[:32])
+	pk.pk.ScalarBaseMult(&sk.sk)
+	sk.pk = &pk
+
+	return &sk, &pk
+}
+
+// ToEdDSA converts the PublicKey to an ed25519 compatible format
 func (pk *PublicKey) ToEdDSA() ed25519.PublicKey {
 	var key [32]byte
 	copy(key[:], pk.pk.Bytes())
 	return key[:]
 }
 
+// PublicKey returns the associated public key.
 func (sk *PrivateKey) PublicKey() *PublicKey {
 	return sk.pk
 }
 
+// Scalar returns a reference to the edwards25519.Scalar representing the private key.
 func (sk *PrivateKey) Scalar() *edwards25519.Scalar {
-	var s edwards25519.Scalar
-	return s.Set(&sk.sk)
+	return &sk.sk
 }
 
+// Point returns a reference to the edwards25519.Point representing the public key.
 func (pk *PublicKey) Point() *edwards25519.Point {
 	return &pk.pk
 }
 
-func (pk *PublicKey) Equal(pk0 *PublicKey) bool {
-	return pk.pk.Equal(&pk0.pk) == 1
+// Equal returns true if the public key is equal to pk0
+func (pk *PublicKey) Equal(pkOther *PublicKey) bool {
+	return pk.pk.Equal(&pkOther.pk) == 1
 }

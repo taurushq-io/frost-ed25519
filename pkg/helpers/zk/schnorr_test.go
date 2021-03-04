@@ -12,14 +12,14 @@ import (
 )
 
 func TestSchnorrProof(t *testing.T) {
+	var ctx [32]byte
 	partyID := party.ID(42)
 	private := scalar.NewScalarRandom()
 	public := new(edwards25519.Point).ScalarBaseMult(private)
-	ctx := make([]byte, 32)
-	proof := NewSchnorrProof(partyID, public, ctx, private)
+	proof := NewSchnorrProof(partyID, public, ctx[:], private)
 	publicComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(private)
 	require.True(t, publicComputed.Equal(public) == 1)
-	require.True(t, proof.Verify(partyID, public, ctx))
+	require.True(t, proof.Verify(partyID, public, ctx[:]))
 }
 
 func TestSchnorrCofactor(t *testing.T) {

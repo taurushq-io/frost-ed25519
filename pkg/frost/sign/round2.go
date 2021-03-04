@@ -15,11 +15,11 @@ var (
 
 func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 	id := msg.From
-	party := round.Parties[id]
-	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, party.Public, &party.Ri) {
+	otherParty := round.Parties[id]
+	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, otherParty.Public, &otherParty.Ri) {
 		return rounds.NewError(id, ErrValidateSigShare)
 	}
-	party.Zi.Set(&msg.Sign2.Zi)
+	otherParty.Zi.Set(&msg.Sign2.Zi)
 	return nil
 }
 
@@ -28,9 +28,9 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 
 	// S = ∑ s_i
 	S := &Signature.S
-	for _, party := range round.Parties {
+	for _, otherParty := range round.Parties {
 		// s += s_i
-		S.Add(S, &party.Zi)
+		S.Add(S, &otherParty.Zi)
 	}
 
 	Signature.R.Set(&round.R)

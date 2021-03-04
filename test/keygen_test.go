@@ -9,7 +9,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -26,12 +25,12 @@ func TestKeygen(t *testing.T) {
 	outputs := map[party.ID]*keygen.Output{}
 
 	for _, id := range partyIDs {
-		p, err := rounds.NewParameters(id, partyIDs)
+		set, err := party.NewSetWithSelf(id, partyIDs)
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		states[id], outputs[id], err = frost.NewKeygenState(p, T, 0)
+		states[id], outputs[id], err = frost.NewKeygenState(set, T, 0)
 		if err != nil {
 			t.Error(err)
 			return
@@ -89,8 +88,11 @@ func TestKeygen(t *testing.T) {
 }
 
 func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicShares2 *eddsa.Shares) error {
-	partyIDs1 := publicShares1.PartyIDs()
-	partyIDs2 := publicShares2.PartyIDs()
+	if !publicShares1.Equal(publicShares2) {
+		return errors.New("shares not equal")
+	}
+	partyIDs1 := publicShares1.PartySet.Sorted()
+	partyIDs2 := publicShares2.PartySet.Sorted()
 	if len(partyIDs1) != len(partyIDs2) {
 		return errors.New("partyIDs are not the same length")
 	}
@@ -128,7 +130,7 @@ func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicS
 
 func ValidateSecrets(secrets map[party.ID]*eddsa.PrivateKey, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
 	fullSecret := edwards25519.NewScalar()
-	allIDs := shares.PartyIDs()
+	allIDs := shares.PartySet.Sorted()
 
 	for id, secret := range secrets {
 		pk1 := secret.PublicKey()

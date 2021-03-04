@@ -12,7 +12,7 @@ import (
 
 type (
 	round0 struct {
-		*rounds.Parameters
+		partySet *party.SetWithSelf
 
 		// Message is the message to be signed
 		Message []byte
@@ -46,39 +46,33 @@ type Output struct {
 	Signature *eddsa.Signature
 }
 
-func NewRound(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
-	var err error
-
+func NewRound(partySet *party.SetWithSelf, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
 	round := &round0{
-		Parameters: params,
-		Message:    message,
-		Parties:    make(map[party.ID]*signer, params.N()),
-		GroupKey:   shares.GroupKey(),
-		Output:     &Output{},
+		partySet: partySet,
+		Message:  message,
+		Parties:  make(map[party.ID]*signer, partySet.N()),
+		GroupKey: shares.GroupKey(),
+		Output:   &Output{},
 	}
 
-	partyIDs := params.AllPartyIDs()
-	selfID := params.SelfID()
-
+	partyIDs := partySet.Sorted()
 	// Setup parties
-	for _, id := range partyIDs {
-		var party signer
+	for id := range partySet.Range() {
 		if id == 0 {
 			return nil, nil, errors.New("id 0 is not valid")
 		}
 
-		party.Public, err = shares.ShareNormalized(id, partyIDs)
+		shareNormalized, err := shares.ShareNormalized(id, partyIDs)
 		if err != nil {
 			return nil, nil, err
 		}
-		round.Parties[id] = &party
-	}
-	if _, ok := round.Parties[selfID]; !ok {
-		return nil, nil, errors.New("secret data and ID don't match")
+		round.Parties[id] = &signer{
+			Public: shareNormalized,
+		}
 	}
 
 	// Normalize secret share so that we can assume we are dealing with an additive sharing
-	lagrange, err := shares.Lagrange(selfID, partyIDs)
+	lagrange, err := shares.Lagrange(partySet.Self(), partyIDs)
 	if err != nil {
 		return nil, nil, err
 	}

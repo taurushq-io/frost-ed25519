@@ -65,6 +65,7 @@ func NewSchnorrProof(partyID party.ID, public *edwards25519.Point, context []byt
 
 	// Compute commitment for random nonce
 	k := scalar.NewScalarRandom()
+
 	// M = [k] B
 	M.ScalarBaseMult(k)
 

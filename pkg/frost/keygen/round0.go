@@ -28,14 +28,14 @@ func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	ctx := make([]byte, 32)
 	public := round.CommitmentsSum.Constant()
 	// Generate proof of knowledge of a_i,0 = f(0)
-	proof := zk.NewSchnorrProof(round.SelfID(), public, ctx, &round.Secret)
+	proof := zk.NewSchnorrProof(round.partySet.Self(), public, ctx, &round.Secret)
 
 	// We use the variable Secret to hold the sum of all shares received.
 	// Therefore, we can set it to the share we would send to our selves.
 	// Bonus, we overwrite the original secret which is no longer needed.
-	round.Secret.Set(round.Polynomial.Evaluate(round.SelfID().Scalar()))
+	round.Secret.Set(round.Polynomial.Evaluate(round.partySet.Self().Scalar()))
 
-	msg := messages.NewKeyGen1(round.SelfID(), proof, round.CommitmentsSum)
+	msg := messages.NewKeyGen1(round.partySet.Self(), proof, round.CommitmentsSum)
 	return []*messages.Message{msg}, nil
 }
 

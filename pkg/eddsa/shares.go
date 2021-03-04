@@ -1,13 +1,10 @@
 package eddsa
 
 import (
-	"encoding/binary"
-	//"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 
 	"filippo.io/edwards25519"
@@ -16,30 +13,37 @@ import (
 )
 
 // Shares holds the public keys generated during a key generation protocol.
-// It should
+// It also stores information about
 type Shares struct {
-	threshold   party.Size
-	allPartyIDs []party.ID
-	partyIDsSet map[party.ID]bool
-	shares      map[party.ID]*edwards25519.Point
-	groupKey    *edwards25519.Point
+	PartySet  *party.Set
+	threshold party.Size
+	shares    map[party.ID]*edwards25519.Point
+	groupKey  *edwards25519.Point
+}
+
+type SecretShare struct {
+	partyID party.ID
+	PrivateKey
 }
 
 func NewShares(shares map[party.ID]*edwards25519.Point, threshold party.Size, groupKey *edwards25519.Point) *Shares {
 	n := len(shares)
-	s := &Shares{
-		threshold:   threshold,
-		allPartyIDs: make([]party.ID, 0, n),
-		partyIDsSet: make(map[party.ID]bool, n),
-		shares:      shares,
-		groupKey:    groupKey,
-	}
+	IDs := make([]party.ID, 0, n)
 	for id := range shares {
-		s.allPartyIDs = append(s.allPartyIDs, id)
-		s.partyIDsSet[id] = true
+		IDs = append(IDs, id)
 	}
 
-	sortSliceUInt32(s.allPartyIDs)
+	set, err := party.NewSet(IDs)
+	if err != nil {
+		panic(err)
+	}
+
+	s := &Shares{
+		PartySet:  set,
+		threshold: threshold,
+		shares:    shares,
+		groupKey:  groupKey,
+	}
 
 	if groupKey == nil {
 		s.computeGroupKey()
@@ -51,7 +55,9 @@ func NewShares(shares map[party.ID]*edwards25519.Point, threshold party.Size, gr
 func (s *Shares) computeGroupKey() {
 	var tmp edwards25519.Point
 	s.groupKey = edwards25519.NewIdentityPoint()
-	partyIDs := s.allPartyIDs[:s.threshold+1]
+
+	// Take only the first t+1 IDs
+	partyIDs := s.PartySet.Sorted()[:s.threshold+1]
 
 	for _, id := range partyIDs {
 		lagrange, _ := s.Lagrange(id, partyIDs)
@@ -74,9 +80,9 @@ func (s *Shares) Share(index party.ID) (*PublicKey, error) {
 
 func (s *Shares) ShareNormalized(index party.ID, partyIDs []party.ID) (*PublicKey, error) {
 	if len(partyIDs) < int(s.threshold)+1 {
-		return nil, errors.New("partyIDs does not contain a threshold number of parties")
+		return nil, errors.New("partyIDs does not contain a threshold number of PartySet")
 	}
-	if !s.partySliceIsSubset(partyIDs) {
+	if !s.PartySet.Contains(partyIDs...) {
 		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
 	}
 
@@ -93,86 +99,66 @@ func (s *Shares) ShareNormalized(index party.ID, partyIDs []party.ID) (*PublicKe
 	return pk, nil
 }
 
-func (s *Shares) PartyIDs() []party.ID {
-	return append([]party.ID(nil), s.allPartyIDs...)
-}
-
 func (s *Shares) Threshold() party.Size {
 	return s.threshold
 }
 
-func (s *Shares) partySliceIsSubset(partyIDs []party.ID) bool {
-	for _, id := range partyIDs {
-		if !s.partyIDsSet[id] {
-			return false
-		}
-	}
-	return true
-}
-
 func (s *Shares) MarshalBinary() ([]byte, error) {
-	offset := 0
-	size := 2*party.ByteSize + 32 + len(s.allPartyIDs)*(party.ByteSize+32)
-	out := make([]byte, size)
-	binary.BigEndian.PutUint32(out[offset:], uint32(len(s.allPartyIDs)))
-	offset += party.ByteSize
-	copy(out[offset:], s.threshold.Bytes())
-	offset += party.ByteSize
-	copy(out[offset:], s.groupKey.Bytes())
-	offset += 32
+	N := s.PartySet.N()
+	size := 2*party.ByteSize + 32 + N*(party.ByteSize+32)
+	out := make([]byte, 0, size)
+	out = append(out, N.Bytes()...)
+	out = append(out, s.threshold.Bytes()...)
+	out = append(out, s.groupKey.Bytes()...)
 
-	for _, id := range s.allPartyIDs {
-		copy(out[offset:], id.Bytes())
-		offset += party.ByteSize
-		copy(out[offset:], s.shares[id].Bytes())
-		offset += 32
+	for _, id := range s.PartySet.Sorted() {
+		out = append(out, id.Bytes()...)
+		out = append(out, s.shares[id].Bytes()...)
 	}
 	return out, nil
 }
 
 func (s *Shares) UnmarshalBinary(data []byte) error {
 	var err error
-	offset := 0
-	n := party.FromBytes(data[offset:])
-	if len(data) != int(2*party.ByteSize+32+n*(party.ByteSize+32)) {
+	n := party.FromBytes(data)
+	data = data[party.ByteSize:]
+
+	if len(data) != int(party.ByteSize+32+n*(party.ByteSize+32)) {
 		return errors.New("encoded n is inconsistent with data length")
 	}
 
-	offset += party.ByteSize
-	t := party.FromBytes(data[offset:])
-	offset += party.ByteSize
+	t := party.FromBytes(data)
+	data = data[party.ByteSize:]
 	if t+1 > n {
 		return errors.New("t should be < n - 1")
 	}
 
 	var groupKey edwards25519.Point
-	_, err = groupKey.SetBytes(data[offset : offset+32])
+	_, err = groupKey.SetBytes(data[:32])
 	if err != nil {
 		return err
 	}
-	offset += 32
+	data = data[32:]
 
 	partyIDs := make([]party.ID, n)
 	sharesSlice := make([]edwards25519.Point, n)
 	shares := make(map[party.ID]*edwards25519.Point, n)
-	partyIDsSet := make(map[party.ID]bool, n)
 
 	for i := party.Size(0); i < n; i++ {
-		partyIDs[i] = party.FromBytes(data[offset:])
-		offset += party.ByteSize
+		partyIDs[i] = party.FromBytes(data)
+		data = data[party.ByteSize:]
 		id := partyIDs[i]
-		shares[id], err = sharesSlice[i].SetBytes(data[offset : offset+32])
+		shares[id], err = sharesSlice[i].SetBytes(data[:32])
+		data = data[32:]
 		if err != nil {
 			return err
 		}
-		offset += 32
-
-		partyIDsSet[id] = true
 	}
-	sortSliceUInt32(partyIDs)
 	s.threshold = t
-	s.allPartyIDs = partyIDs
-	s.partyIDsSet = partyIDsSet
+	s.PartySet, err = party.NewSet(partyIDs)
+	if err != nil {
+		return err
+	}
 	s.shares = shares
 
 	s.computeGroupKey()
@@ -191,7 +177,7 @@ type sharesJSON struct {
 
 func (s *Shares) MarshalJSON() ([]byte, error) {
 	sharesText := make(map[string]string, len(s.shares))
-	for _, id := range s.allPartyIDs {
+	for _, id := range s.PartySet.Sorted() {
 		idText := strconv.FormatUint(uint64(id), 10)
 		shareHex := hex.EncodeToString(s.shares[id].Bytes())
 		sharesText[idText] = shareHex
@@ -222,8 +208,6 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 	partyIDs := make([]party.ID, 0, n)
 	sharesSlice := make([]edwards25519.Point, n)
 	shares := make(map[party.ID]*edwards25519.Point, n)
-	partyIDsSet := make(map[party.ID]bool, n)
-
 	for idText, pointHex := range sharesJson.Shares {
 		id, err := party.IDFromString(idText)
 		if err != nil {
@@ -240,13 +224,12 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-
-		partyIDsSet[id] = true
 	}
-	sortSliceUInt32(partyIDs)
 	s.threshold = t
-	s.allPartyIDs = partyIDs
-	s.partyIDsSet = partyIDsSet
+	s.PartySet, err = party.NewSet(partyIDs)
+	if err != nil {
+		return err
+	}
 	s.shares = shares
 
 	var groupKey edwards25519.Point
@@ -269,11 +252,7 @@ func (s *Shares) Equal(s2 *Shares) bool {
 		return false
 	}
 
-	if len(s.allPartyIDs) != len(s2.allPartyIDs) {
-		return false
-	}
-
-	if len(s.partyIDsSet) != len(s2.partyIDsSet) {
+	if !s.PartySet.Equal(s2.PartySet) {
 		return false
 	}
 
@@ -285,30 +264,15 @@ func (s *Shares) Equal(s2 *Shares) bool {
 		return false
 	}
 
-	for i := range s.allPartyIDs {
-		id1 := s.allPartyIDs[i]
-		id2 := s2.allPartyIDs[i]
-		if id1 != id2 {
-			return false
-		}
-		id := id1
-
+	for _, id := range s.PartySet.Sorted() {
 		p1 := s.shares[id]
 		p2 := s2.shares[id]
 		if p1.Equal(p2) != 1 {
 			return false
 		}
-
-		if !s2.partyIDsSet[id] {
-			return false
-		}
 	}
 
 	return true
-}
-
-func sortSliceUInt32(a []party.ID) {
-	sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
 }
 
 //  Lagrange gives the Lagrange coefficient l_j(x)
@@ -326,7 +290,7 @@ func sortSliceUInt32(a []party.ID) {
 // l_j(0) =	---------------------------
 //			(x_0 - x_j) ... (x_k - x_j)
 func (s *Shares) Lagrange(idx party.ID, partyIDs []party.ID) (*edwards25519.Scalar, error) {
-	if !s.partySliceIsSubset(partyIDs) {
+	if !s.PartySet.Contains(partyIDs...) {
 		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
 	}
 

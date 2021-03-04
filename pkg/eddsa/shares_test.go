@@ -16,11 +16,7 @@ func fakeShares(n, t party.Size) (*Shares, *edwards25519.Scalar) {
 	secret := scalar.NewScalarRandom()
 	poly := polynomial.NewPolynomial(t, secret)
 	for i := 0; i < int(n); i++ {
-		id := party.RandID() + 1
-		if _, ok := shares[id]; ok {
-			i--
-			continue
-		}
+		id := party.RandID()
 		s := poly.Evaluate(id.Scalar())
 		p := new(edwards25519.Point).ScalarBaseMult(s)
 		shares[id] = p

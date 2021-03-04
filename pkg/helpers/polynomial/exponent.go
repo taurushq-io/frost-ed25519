@@ -58,8 +58,6 @@ func (p *Exponent) evaluateClassic(index *edwards25519.Scalar) *edwards25519.Poi
 // evaluateVar evaluates a polynomial in a given variable index.
 // We exploit the fact that edwards25519.Point.VarTimeMultiScalarMult is a lot faster
 // than other Point ops, but this requires us to have access to an array of powers of index.
-//
-//
 func (p *Exponent) evaluateVar(index *edwards25519.Scalar) *edwards25519.Point {
 	var result edwards25519.Point
 

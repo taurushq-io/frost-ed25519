@@ -15,7 +15,7 @@ func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 	computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 
 	id := msg.From
-	shareExp := round.Commitments[id].Evaluate(round.SelfID().Scalar())
+	shareExp := round.Commitments[id].Evaluate(round.partySet.Self().Scalar())
 
 	if computedShareExp.Equal(shareExp) != 1 {
 		return rounds.NewError(id, errors.New("VSS failed to validate"))
@@ -29,8 +29,8 @@ func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 }
 
 func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
-	shares := make(map[party.ID]*edwards25519.Point, round.N())
-	for _, id := range round.AllPartyIDs() {
+	shares := make(map[party.ID]*edwards25519.Point, round.partySet.N())
+	for id := range round.partySet.Range() {
 		shares[id] = round.CommitmentsSum.Evaluate(id.Scalar())
 	}
 	round.Output.Shares = eddsa.NewShares(shares, round.Threshold, round.CommitmentsSum.Constant())

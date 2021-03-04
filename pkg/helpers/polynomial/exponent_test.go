@@ -11,6 +11,7 @@ import (
 )
 
 func TestExponent_Evaluate(t *testing.T) {
+	var lhs edwards25519.Point
 	for x := 0; x < 5; x++ {
 		N := party.Size(1000)
 		secret := scalar.NewScalarRandom()
@@ -19,7 +20,7 @@ func TestExponent_Evaluate(t *testing.T) {
 
 		randomIndex := party.RandID().Scalar()
 
-		lhs := edwards25519.NewIdentityPoint().ScalarBaseMult(poly.Evaluate(randomIndex))
+		lhs.ScalarBaseMult(poly.Evaluate(randomIndex))
 		rhs1 := polyExp.evaluateHorner(randomIndex)
 		rhs2 := polyExp.evaluateClassic(randomIndex)
 		rhs3 := polyExp.evaluateVar(randomIndex)

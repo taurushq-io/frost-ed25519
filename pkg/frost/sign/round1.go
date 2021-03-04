@@ -15,13 +15,13 @@ var hashDomainSeparation = []byte("FROST-SHA512")
 
 func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
 	id := msg.From
+	otherParty := round.Parties[id]
 	identity := edwards25519.NewIdentityPoint()
 	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
 		return rounds.NewError(id, errors.New("commitment Ei or Di was the identity"))
 	}
-	party := round.Parties[id]
-	party.Di.Set(&msg.Sign1.Di)
-	party.Ei.Set(&msg.Sign1.Ei)
+	otherParty.Di.Set(&msg.Sign1.Di)
+	otherParty.Ei.Set(&msg.Sign1.Ei)
 	return nil
 }
 
@@ -35,7 +35,7 @@ func (round *round1) computeRhos() {
 	*/
 	messageHash := sha512.Sum512(round.Message)
 
-	sizeB := int(round.N() * (party.ByteSize + 32 + 32))
+	sizeB := int(round.partySet.N() * (party.ByteSize + 32 + 32))
 	bufferHeader := len(hashDomainSeparation) + party.ByteSize + len(messageHash)
 	sizeBuffer := bufferHeader + sizeB
 	offsetID := len(hashDomainSeparation)
@@ -53,24 +53,24 @@ func (round *round1) computeRhos() {
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
 	buffer = append(buffer, hashDomainSeparation...)
-	buffer = append(buffer, round.SelfID().Bytes()...)
+	buffer = append(buffer, round.partySet.Self().Bytes()...)
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
-	for _, id := range round.AllPartyIDs() {
-		party := round.Parties[id]
+	for _, id := range round.partySet.Sorted() {
+		otherParty := round.Parties[id]
 		buffer = append(buffer, id.Bytes()...)
-		buffer = append(buffer, party.Di.Bytes()...)
-		buffer = append(buffer, party.Ei.Bytes()...)
+		buffer = append(buffer, otherParty.Di.Bytes()...)
+		buffer = append(buffer, otherParty.Ei.Bytes()...)
 	}
 
-	for id, party := range round.Parties {
+	for id := range round.partySet.Range() {
 		// Update the four bytes with the ID
 		copy(buffer[offsetID:], id.Bytes())
 
 		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
 		digest := sha512.Sum512(buffer)
-		party.Pi.SetUniformBytes(digest[:])
+		round.Parties[id].Pi.SetUniformBytes(digest[:])
 	}
 }
 
@@ -91,7 +91,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	// c = H(R, GroupKey, M)
 	round.C.Set(eddsa.ComputeChallenge(&round.R, round.GroupKey, round.Message))
 
-	selfID := round.SelfID()
+	selfID := round.partySet.Self()
 	selfParty := round.Parties[selfID]
 
 	// Compute z = d + (e • ρ) + 𝛌 • s • c

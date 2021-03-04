@@ -1,13 +1,14 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -41,13 +42,13 @@ func (h *handler) HandleMessage() {
 				continue
 			}
 			if err := h.state.HandleMessage(msg); err != nil {
-				//fmt.Println(err)
+				fmt.Println(err)
 			}
 			h.ProcessAll()
 		case <-h.state.Done():
 			err := h.state.Err()
 			if err != nil {
-				//fmt.Println(err)
+				fmt.Println(err)
 			}
 			return
 		}
@@ -60,17 +61,17 @@ func (h *handler) ProcessAll() {
 	for _, msg := range msgsOut {
 		err := h.comm.Send(msg)
 		if err != nil {
-			//fmt.Println("process all", err)
+			fmt.Println("process all", err)
 		}
 	}
 }
 
 func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, T party.Size) (*KeyGenHandler, error) {
-	p, err := rounds.NewParameters(ID, IDs)
+	set, err := party.NewSetWithSelf(ID, IDs)
 	if err != nil {
 		return nil, err
 	}
-	s, out, err := frost.NewKeygenState(p, T, comm.Timeout())
+	s, out, err := frost.NewKeygenState(set, T, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +87,11 @@ func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.
 }
 
 func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
-	p, err := rounds.NewParameters(ID, IDs)
+	set, err := party.NewSetWithSelf(ID, IDs)
 	if err != nil {
 		return nil, err
 	}
-	s, out, err := frost.NewSignState(p, secret, publicShares, message, comm.Timeout())
+	s, out, err := frost.NewSignState(set, secret, publicShares, message, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}

@@ -15,10 +15,9 @@ func FakeKeygen(partyIDs []party.ID) (*eddsa.Shares, map[party.ID]*eddsa.Private
 	shares := make(map[party.ID]*edwards25519.Point, n)
 	secrets := make(map[party.ID]*eddsa.PrivateKey, n)
 	for _, id := range partyIDs {
-		var pk edwards25519.Point
 		sk := scalar.NewScalarRandom()
 		secrets[id] = eddsa.NewPrivateKeyFromScalar(sk)
-		shares[id] = pk.ScalarBaseMult(sk)
+		shares[id] = secrets[id].PublicKey().Point()
 	}
 	return eddsa.NewShares(shares, n-1, nil), secrets
 }

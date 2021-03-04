@@ -14,7 +14,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -35,12 +34,12 @@ func TestSign(t *testing.T) {
 	message := []byte("hello")
 
 	for _, id := range partyIDs {
-		p, err := rounds.NewParameters(id, partyIDs)
+		set, err := party.NewSetWithSelf(id, partyIDs)
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		states[id], outputs[id], err = frost.NewSignState(p, secrets[id], shares, message, 0)
+		states[id], outputs[id], err = frost.NewSignState(set, secrets[id], shares, message, 0)
 		if err != nil {
 			t.Error(err)
 		}
@@ -127,8 +126,8 @@ func generateFakeParties(t, n party.Size) (*edwards25519.Scalar, []party.ID, *ed
 
 	for _, id := range allParties {
 		shares[id] = poly.Evaluate(id.Scalar())
-		sharesPublic[id] = new(edwards25519.Point).ScalarBaseMult(shares[id])
 		secrets[id] = eddsa.NewPrivateKeyFromScalar(shares[id])
+		sharesPublic[id] = secrets[id].PublicKey().Point()
 	}
 
 	return secret, allParties, eddsa.NewShares(sharesPublic, t, nil), secrets

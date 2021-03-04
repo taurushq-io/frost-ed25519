@@ -47,13 +47,8 @@ func (c *UDP) Start() {
 				c.conn.Close()
 			}
 		}()
-		initialBuffer := make([]byte, 77+(len(c.peers)+1)*64)
-		// max buffer =
-		// 9 header
-		// 64 proof
-		// 4 len
-		// 64 * n
-		// 77 + n*64
+
+		initialBuffer := make([]byte, (len(c.peers)+2)*64)
 
 		for {
 			n, _, err := c.conn.ReadFromUDP(initialBuffer)

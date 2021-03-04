@@ -11,17 +11,17 @@ func (round *round0) ProcessMessage(msg *messages.Message) *rounds.Error {
 }
 
 func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
-	party := round.Parties[round.SelfID()]
+	selfParty := round.Parties[round.partySet.Self()]
 
 	// Sample d_i, D_i = [d_i] B
 	scalar.SetScalarRandom(&round.d)
-	party.Di.ScalarBaseMult(&round.d)
+	selfParty.Di.ScalarBaseMult(&round.d)
 
 	// Sample e_i, D_i = [e_i] B
 	scalar.SetScalarRandom(&round.e)
-	party.Ei.ScalarBaseMult(&round.e)
+	selfParty.Ei.ScalarBaseMult(&round.e)
 
-	msg := messages.NewSign1(round.SelfID(), &party.Di, &party.Ei)
+	msg := messages.NewSign1(round.partySet.Self(), &selfParty.Di, &selfParty.Ei)
 
 	return []*messages.Message{msg}, nil
 }
