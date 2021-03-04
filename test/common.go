@@ -7,7 +7,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func partyRoutine(in [][]byte, s *state.State, output *state.BaseOutput) ([][]byte, error) {
+func partyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
 
 	out := make([][]byte, 0, s.N()-1)
 	for _, m := range in {
@@ -27,8 +27,10 @@ func partyRoutine(in [][]byte, s *state.State, output *state.BaseOutput) ([][]by
 			return nil, err
 		}
 	}
-	if output.IsFinished() {
-		return nil, output.WaitForError()
+	if s.IsFinished() {
+		if err := s.WaitForError(); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }

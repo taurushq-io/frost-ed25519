@@ -17,12 +17,12 @@ func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 	shareExp := round.Commitments[id].Evaluate(round.SelfID())
 
 	if computedShareExp.Equal(shareExp) != 1 {
-		err := rounds.NewError(id, errors.New("VSS failed to validate"))
-		round.Output.Abort(err)
-		return err
+		return rounds.NewError(id, errors.New("VSS failed to validate"))
 	}
-
 	round.Secret.Add(&round.Secret, &msg.KeyGen2.Share)
+
+	// We can reset the share in the message now
+	msg.KeyGen2.Share.Set(edwards25519.NewScalar())
 
 	return nil
 }
@@ -34,7 +34,6 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	}
 	round.Output.Shares = eddsa.NewShares(shares, round.Threshold, round.CommitmentsSum.Constant())
 	round.Output.SecretKey = eddsa.NewPrivateKeyFromScalar(&round.Secret)
-	round.Output.Abort(nil)
 	return nil, nil
 }
 

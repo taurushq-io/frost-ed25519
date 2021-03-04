@@ -16,7 +16,7 @@ func NewKeygenState(params *rounds.Parameters, threshold uint32, timeout time.Du
 	if err != nil {
 		return nil, nil, err
 	}
-	s := state.NewBaseState(p, round, output.BaseOutput, timeout)
+	s := state.NewBaseState(p, round, timeout)
 
 	return s, output, nil
 }
@@ -27,7 +27,7 @@ func NewSignState(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *e
 	if err != nil {
 		return nil, nil, err
 	}
-	s := state.NewBaseState(p, round, output.BaseOutput, timeout)
+	s := state.NewBaseState(p, round, timeout)
 
 	return s, output, nil
 }

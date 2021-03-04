@@ -17,7 +17,7 @@ import (
 
 func TestSign(t *testing.T) {
 	N := uint32(100)
-	T := N / 2
+	T := N - 1
 
 	_, AllPartyIDs, shares, secrets := generateFakeParties(T, N)
 
@@ -32,7 +32,7 @@ func TestSign(t *testing.T) {
 	message := []byte("hello")
 
 	for _, id := range partyIDs {
-		p, err := rounds.NewParameters(id, partyIDs, 0)
+		p, err := rounds.NewParameters(id, partyIDs)
 		if err != nil {
 			t.Error(err)
 			return
@@ -45,24 +45,24 @@ func TestSign(t *testing.T) {
 
 	pk := shares.GroupKey()
 
-	for id, s := range states {
-		msgs1, err := partyRoutine(nil, s, outputs[id].BaseOutput)
+	for _, s := range states {
+		msgs1, err := partyRoutine(nil, s)
 		if err != nil {
 			t.Error(err)
 		}
 		msgsOut1 = append(msgsOut1, msgs1...)
 	}
 
-	for id, s := range states {
-		msgs2, err := partyRoutine(msgsOut1, s, outputs[id].BaseOutput)
+	for _, s := range states {
+		msgs2, err := partyRoutine(msgsOut1, s)
 		if err != nil {
 			t.Error(err)
 		}
 		msgsOut2 = append(msgsOut2, msgs2...)
 	}
 
-	for id, s := range states {
-		_, err := partyRoutine(msgsOut2, s, outputs[id].BaseOutput)
+	for _, s := range states {
+		_, err := partyRoutine(msgsOut2, s)
 		if err != nil {
 			t.Error(err)
 		}
@@ -77,9 +77,8 @@ func TestSign(t *testing.T) {
 		t.Error("sig failed")
 	}
 	// Check all publicKeys return the same sig
-	for _, id := range partyIDs {
-		err := outputs[id].WaitForError()
-		if err != nil {
+	for id, s := range states {
+		if err := s.WaitForError(); err != nil {
 			t.Error(err)
 		}
 

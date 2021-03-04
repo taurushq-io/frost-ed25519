@@ -7,7 +7,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
-	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
@@ -43,31 +42,30 @@ type (
 )
 
 type Output struct {
-	*state.BaseOutput
 	Signature *eddsa.Signature
 }
 
 func NewRound(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
-	var (
-		round round0
-		err   error
-	)
+	var err error
+
+	round := &round0{
+		Parameters: params,
+		Message:    message,
+		Parties:    make(map[uint32]*signer, params.N()),
+		GroupKey:   shares.GroupKey(),
+		Output:     &Output{},
+	}
 
 	partyIDs := params.AllPartyIDs()
 	selfID := params.SelfID()
 
-	round.Parameters = params
-	round.Message = message
-
-	// Get the group key from the shares
-	round.GroupKey = shares.GroupKey()
-
-	round.Parties = make(map[uint32]*signer, params.N())
+	// Setup parties
 	for _, id := range partyIDs {
 		var party signer
 		if id == 0 {
 			return nil, nil, errors.New("id 0 is not valid")
 		}
+
 		party.Public, err = shares.ShareNormalized(id, partyIDs)
 		if err != nil {
 			return nil, nil, err
@@ -85,10 +83,7 @@ func NewRound(params *rounds.Parameters, secret *eddsa.PrivateKey, shares *eddsa
 	}
 	round.SecretKeyShare.Multiply(lagrange, secret.Scalar())
 
-	output := &Output{BaseOutput: state.NewBaseOutput()}
-	round.Output = output
-
-	return &round, output, nil
+	return round, round.Output, nil
 }
 
 func (round *round0) Reset() {

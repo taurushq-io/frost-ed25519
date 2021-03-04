@@ -25,7 +25,7 @@ func TestKeygen(t *testing.T) {
 	outputs := map[uint32]*keygen.Output{}
 
 	for _, id := range partyIDs {
-		p, err := rounds.NewParameters(id, partyIDs, 0)
+		p, err := rounds.NewParameters(id, partyIDs)
 		if err != nil {
 			t.Error(err)
 			return
@@ -36,38 +36,38 @@ func TestKeygen(t *testing.T) {
 	msgsOut1 := make([][]byte, 0, N)
 	msgsOut2 := make([][]byte, 0, N*(N-1)/2)
 
-	for id, s := range states {
-		msgs1, err := partyRoutine(nil, s, outputs[id].BaseOutput)
+	for _, s := range states {
+		msgs1, err := partyRoutine(nil, s)
 		if err != nil {
 			t.Error(err)
 		}
 		msgsOut1 = append(msgsOut1, msgs1...)
 	}
 
-	for id, s := range states {
-		msgs2, err := partyRoutine(msgsOut1, s, outputs[id].BaseOutput)
+	for _, s := range states {
+		msgs2, err := partyRoutine(msgsOut1, s)
 		if err != nil {
 			t.Error(err)
 		}
 		msgsOut2 = append(msgsOut2, msgs2...)
 	}
 
-	for id, s := range states {
-		_, err := partyRoutine(msgsOut2, s, outputs[id].BaseOutput)
+	for _, s := range states {
+		_, err := partyRoutine(msgsOut2, s)
 		if err != nil {
 			t.Error(err)
 		}
 	}
 
 	id1 := partyIDs[0]
-	if err := outputs[id1].WaitForError(); err != nil {
+	if err := states[id1].WaitForError(); err != nil {
 		t.Error(err)
 	}
 	groupKey1 := outputs[id1].Shares.GroupKey()
 	publicShares1 := outputs[id1].Shares
 	secrets := map[uint32]*eddsa.PrivateKey{}
 	for _, id2 := range partyIDs {
-		if err := outputs[id2].WaitForError(); err != nil {
+		if err := states[id2].WaitForError(); err != nil {
 			t.Error(err)
 		}
 		groupKey2 := outputs[id2].Shares.GroupKey()

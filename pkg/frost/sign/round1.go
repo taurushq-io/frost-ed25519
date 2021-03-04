@@ -17,9 +17,7 @@ func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
 	id := msg.From
 	identity := edwards25519.NewIdentityPoint()
 	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
-		err := rounds.NewError(id, errors.New("commitment Ei or Di was the identity"))
-		round.Output.Abort(err)
-		return err
+		return rounds.NewError(id, errors.New("commitment Ei or Di was the identity"))
 	}
 	party := round.Parties[id]
 	party.Di.Set(&msg.Sign1.Di)
@@ -28,36 +26,54 @@ func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
 }
 
 func (round *round1) computeRhos() {
+	/*
+		While profiling, we noticed that using hash.Hash forces all values to be allocated on the heap.
+		To prevent this, we can simply create a big buffer on the stack and call sha512.Sum().
+
+		We need to compute a very simple hash N times, and Go's caching isn't great for hashing.
+		Therefore, we can simply change the buffer and rehash it many times.
+	*/
+
 	IDBytes := make([]byte, 4)
 
-	// As in the implementation by Isis, we actually compute
-	// H ("FROST-SHA512" || Message || B || ID )
-	// where
-	// B = (ID1 || D_1 || E_1) || (ID_2 || D_2 || E_2) || ... || (ID_N || D_N || E_N) >
+	messageHash := sha512.Sum512(round.Message)
+
+	sizeB := round.N() * (4 + 32 + 32)
+	bufferHeader := len(hashDomainSeparation) + 4 + len(messageHash)
+	sizeBuffer := bufferHeader + sizeB
+	offsetID := len(hashDomainSeparation)
+
+	// We compute the binding factor 𝜌_i for each party as such:
 	//
-	// Start by computing
-	// H ("FROST-SHA512" || Message || B)
-	B := make([]byte, 0, len(hashDomainSeparation)+len(round.Message)+round.N()*(4+32+32)+4)
-	B = append(B, hashDomainSeparation...)
-	B = append(B, round.Message...)
+	//     𝜌_d = SHA-512 ("FROST-SHA512" || i || SHA-512(Message) || B )
+	//
+	// For each party ID i.
+	//
+	// The list B is the concatenation of ( j || D_j || E_j ) for all signers j in sorted order.
+	//     B = (ID1 || D_1 || E_1) || (ID_2 || D_2 || E_2) || ... || (ID_N || D_N || E_N)
+
+	// We compute the big buffer "FROST-SHA512" || ... || SHA-512(Message) || B
+	// and remember the offset of ... . Later we will write the ID of each party at this place.
+	buffer := make([]byte, 0, sizeBuffer)
+	buffer = append(buffer, hashDomainSeparation...)
+	buffer = append(buffer, IDBytes...)
+	buffer = append(buffer, messageHash[:]...)
+
+	// compute B
 	for _, id := range round.AllPartyIDs() {
 		party := round.Parties[id]
 		binary.BigEndian.PutUint32(IDBytes, id)
-		B = append(B, IDBytes...)
-		B = append(B, party.Di.Bytes()...)
-		B = append(B, party.Ei.Bytes()...)
+		buffer = append(buffer, IDBytes...)
+		buffer = append(buffer, party.Di.Bytes()...)
+		buffer = append(buffer, party.Ei.Bytes()...)
 	}
 
-	// We are going to overwrite the last 4 bytes which contain the ID at every iteration
-	offset := len(B)
-
 	for id, party := range round.Parties {
-		// Update the last four bytes with the ID
-		binary.BigEndian.PutUint32(IDBytes, id)
-		copy(B[offset:offset+4], IDBytes)
+		// Update the four bytes with the ID
+		binary.BigEndian.PutUint32(buffer[offsetID:], id)
 
 		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
-		digest := sha512.Sum512(B)
+		digest := sha512.Sum512(buffer)
 		party.Pi.SetUniformBytes(digest[:])
 	}
 }
@@ -67,8 +83,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 
 	round.R.Set(edwards25519.NewIdentityPoint())
 	for _, party := range round.Parties {
-		// TODO Find a way to do this faster
-		// Since all values are public, we don't need to this in constant time
+		// TODO Find a way to do this faster since we don't need constant time
 		// Ri = D + [ρ] E
 		party.Ri.ScalarMult(&party.Pi, &party.Ei)
 		party.Ri.Add(&party.Ri, &party.Di)
@@ -83,16 +98,15 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	selfID := round.SelfID()
 	selfParty := round.Parties[selfID]
 
-	var z edwards25519.Scalar
 	// Compute z = d + (e • ρ) + 𝛌 • s • c
 	// Note: since we multiply the secret by the Lagrange coefficient,
-	// can ignore 𝛌
-	z.Multiply(&round.SecretKeyShare, &round.C) // 𝛌 • s • c
-	z.MultiplyAdd(&round.e, &selfParty.Pi, &z)  // (e • ρ) + 𝛌 • s • c
-	z.Add(&z, &round.d)                         // d + (e • ρ) + 𝛌 • s • c
-	selfParty.Zi.Set(&z)
+	// can ignore 𝛌=1
+	secretShare := &selfParty.Zi
+	secretShare.Multiply(&round.SecretKeyShare, &round.C)         // s • c
+	secretShare.MultiplyAdd(&round.e, &selfParty.Pi, secretShare) // (e • ρ) + s • c
+	secretShare.Add(secretShare, &round.d)                        // d + (e • ρ) + 𝛌 • s • c
 
-	msg := messages.NewSign2(selfID, &round.Parties[selfID].Zi)
+	msg := messages.NewSign2(selfID, secretShare)
 
 	return []*messages.Message{msg}, nil
 }

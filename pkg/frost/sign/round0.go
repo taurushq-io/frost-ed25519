@@ -1,8 +1,7 @@
 package sign
 
 import (
-	"crypto/rand"
-
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
@@ -12,23 +11,14 @@ func (round *round0) ProcessMessage(msg *messages.Message) *rounds.Error {
 }
 
 func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
-	var buf [64]byte
 	party := round.Parties[round.SelfID()]
 
 	// Sample d_i, D_i = [d_i] B
-	_, err := rand.Read(buf[:])
-	if err != nil {
-		panic("failed to read")
-	}
-	round.d.SetUniformBytes(buf[:])
+	scalar.SetScalarRandom(&round.d)
 	party.Di.ScalarBaseMult(&round.d)
 
 	// Sample e_i, D_i = [e_i] B
-	_, err = rand.Read(buf[:])
-	if err != nil {
-		panic("failed to read")
-	}
-	round.e.SetUniformBytes(buf[:])
+	scalar.SetScalarRandom(&round.e)
 	party.Ei.ScalarBaseMult(&round.e)
 
 	msg := messages.NewSign1(round.SelfID(), &party.Di, &party.Ei)

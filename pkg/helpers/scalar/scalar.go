@@ -7,9 +7,8 @@ import (
 	"filippo.io/edwards25519"
 )
 
-// NewScalarRandom generates a new edwards25519.Scalar using the default randomness source from crypto/rand
-func NewScalarRandom() *edwards25519.Scalar {
-	var s edwards25519.Scalar
+// SetScalarRandom sets s to a random edwards25519.Scalar using the default randomness source from crypto/rand
+func SetScalarRandom(s *edwards25519.Scalar) *edwards25519.Scalar {
 	var bytes [64]byte
 
 	_, err := rand.Reader.Read(bytes[:])
@@ -18,6 +17,12 @@ func NewScalarRandom() *edwards25519.Scalar {
 	}
 
 	return s.SetUniformBytes(bytes[:])
+}
+
+// NewScalarRandom generates a new edwards25519.Scalar using the default randomness source from crypto/rand
+func NewScalarRandom() *edwards25519.Scalar {
+	var s edwards25519.Scalar
+	return SetScalarRandom(&s)
 }
 
 // SetScalarUInt32 set s's value to that of a uint32 x. It creates a 32 byte big-endian representation of x,

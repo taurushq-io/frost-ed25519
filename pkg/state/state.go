@@ -22,20 +22,21 @@ type State struct {
 
 	round rounds.Round
 
-	output *BaseOutput
+	doneChan chan *rounds.Error
+	err      *rounds.Error
+	mtx      sync.Mutex
 
 	*rounds.Parameters
 }
 
-func NewBaseState(params *rounds.Parameters, round rounds.Round, output *BaseOutput, timeout time.Duration) *State {
+func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Duration) *State {
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[uint32]*messages.Message, params.N()),
 		queue:            make([]*messages.Message, 0, params.N()),
-		timer:            nil,
-		roundNumber:      0,
+		timeout:          timeout,
 		round:            round,
-		output:           output,
+		doneChan:         make(chan *rounds.Error, 1),
 		Parameters:       params,
 	}
 
@@ -109,6 +110,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	s.queueMtx.Lock()
 	defer s.queueMtx.Unlock()
 
+	// Only continue if we received messages from all
 	if len(s.receivedMessages) != s.N()-1 {
 		return nil
 	}
@@ -131,7 +133,6 @@ func (s *State) ProcessAll() []*messages.Message {
 	}
 
 	s.roundNumber++
-	s.round = s.round.NextRound()
 
 	s.acceptedTypes = s.acceptedTypes[1:]
 	if len(s.acceptedTypes) > 0 {
@@ -140,17 +141,16 @@ func (s *State) ProcessAll() []*messages.Message {
 		}
 	}
 
-	return newMessages
-}
+	nextRound := s.round.NextRound()
 
-func (s *State) Abort(err *rounds.Error) {
-	if s.timer != nil {
-		s.timer.Stop()
+	// We are finished
+	if nextRound == nil {
+		s.finish(nil)
+	} else {
+		s.round = nextRound
 	}
 
-	err.RoundNumber = s.roundNumber
-	s.round.Reset()
-	s.round = nil
+	return newMessages
 }
 
 func (s *State) isAcceptedType(msgType messages.MessageType) bool {
@@ -162,7 +162,65 @@ func (s *State) isAcceptedType(msgType messages.MessageType) bool {
 	return false
 }
 
+func (s *State) finish(err *rounds.Error) {
+	if s.timer != nil {
+		s.timer.Stop()
+	}
+
+	s.round.Reset()
+	s.round = nil
+	s.ReportError(err)
+}
+
+func (s *State) Abort(err *rounds.Error) {
+	err.RoundNumber = s.roundNumber
+	s.finish(err)
+}
+
 // RoundNumber returns the current Round number
 func (s *State) RoundNumber() int {
 	return s.roundNumber
+}
+
+//
+// Output
+//
+
+func (s *State) ReportError(err *rounds.Error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	// We already got an error
+	// TODO chain the errors
+	if s.err != nil {
+		return
+	}
+
+	s.err = err
+
+	// don't do anything, we already got an error
+	if s.doneChan == nil {
+		return
+	}
+	close(s.doneChan)
+	s.doneChan = nil
+}
+
+func (s *State) IsFinished() bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.doneChan == nil
+}
+
+func (s *State) WaitForError() *rounds.Error {
+	if s.err != nil {
+		return s.err
+	}
+	if s.doneChan == nil {
+		return nil
+	}
+	err := <-s.doneChan
+	s.err = err
+	return s.err
 }

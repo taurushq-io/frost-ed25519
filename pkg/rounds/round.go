@@ -21,7 +21,10 @@ type Round interface {
 	// If it is not possible to advance to the next Round, then the current one is returned.
 	NextRound() Round
 
+	// AcceptedMessageTypes should return a slice containing the messages types the protocol accepts.
+	// It is constant for all rounds and should therefore be implemented by a "base" round.
 	AcceptedMessageTypes() []messages.MessageType
 
+	// Reset is expected to zero out any sensitive data that may have been copied by the round.
 	Reset()
 }

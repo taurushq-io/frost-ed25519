@@ -3,7 +3,6 @@ package rounds
 import (
 	"errors"
 	"sort"
-	"time"
 )
 
 type Parameters struct {
@@ -12,7 +11,7 @@ type Parameters struct {
 	partyIDsSet map[uint32]bool
 }
 
-func NewParameters(selfPartyID uint32, allPartyIDs []uint32, timeout time.Duration) (*Parameters, error) {
+func NewParameters(selfPartyID uint32, allPartyIDs []uint32) (*Parameters, error) {
 	if selfPartyID == 0 {
 		return nil, errors.New("selfPartyID cannot be 0")
 	}

@@ -8,7 +8,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
-	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
@@ -44,7 +43,6 @@ type (
 )
 
 type Output struct {
-	*state.BaseOutput
 	Shares    *eddsa.Shares
 	SecretKey *eddsa.PrivateKey
 }
@@ -63,7 +61,7 @@ func NewRound(params *rounds.Parameters, threshold uint32) (rounds.Round, *Outpu
 		Parameters:  params,
 		Threshold:   threshold,
 		Commitments: make(map[uint32]*polynomial.Exponent, N),
-		Output:      &Output{BaseOutput: state.NewBaseOutput()},
+		Output:      &Output{},
 	}
 
 	return &r, r.Output, nil
@@ -71,13 +69,10 @@ func NewRound(params *rounds.Parameters, threshold uint32) (rounds.Round, *Outpu
 
 func (round *round0) Reset() {
 	round.Secret.Set(edwards25519.NewScalar())
-	if round.Polynomial != nil {
-		round.Polynomial.Reset()
-	}
+	round.Polynomial.Reset()
+	round.CommitmentsSum.Reset()
 	for _, p := range round.Commitments {
-		if p != nil {
-			p.Reset()
-		}
+		p.Reset()
 	}
 }
 
@@ -85,8 +80,6 @@ func (round *round0) Reset() {
 // Messages
 // ---
 
-var acceptedMessageTypes = []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
-
 func (round *round0) AcceptedMessageTypes() []messages.MessageType {
-	return acceptedMessageTypes
+	return []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
 }
