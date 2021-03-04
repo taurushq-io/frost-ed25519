@@ -1,29 +1,33 @@
-package frost
+package main
 
-/*
 import (
 	"fmt"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
+
 // handler holds the information for a certain Round by a participant.
 // It makes it easier to work with the underlying Round interface.
 type handler struct {
-	round rounds.Round
+	state *state.State
 	comm  communication.Communicator
 }
 
 type (
 	KeyGenHandler struct {
 		*handler
+		out *keygen.Output
 	}
 
 	SignHandler struct {
 		*handler
+		out *sign.Output
 	}
 )
 
@@ -32,16 +36,11 @@ func (h *handler) HandleMessage() {
 	h.ProcessAll()
 
 	for {
-		incoming := h.comm.Incoming()
-		if incoming == nil {
-			fmt.Println("closing")
-			return
-		}
-		msg := <-incoming
+		msg := <-h.comm.Incoming()
 		if msg == nil {
 			continue
 		}
-		if err := h.round.StoreMessage(msg); err != nil {
+		if err := h.state.HandleMessage(msg); err != nil {
 			fmt.Println(err)
 		}
 		h.ProcessAll()
@@ -49,11 +48,8 @@ func (h *handler) HandleMessage() {
 }
 
 func (h *handler) ProcessAll() {
-	h.round.ProcessMessages()
-
-	h.round.ProcessRound()
-
-	msgsOut, _ := h.round.GenerateMessages()
+	h.state.ProcessAll()
+	msgsOut := h.state.ProcessAll()
 
 	for _, msg := range msgsOut {
 		err := h.comm.Send(msg)
@@ -61,47 +57,58 @@ func (h *handler) ProcessAll() {
 			fmt.Println(err)
 		}
 	}
-	h.round = h.round.NextRound()
 }
 
 func NewKeyGenHandler(comm communication.Communicator, ID uint32, IDs []uint32, T uint32) (*KeyGenHandler, error) {
-	r, err := keygen.NewRound(ID, T, IDs, comm.Timeout())
+	p, err := rounds.NewParameters(ID, IDs)
+	if err != nil {
+		return nil, err
+	}
+	s, out, err := frost.NewKeygenState(p, T, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}
 	h := &handler{
-		round: r,
+		state: s,
 		comm:  comm,
 	}
 	go h.HandleMessage()
-	return &KeyGenHandler{h}, nil
+	return &KeyGenHandler{
+		handler: h,
+		out:     out,
+	}, nil
 }
 
 func NewSignHandler(comm communication.Communicator, ID uint32, IDs []uint32, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
-	r, _, err := sign.NewRound(ID, IDs, secret, publicShares, message, comm.Timeout())
+	p, err := rounds.NewParameters(ID, IDs)
+	if err != nil {
+		return nil, err
+	}
+	s, out, err := frost.NewSignState(p, secret, publicShares, message, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}
 	h := &handler{
-		round: r,
+		state: s,
 		comm:  comm,
 	}
 	go h.HandleMessage()
-	return &SignHandler{h}, nil
+	return &SignHandler{
+		handler: h,
+		out:     out,
+	}, nil
 }
 
 func (h *KeyGenHandler) WaitForKeygenOutput() (groupKey *eddsa.PublicKey, publicShares *eddsa.Shares, secretKeyShare *eddsa.PrivateKey, err error) {
-	errChan := h.round.Error()
-	err = <-errChan
-	groupKey, publicShares, secretKeyShare = h.round.(rounds.KeyGenRound).Output()
+	err = h.state.WaitForError()
+	groupKey = h.out.Shares.GroupKey()
+	publicShares = h.out.Shares
+	secretKeyShare = h.out.SecretKey
 	return
 }
 
 func (h *SignHandler) WaitForSignOutput() (signature *eddsa.Signature, err error) {
-	errChan := h.round.Error()
-	err = <-errChan
-	signature = h.round.(rounds.SignRound).Output()
+	err = h.state.WaitForError()
+	signature = h.out.Signature
 	return
 }
-
-*/

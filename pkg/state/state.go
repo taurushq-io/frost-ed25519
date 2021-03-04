@@ -22,11 +22,12 @@ type State struct {
 
 	round rounds.Round
 
-	doneChan chan *rounds.Error
+	doneChan chan struct{}
+	done     bool
 	err      *rounds.Error
 	mtx      sync.Mutex
 
-	*rounds.Parameters
+	params *rounds.Parameters
 }
 
 func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Duration) *State {
@@ -36,8 +37,8 @@ func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Du
 		queue:            make([]*messages.Message, 0, params.N()),
 		timeout:          timeout,
 		round:            round,
-		doneChan:         make(chan *rounds.Error, 1),
-		Parameters:       params,
+		doneChan:         make(chan struct{}),
+		params:           params,
 	}
 
 	for id := range params.OtherPartyIDsSet() {
@@ -46,7 +47,7 @@ func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Du
 
 	if timeout > 0 {
 		f := func() {
-			s.Abort(rounds.NewError(0, errors.New("message timeout")))
+			s.reportError(rounds.NewError(0, errors.New("message timeout")))
 		}
 		s.timer = time.AfterFunc(timeout, f)
 	}
@@ -57,7 +58,7 @@ func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Du
 // HandleMessage takes in an unmarshalled wire message and attempts to store it in the messages.Queue.
 // It returns an error depending on whether the messages.Queue was able to store it.
 func (s *State) HandleMessage(msg *messages.Message) error {
-	if s.round == nil {
+	if s.IsFinished() {
 		return errors.New("already finished")
 	}
 
@@ -71,15 +72,15 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	senderID := msg.From
 
 	// Ignore messages from self
-	if senderID == s.SelfID() {
+	if senderID == s.params.SelfID() {
 		return nil
 	}
 	// Ignore message not addressed to us
-	if msg.To != 0 && msg.To != s.SelfID() {
+	if msg.To != 0 && msg.To != s.params.SelfID() {
 		return nil
 	}
 	// Is the sender in our list of participants?
-	if !s.IsParticipating(senderID) {
+	if !s.params.IsParticipating(senderID) {
 		return errors.New("sender is not a party")
 	}
 
@@ -94,6 +95,9 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	}
 
 	if s.timer != nil {
+		if !s.timer.Stop() {
+			<-s.timer.C
+		}
 		s.timer.Reset(s.timeout)
 	}
 
@@ -107,17 +111,20 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 }
 
 func (s *State) ProcessAll() []*messages.Message {
+	if s.IsFinished() {
+		return nil
+	}
 	s.queueMtx.Lock()
 	defer s.queueMtx.Unlock()
 
 	// Only continue if we received messages from all
-	if len(s.receivedMessages) != s.N()-1 {
+	if len(s.receivedMessages) != s.params.N()-1 {
 		return nil
 	}
 
 	for _, msg := range s.receivedMessages {
 		if err := s.round.ProcessMessage(msg); err != nil {
-			s.Abort(err)
+			s.reportError(err)
 			return nil
 		}
 	}
@@ -128,7 +135,7 @@ func (s *State) ProcessAll() []*messages.Message {
 
 	newMessages, err := s.round.GenerateMessages()
 	if err != nil {
-		s.Abort(err)
+		s.reportError(err)
 		return nil
 	}
 
@@ -145,7 +152,7 @@ func (s *State) ProcessAll() []*messages.Message {
 
 	// We are finished
 	if nextRound == nil {
-		s.finish(nil)
+		s.finish()
 	} else {
 		s.round = nextRound
 	}
@@ -162,21 +169,6 @@ func (s *State) isAcceptedType(msgType messages.MessageType) bool {
 	return false
 }
 
-func (s *State) finish(err *rounds.Error) {
-	if s.timer != nil {
-		s.timer.Stop()
-	}
-
-	s.round.Reset()
-	s.round = nil
-	s.ReportError(err)
-}
-
-func (s *State) Abort(err *rounds.Error) {
-	err.RoundNumber = s.roundNumber
-	s.finish(err)
-}
-
 // RoundNumber returns the current Round number
 func (s *State) RoundNumber() int {
 	return s.roundNumber
@@ -186,41 +178,42 @@ func (s *State) RoundNumber() int {
 // Output
 //
 
-func (s *State) ReportError(err *rounds.Error) {
+func (s *State) finish() {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+	s.done = true
+
+	s.round.Reset()
+	if s.timer != nil {
+		if !s.timer.Stop() {
+			<-s.timer.C
+		}
+	}
+	close(s.doneChan)
+}
+
+func (s *State) reportError(err *rounds.Error) {
+	if s.done {
+		return
+	}
 
 	// We already got an error
 	// TODO chain the errors
-	if s.err != nil {
-		return
+	if s.err == nil {
+		err.RoundNumber = s.roundNumber
+		s.err = err
 	}
 
-	s.err = err
-
-	// don't do anything, we already got an error
-	if s.doneChan == nil {
-		return
-	}
-	close(s.doneChan)
-	s.doneChan = nil
+	s.finish()
 }
 
 func (s *State) IsFinished() bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return s.doneChan == nil
+	return s.done
 }
 
 func (s *State) WaitForError() *rounds.Error {
-	if s.err != nil {
-		return s.err
+	if !s.done {
+		<-s.doneChan
 	}
-	if s.doneChan == nil {
-		return nil
-	}
-	err := <-s.doneChan
-	s.err = err
 	return s.err
 }

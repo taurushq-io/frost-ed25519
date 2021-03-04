@@ -9,7 +9,6 @@ import (
 
 func partyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
 
-	out := make([][]byte, 0, s.N()-1)
 	for _, m := range in {
 		var msgTmp messages.Message
 
@@ -20,7 +19,9 @@ func partyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
 			return nil, fmt.Errorf("failed to handle message: %w", err)
 		}
 	}
-	for _, msgOut := range s.ProcessAll() {
+	msgsOut := s.ProcessAll()
+	out := make([][]byte, 0, len(msgsOut))
+	for _, msgOut := range msgsOut {
 		if b, err := msgOut.MarshalBinary(); err == nil {
 			out = append(out, b)
 		} else {
