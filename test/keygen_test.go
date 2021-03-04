@@ -6,14 +6,14 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
-	frost2 "github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 func TestKeygen(t *testing.T) {
-	N := uint32(10)
+	N := uint32(100)
 	T := N / 2
 
 	partyIDs := make([]uint32, 0, N)
@@ -30,7 +30,11 @@ func TestKeygen(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		states[id], outputs[id], err = frost2.NewKeygenState(p, T, 0)
+		states[id], outputs[id], err = frost.NewKeygenState(p, T, 0)
+		if err != nil {
+			t.Error(err)
+			return
+		}
 	}
 
 	msgsOut1 := make([][]byte, 0, N)

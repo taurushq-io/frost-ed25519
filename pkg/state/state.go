@@ -13,10 +13,8 @@ type State struct {
 	acceptedTypes    []messages.MessageType
 	receivedMessages map[uint32]*messages.Message
 	queue            []*messages.Message
-	queueMtx         sync.Mutex
 
-	timeout time.Duration
-	timer   *time.Timer
+	timer
 
 	roundNumber int
 
@@ -25,9 +23,10 @@ type State struct {
 	doneChan chan struct{}
 	done     bool
 	err      *rounds.Error
-	mtx      sync.Mutex
 
 	params *rounds.Parameters
+
+	mtx sync.Mutex
 }
 
 func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Duration) *State {
@@ -35,35 +34,43 @@ func NewBaseState(params *rounds.Parameters, round rounds.Round, timeout time.Du
 		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[uint32]*messages.Message, params.N()),
 		queue:            make([]*messages.Message, 0, params.N()),
-		timeout:          timeout,
 		round:            round,
 		doneChan:         make(chan struct{}),
 		params:           params,
 	}
 
+	s.timer = newTimer(timeout, func() {
+		s.mtx.Lock()
+		s.reportError(rounds.NewError(0, errors.New("message timeout")))
+		s.mtx.Unlock()
+	})
+
 	for id := range params.OtherPartyIDsSet() {
 		s.receivedMessages[id] = nil
-	}
-
-	if timeout > 0 {
-		f := func() {
-			s.reportError(rounds.NewError(0, errors.New("message timeout")))
-		}
-		s.timer = time.AfterFunc(timeout, f)
 	}
 
 	return s
 }
 
-// HandleMessage takes in an unmarshalled wire message and attempts to store it in the messages.Queue.
-// It returns an error depending on whether the messages.Queue was able to store it.
+// HandleMessage should be called on an unmarshalled messages.Message appropriate for the protocol execution.
+// It performs basic checks to see whether the message can be used.
+// - Is the protocol already done
+// - Is msg is valid for this round or a future one
+// - Is msg for us and not from us
+// - Is the sender a party in the protocol
+// - Have we already received a message from the party for this round?
+// -
+// -
 func (s *State) HandleMessage(msg *messages.Message) error {
-	if s.IsFinished() {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.done {
+		if err := s.Err(); err != nil {
+			return err
+		}
 		return errors.New("already finished")
 	}
-
-	s.queueMtx.Lock()
-	defer s.queueMtx.Unlock()
 
 	if len(s.acceptedTypes) == 0 {
 		return errors.New("no more messages being accepted")
@@ -94,12 +101,7 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 		return errors.New("message type is not accepted for this type of round")
 	}
 
-	if s.timer != nil {
-		if !s.timer.Stop() {
-			<-s.timer.C
-		}
-		s.timer.Reset(s.timeout)
-	}
+	s.ackMessage()
 
 	if msg.Type == s.acceptedTypes[0] {
 		s.receivedMessages[senderID] = msg
@@ -111,11 +113,12 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 }
 
 func (s *State) ProcessAll() []*messages.Message {
-	if s.IsFinished() {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.done {
 		return nil
 	}
-	s.queueMtx.Lock()
-	defer s.queueMtx.Unlock()
 
 	// Only continue if we received messages from all
 	if len(s.receivedMessages) != s.params.N()-1 {
@@ -169,26 +172,16 @@ func (s *State) isAcceptedType(msgType messages.MessageType) bool {
 	return false
 }
 
-// RoundNumber returns the current Round number
-func (s *State) RoundNumber() int {
-	return s.roundNumber
-}
-
 //
 // Output
 //
-
 func (s *State) finish() {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	s.done = true
-
-	s.round.Reset()
-	if s.timer != nil {
-		if !s.timer.Stop() {
-			<-s.timer.C
-		}
+	if s.done {
+		return
 	}
+	s.done = true
+	s.round.Reset()
+	s.stopTimer()
 	close(s.doneChan)
 }
 
@@ -196,6 +189,7 @@ func (s *State) reportError(err *rounds.Error) {
 	if s.done {
 		return
 	}
+	defer s.finish()
 
 	// We already got an error
 	// TODO chain the errors
@@ -203,17 +197,59 @@ func (s *State) reportError(err *rounds.Error) {
 		err.RoundNumber = s.roundNumber
 		s.err = err
 	}
+}
 
-	s.finish()
+func (s *State) Done() <-chan struct{} {
+	return s.doneChan
+}
+
+func (s *State) Err() error {
+	if s.err != nil {
+		return s.err
+	}
+	return nil
+}
+
+func (s *State) WaitForError() error {
+	if !s.done {
+		<-s.doneChan
+	}
+	return s.Err()
 }
 
 func (s *State) IsFinished() bool {
 	return s.done
 }
 
-func (s *State) WaitForError() *rounds.Error {
-	if !s.done {
-		<-s.doneChan
+//
+// Timeout
+//
+
+type timer struct {
+	t *time.Timer
+	d time.Duration
+}
+
+func newTimer(d time.Duration, f func()) timer {
+	var t *time.Timer
+	if d > 0 {
+		t = time.AfterFunc(d, f)
 	}
-	return s.err
+	return timer{
+		t: t,
+		d: d,
+	}
+}
+
+func (t *timer) ackMessage() {
+	if t.t != nil {
+		t.t.Stop()
+		t.t.Reset(t.d)
+	}
+}
+
+func (t *timer) stopTimer() {
+	if t.t != nil {
+		t.t.Stop()
+	}
 }

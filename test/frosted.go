@@ -1,24 +1,11 @@
 package main
 
-/*
-import (
-	"crypto/ed25519"
-	"errors"
-	"fmt"
-
-	"github.com/taurusgroup/frost-ed25519/pkg/communication"
-	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-)
-
-
 import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"time"
 
-	frost "github.com/taurusgroup/frost-ed25519/pkg"
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
@@ -37,9 +24,9 @@ func Setup(N, T uint32) (message []byte, keygenIDs, signIDs []uint32) {
 
 func DoKeygen(N uint32, T uint32, keygenIDs []uint32, keygenComm map[uint32]communication.Communicator) (*eddsa.Shares, map[uint32]*eddsa.PrivateKey, error) {
 	var err error
-	keygenHandlers := make(map[uint32]*frost.KeyGenHandler, N)
+	keygenHandlers := make(map[uint32]*KeyGenHandler, N)
 	for _, id := range keygenIDs {
-		keygenHandlers[id], err = frost.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
+		keygenHandlers[id], err = NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -58,10 +45,11 @@ func DoKeygen(N uint32, T uint32, keygenIDs []uint32, keygenComm map[uint32]comm
 }
 
 func DoSign(T uint32, signIDs []uint32, shares *eddsa.Shares, secrets map[uint32]*eddsa.PrivateKey, signComm map[uint32]communication.Communicator, message []byte) error {
-	groupKey := shares.GroupKey(nil)
-	signHandlers := make(map[uint32]*frost.SignHandler, T+1)
+	groupKey := shares.GroupKey()
+	signHandlers := make(map[uint32]*SignHandler, T+1)
+	var err error
 	for _, id := range signIDs {
-		signHandlers[id], err = frost.NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
+		signHandlers[id], err = NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
 		if err != nil {
 			return err
 		}
@@ -92,13 +80,14 @@ func FROSTestUDP(N, T uint32) error {
 
 	message, keygenIDs, signIDs := Setup(N, T)
 	keygenComm := communication.NewUDPCommunicatorMap(keygenIDs)
-
+	defer destroyCommMap(keygenComm)
 	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenComm)
 	if err != nil {
 		return err
 	}
 
 	signComm := communication.NewUDPCommunicatorMap(signIDs)
+	defer destroyCommMap(signComm)
 
 	return DoSign(T, signIDs, shares, secrets, signComm, message)
 }
@@ -108,15 +97,22 @@ func FROSTestChannel(N, T uint32) error {
 
 	message, keygenIDs, signIDs := Setup(N, T)
 	keygenComm := communication.NewChannelCommunicatorMap(keygenIDs)
-
+	defer destroyCommMap(keygenComm)
 	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenComm)
 	if err != nil {
 		return err
 	}
 
 	signComm := communication.NewChannelCommunicatorMap(signIDs)
+	defer destroyCommMap(signComm)
 
 	return DoSign(T, signIDs, shares, secrets, signComm, message)
+}
+
+func destroyCommMap(m map[uint32]communication.Communicator) {
+	for _, c := range m {
+		c.Done()
+	}
 }
 
 func FROSTestMonkey(N, T uint32) error {
@@ -126,9 +122,14 @@ func FROSTestMonkey(N, T uint32) error {
 	keygenComm := communication.NewMonkeyChannelCommunicatorMap(keygenIDs, messages.MessageTypeKeyGen1)
 	keygenCommNormal := communication.NewChannelCommunicatorMap(keygenIDs)
 
+	defer destroyCommMap(keygenComm)
+	defer destroyCommMap(keygenCommNormal)
+
 	_, _, err := DoKeygen(N, T, keygenIDs, keygenComm)
 	if err == nil {
 		return errors.New("failed to fail")
+	} else {
+		fmt.Println("good fail: ", err)
 	}
 	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenCommNormal)
 	if err != nil {
@@ -136,13 +137,19 @@ func FROSTestMonkey(N, T uint32) error {
 	}
 
 	signComm1 := communication.NewMonkeyChannelCommunicatorMap(signIDs, messages.MessageTypeSign1)
+	defer destroyCommMap(signComm1)
 
 	if err = DoSign(T, signIDs, shares, secrets, signComm1, message); err == nil {
 		return errors.New("failed to fail")
+	} else {
+		fmt.Println("good fail: ", err)
 	}
 	signComm2 := communication.NewMonkeyChannelCommunicatorMap(signIDs, messages.MessageTypeSign2)
+	defer destroyCommMap(signComm2)
 	if err = DoSign(T, signIDs, shares, secrets, signComm2, message); err == nil {
 		return errors.New("failed to fail")
+	} else {
+		fmt.Println("good fail: ", err)
 	}
 	return nil
 }
@@ -232,6 +239,3 @@ func main() {
 		}
 	}
 }
-
-
-*/

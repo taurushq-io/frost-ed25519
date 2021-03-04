@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
@@ -36,25 +34,32 @@ func (h *handler) HandleMessage() {
 	h.ProcessAll()
 
 	for {
-		msg := <-h.comm.Incoming()
-		if msg == nil {
-			continue
+		select {
+		case msg := <-h.comm.Incoming():
+			if msg == nil {
+				continue
+			}
+			if err := h.state.HandleMessage(msg); err != nil {
+				//fmt.Println(err)
+			}
+			h.ProcessAll()
+		case <-h.state.Done():
+			err := h.state.Err()
+			if err != nil {
+				//fmt.Println(err)
+			}
+			return
 		}
-		if err := h.state.HandleMessage(msg); err != nil {
-			fmt.Println(err)
-		}
-		h.ProcessAll()
 	}
 }
 
 func (h *handler) ProcessAll() {
-	h.state.ProcessAll()
 	msgsOut := h.state.ProcessAll()
 
 	for _, msg := range msgsOut {
 		err := h.comm.Send(msg)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println("process all", err)
 		}
 	}
 }
@@ -99,16 +104,18 @@ func NewSignHandler(comm communication.Communicator, ID uint32, IDs []uint32, se
 	}, nil
 }
 
-func (h *KeyGenHandler) WaitForKeygenOutput() (groupKey *eddsa.PublicKey, publicShares *eddsa.Shares, secretKeyShare *eddsa.PrivateKey, err error) {
-	err = h.state.WaitForError()
-	groupKey = h.out.Shares.GroupKey()
-	publicShares = h.out.Shares
-	secretKeyShare = h.out.SecretKey
-	return
+func (h *KeyGenHandler) WaitForKeygenOutput() (*eddsa.PublicKey, *eddsa.Shares, *eddsa.PrivateKey, error) {
+	err := h.state.WaitForError()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return h.out.Shares.GroupKey(), h.out.Shares, h.out.SecretKey, nil
 }
 
-func (h *SignHandler) WaitForSignOutput() (signature *eddsa.Signature, err error) {
-	err = h.state.WaitForError()
-	signature = h.out.Signature
-	return
+func (h *SignHandler) WaitForSignOutput() (*eddsa.Signature, error) {
+	err := h.state.WaitForError()
+	if err != nil {
+		return nil, err
+	}
+	return h.out.Signature, nil
 }

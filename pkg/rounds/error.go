@@ -17,6 +17,6 @@ func NewError(partyID uint32, err error) *Error {
 	}
 }
 
-func (e *Error) Error() string {
+func (e Error) Error() string {
 	return fmt.Sprintf("party %d: round %d: %s", e.PartyID, e.RoundNumber, e.err.Error())
 }

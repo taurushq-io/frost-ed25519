@@ -1,7 +1,7 @@
 package communication
 
 import (
-	"log"
+	"fmt"
 	"sync"
 	"time"
 
@@ -36,6 +36,7 @@ func (c *Channel) Send(msg *messages.Message) error {
 func (c *Channel) Incoming() <-chan *messages.Message {
 	select {
 	case <-c.done:
+		fmt.Println("return nil")
 		return nil
 	default:
 		return c.incoming
@@ -49,10 +50,10 @@ func (c *Channel) Done() {
 
 func waitForFinish(wg *sync.WaitGroup, done chan struct{}, chans map[uint32]chan []byte) {
 	wg.Wait()
-	close(done)
 	for _, c := range chans {
 		close(c)
 	}
+	close(done)
 }
 
 func (c *Channel) handleByteChan() {
@@ -67,7 +68,6 @@ func (c *Channel) handleByteChan() {
 			var msg messages.Message
 			err := msg.UnmarshalBinary(data)
 			if err != nil {
-				log.Print(err)
 				continue
 			}
 			c.incoming <- &msg
@@ -77,5 +77,5 @@ func (c *Channel) handleByteChan() {
 
 func (c *Channel) Timeout() time.Duration {
 	return 0
-	return 500 * time.Millisecond
+	return 1000 * time.Millisecond
 }

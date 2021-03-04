@@ -1,6 +1,5 @@
 package main
 
-/*
 import (
 	"testing"
 
@@ -9,8 +8,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
-
-
 
 func FakeKeygen(partyIDs []uint32) (*eddsa.Shares, map[uint32]*eddsa.PrivateKey) {
 	n := len(partyIDs)
@@ -26,7 +23,7 @@ func FakeKeygen(partyIDs []uint32) (*eddsa.Shares, map[uint32]*eddsa.PrivateKey)
 }
 
 func TestSetup(t *testing.T) {
-	N := uint32(100)
+	N := uint32(10)
 	message, _, signIDs := Setup(N, N-1)
 	shares, secrets := FakeKeygen(signIDs)
 
@@ -37,5 +34,3 @@ func TestSetup(t *testing.T) {
 		t.Error(err)
 	}
 }
-
-*/

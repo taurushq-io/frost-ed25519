@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
+	"fmt"
 	"testing"
+	"time"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
-	frost2 "github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
@@ -16,7 +18,7 @@ import (
 )
 
 func TestSign(t *testing.T) {
-	N := uint32(100)
+	N := uint32(50)
 	T := N - 1
 
 	_, AllPartyIDs, shares, secrets := generateFakeParties(T, N)
@@ -37,7 +39,7 @@ func TestSign(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		states[id], outputs[id], err = frost2.NewSignState(p, secrets[id], shares, message, 0)
+		states[id], outputs[id], err = frost.NewSignState(p, secrets[id], shares, message, 0)
 		if err != nil {
 			t.Error(err)
 		}
@@ -45,6 +47,8 @@ func TestSign(t *testing.T) {
 
 	pk := shares.GroupKey()
 
+	var start time.Time
+	start = time.Now()
 	for _, s := range states {
 		msgs1, err := partyRoutine(nil, s)
 		if err != nil {
@@ -52,7 +56,9 @@ func TestSign(t *testing.T) {
 		}
 		msgsOut1 = append(msgsOut1, msgs1...)
 	}
+	fmt.Println("finish round 0", time.Since(start))
 
+	start = time.Now()
 	for _, s := range states {
 		msgs2, err := partyRoutine(msgsOut1, s)
 		if err != nil {
@@ -60,14 +66,21 @@ func TestSign(t *testing.T) {
 		}
 		msgsOut2 = append(msgsOut2, msgs2...)
 	}
+	fmt.Println("finish round 1", time.Since(start))
 
+	start = time.Now()
 	for _, s := range states {
 		_, err := partyRoutine(msgsOut2, s)
 		if err != nil {
 			t.Error(err)
 		}
 	}
+	fmt.Println("finish round 2", time.Since(start))
+
 	sig := outputs[1].Signature
+	if sig == nil {
+		return
+	}
 	// validate using classic
 	if !ed25519.Verify(pk.ToEdDSA(), message, sig.ToEdDSA()) {
 		t.Error("sig failed")

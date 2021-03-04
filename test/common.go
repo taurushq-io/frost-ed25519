@@ -8,7 +8,6 @@ import (
 )
 
 func partyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
-
 	for _, m := range in {
 		var msgTmp messages.Message
 
@@ -29,7 +28,8 @@ func partyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
 		}
 	}
 	if s.IsFinished() {
-		if err := s.WaitForError(); err != nil {
+		err := s.WaitForError()
+		if err != nil {
 			return nil, err
 		}
 	}

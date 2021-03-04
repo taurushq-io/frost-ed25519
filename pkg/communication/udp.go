@@ -41,7 +41,11 @@ func (c *UDP) AddPeer(id uint32, ip string) {
 
 func (c *UDP) Start() {
 	go func() {
-		defer c.conn.Close()
+		defer func() {
+			if c.conn != nil {
+				c.conn.Close()
+			}
+		}()
 		initialBuffer := make([]byte, 77+(len(c.peers)+1)*64)
 		// max buffer =
 		// 9 header
@@ -101,10 +105,8 @@ func (c *UDP) Done() {
 	}
 	close(c.incoming)
 	c.conn.Close()
-	c.conn = nil
 }
 
 func (c *UDP) Timeout() time.Duration {
-	return 0
 	return 1500 * time.Millisecond
 }
