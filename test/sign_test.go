@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	frost2 "github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
@@ -37,7 +37,7 @@ func TestSign(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		states[id], outputs[id], err = frost.NewSignState(p, secrets[id], shares, message, 0)
+		states[id], outputs[id], err = frost2.NewSignState(p, secrets[id], shares, message, 0)
 		if err != nil {
 			t.Error(err)
 		}
