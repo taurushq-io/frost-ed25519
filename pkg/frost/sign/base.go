@@ -43,7 +43,6 @@ type (
 )
 
 func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte) (state.Round, *Output, error) {
-
 	if !partySet.Contains(secret.ID) {
 		return nil, nil, errors.New("owner of SecretShare is not contained in partySet")
 	}
@@ -105,6 +104,7 @@ func (round *round0) Reset() {
 		p.Reset()
 		delete(round.Parties, id)
 	}
+	round.Output = nil
 }
 
 func (round *round0) AcceptedMessageTypes() []messages.MessageType {

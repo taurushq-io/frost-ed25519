@@ -29,6 +29,8 @@ func NewSet(partyIDs []ID) (*Set, error) {
 		if !s.set[id] {
 			s.set[id] = true
 			s.slice = append(s.slice, id)
+		} else {
+			return nil, errors.New("partyIDs contains duplicates")
 		}
 	}
 	sort.Slice(s.slice, func(i, j int) bool { return s.slice[i] < s.slice[j] })

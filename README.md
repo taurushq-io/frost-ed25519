@@ -55,6 +55,9 @@ In the original Ed25519 scheme, the nonce `R = [r] B` is generated deterministic
 r = H( prefix || M )
 ```
 
+For threshold signing it is much harder to generate nonce in a deterministic way. 
+We refer the reader to [FROST](https://eprint.iacr.org/2020/852.pdf) for the procedure used to generate the nonces.
+
 ### Verification
 
 The verification algorithm takes a public key `A`, the signed message `M` and the signature `(R,S)`.
@@ -81,28 +84,155 @@ however it does not have a full security proof, unlike
 FROST-Interactive (see [Section
 6.2](https://eprint.iacr.org/2020/852.pdf) of the FROST paper).
 
-### Deterministic nonce generation
-
-Unlike the original Ed25519 scheme, our protocol does not generate nonces deterministically.
-Instead, we compute them as follows:
-
-    d_i, e_i random
-    D_i = [d_i]B
-    E_i = [e_i]B
-    l = signing counter
-    B = {(D_1, E_1), ..., (D_t, E_t)}
-    rho_i = H_1(l, M, B)
-    r_i = d_i + e_i • rho_i
-
-    r = ∑ r_i
-
 ## Instructions
 
+FROST-Ed25519 implements a round based architecture for both the keygen and sign protocols.
+The basic cryptographic protocol are defined in `/pkg/frost/keygen` and `/pkg/frost/sign` and hold as little state as possible.
+They are handled by a `State` which takes care of storing messages, passing them to the round at the right time,
+and reporting any error that may have occurred.
 
+Users of this library should only interact with `State` types. 
 
+### Basics
+
+Each party must be assigned a unique numeric `party.ID` (internally represented as `uint32`).
+Once all IDs have been attributed, each party must generate an appropriate `party.Set` which is 
+a structure used to more easily query the participants.
+
+Optionally, a `timeout` can be defined which forces the protocol to abort if the time duration between two received messages is longer than `timeout`.
+If it is set to 0, then there is no limit.
+
+Appropriate `State`s can be created by calling the functions `frost.NewKeygenState` or `frost.NewSignState`.
+They both return the following:
+- A `State` object used to interact with the protocol
+- An `Output` object whose attributes are initialized to `nil`, and populated asynchronously when protocol has successfully completed.
+- An `error` indicating whether the state was successfully created.
+### Managing State
+
+Once a `State` has been created, the protocol is ready to receive and send messages.
+
+```go
+package example
+
+import (
+	"log"
+	"time"
+
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
+)
+
+func main() {
+	set, _ := party.NewSet([]party.ID{1, 2, 42, 8})
+	s, output, err := frost.NewState(set, /* other parameters, */ 2*time.Second)
+	if err != nil {
+		// handle error
+	}
+	go func() {
+		var msgBytesIn, msgBytesOut chan []byte
+		// in a different thread, we can handle messages 
+		for {
+			select {
+			case msgBytes := <-msgBytesIn:
+				var msg messages.Message
+				if err = msg.UnmarshalBinary(&msgBytes); err != nil {
+					// We received a message that is badly formed, the sender could try to send again.
+					log.Println("failed to unmarshal message", err)
+				}
+				if err = s.HandleMessage(&msg); err != nil {
+					// An error here may not be too bad, it is not necessary to abort.
+					log.Println("failed to handle message", err)
+					continue
+				}
+
+				for msgOut := range s.ProcessAll() {
+					bytesOut, err := msgOut.MarshalBinary()
+					if err != nil {
+						// This should never happen since we created the message.
+						// We should probably abort
+						log.Panicln("failed to marshal", err)
+                    }
+					msgBytesOut <- bytesOut
+                }
+			case <-s.Done():
+				// The protocol has finished
+				// We can recover the error here too
+				err = s.WaitForError()
+				return 
+			}
+		}
+	}()
+
+	// Block until the protocol has finished
+	err = s.WaitForError()
+	if err != nil {
+		// the protocol has aborted
+	} else {
+		// output now contains the protocol output and can be used.
+	}
+}
+```
+
+#### Keygen: `NewKeygenState`
+
+##### Input 
+
+```go
+partyID     party.ID      // ID of the party doing the signing
+partySet    *party.Set    // set containing all parties that will receive a secret key share
+threshold   party.Size    // maximum number of corrupted parties allows / threshold+1 parties required for signing
+timeout     time.Duration // maximum time allowed between two messages received
+```
+##### Output
+
+```go
+// pkg/frost/keygen/output.go
+type Output struct {
+	Shares    *eddsa.Shares     
+	SecretKey *eddsa.SecretShare
+}
+```
+The `Shares` output contains the public key shares of all parties that participated in the protocol.
+The GroupKey computed can be obtained by calling `.GroupKey()`.
+
+The `SecretKey` should be safely stored. It contains the secret key share of the full secret key, and the party ID associated to it.
+
+#### Sign `NewSignState`
+
+##### Input
+
+```go
+partySet    *party.Set          // set containing all parties that will receive a secret key share
+secret      *eddsa.SecretShare  // the secret obtained from a KeyGen protocol
+shares      *eddsa.Shares       // public shares of the key generated during a keygen protocol
+message     []byte              // message in bytes to be signed (does not need to be prehashed)
+timeout     time.Duration       // maximum time allowed between two messages received
+```
+##### Output
+
+```go
+// pkg/frost/keygen/output.go
+type Output struct {
+    Signature *eddsa.Signature
+}
+```
+The `Signature` is as an ed25519 compatible signature and can be verified as such:
+
+```go
+ed25519.Verify(shares.GroupKey().ToEdDSA(), message, output.Signature..ToEdDSA())
+// or
+output.Signature.Verify(message, shares.GroupKey())
+```
 ### Testing
 
+We include many tests for individual modules, as well as a bigger integration test in `/test`.
+There is still some code that lacks coverage, but we are confident that main output produced is correct.
+
 ### Example usage
+
+A simple example of how to use this library can be found in `/test/sign_test.go` and `/test/keygen_test.go`
 
 ## Security
 

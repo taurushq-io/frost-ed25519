@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/eddsa_test"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa/eddsa_test"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"

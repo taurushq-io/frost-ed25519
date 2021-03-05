@@ -74,6 +74,7 @@ func (round *round0) Reset() {
 	for _, p := range round.Commitments {
 		p.Reset()
 	}
+	round.Output = nil
 }
 
 // ---
