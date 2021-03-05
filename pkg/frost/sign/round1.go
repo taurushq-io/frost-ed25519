@@ -8,17 +8,17 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 var hashDomainSeparation = []byte("FROST-SHA512")
 
-func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
+func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 	id := msg.From
 	otherParty := round.Parties[id]
 	identity := edwards25519.NewIdentityPoint()
 	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
-		return rounds.NewError(id, errors.New("commitment Ei or Di was the identity"))
+		return state.NewError(id, errors.New("commitment Ei or Di was the identity"))
 	}
 	otherParty.Di.Set(&msg.Sign1.Di)
 	otherParty.Ei.Set(&msg.Sign1.Ei)
@@ -74,7 +74,7 @@ func (round *round1) computeRhos() {
 	}
 }
 
-func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
+func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 	round.computeRhos()
 
 	round.R.Set(edwards25519.NewIdentityPoint())
@@ -106,6 +106,6 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	return []*messages.Message{msg}, nil
 }
 
-func (round *round1) NextRound() rounds.Round {
+func (round *round1) NextRound() state.Round {
 	return &round2{round}
 }

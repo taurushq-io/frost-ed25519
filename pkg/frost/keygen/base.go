@@ -5,14 +5,14 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
 	round0 struct {
-		*rounds.BaseRound
+		*state.BaseRound
 
 		// Threshold is the degree of the polynomial used for Shamir.
 		// It is the number of tolerated party corruptions.
@@ -42,7 +42,7 @@ type (
 	}
 )
 
-func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (rounds.Round, *Output, error) {
+func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (state.Round, *Output, error) {
 	N := partySet.N()
 
 	if threshold == 0 {
@@ -52,7 +52,7 @@ func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (round
 		return nil, nil, errors.New("threshold must be at most N-1, or a maximum of T+1=N signers")
 	}
 
-	baseRound, err := rounds.NewBaseRound(selfID, partySet)
+	baseRound, err := state.NewBaseRound(selfID, partySet)
 	if err != nil {
 		return nil, nil, err
 	}

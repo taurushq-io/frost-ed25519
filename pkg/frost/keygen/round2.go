@@ -7,10 +7,10 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
+func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	var computedShareExp edwards25519.Point
 	computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 
@@ -18,7 +18,7 @@ func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 	shareExp := round.Commitments[id].Evaluate(round.SelfID().Scalar())
 
 	if computedShareExp.Equal(shareExp) != 1 {
-		return rounds.NewError(id, errors.New("VSS failed to validate"))
+		return state.NewError(id, errors.New("VSS failed to validate"))
 	}
 	round.Secret.Add(&round.Secret, &msg.KeyGen2.Share)
 
@@ -28,7 +28,7 @@ func (round *round2) ProcessMessage(msg *messages.Message) *rounds.Error {
 	return nil
 }
 
-func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
+func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
 	shares := make(map[party.ID]*edwards25519.Point, round.Set().N())
 	for id := range round.Set().Range() {
 		shares[id] = round.CommitmentsSum.Evaluate(id.Scalar())
@@ -38,7 +38,7 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	return nil, nil
 }
 
-func (round *round2) NextRound() rounds.Round {
+func (round *round2) NextRound() state.Round {
 	return nil
 }
 

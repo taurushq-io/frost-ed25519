@@ -4,8 +4,8 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 func GenerateSecrets(set *party.Set, threshold party.Size) (*edwards25519.Scalar, map[party.ID]*eddsa.SecretShare) {

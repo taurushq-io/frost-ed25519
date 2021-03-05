@@ -1,4 +1,4 @@
-package rounds
+package state
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
+// state.Error represents an error related to the protocol execution, and requires an abort.
+// If PartyID is 0, then it was not possible to attribute the fault to one particular party.
 type Error struct {
 	PartyID     party.ID
 	RoundNumber int

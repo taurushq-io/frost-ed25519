@@ -7,12 +7,12 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
 	round0 struct {
-		*rounds.BaseRound
+		*state.BaseRound
 
 		// Message is the message to be signed
 		Message []byte
@@ -42,7 +42,7 @@ type (
 	}
 )
 
-func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
+func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte) (state.Round, *Output, error) {
 
 	if !partySet.Contains(secret.ID) {
 		return nil, nil, errors.New("owner of SecretShare is not contained in partySet")
@@ -51,7 +51,7 @@ func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shar
 		return nil, nil, errors.New("not all parties of partySet are contained in shares")
 	}
 
-	baseRound, err := rounds.NewBaseRound(secret.ID, partySet)
+	baseRound, err := state.NewBaseRound(secret.ID, partySet)
 	if err != nil {
 		return nil, nil, err
 	}

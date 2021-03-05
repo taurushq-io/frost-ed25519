@@ -7,9 +7,12 @@ import (
 
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
 )
 
+// State is a struct that manages the state for the round based protocol.
+//
+// It handles the initial message reception, by storing them internally and feeding them to
+// the the current round when all messages have been received
 type State struct {
 	acceptedTypes    []messages.MessageType
 	receivedMessages map[party.ID]*messages.Message
@@ -19,16 +22,16 @@ type State struct {
 
 	roundNumber int
 
-	round rounds.Round
+	round Round
 
 	doneChan chan struct{}
 	done     bool
-	err      *rounds.Error
+	err      *Error
 
 	mtx sync.Mutex
 }
 
-func NewBaseState(round rounds.Round, timeout time.Duration) (*State, error) {
+func NewBaseState(round Round, timeout time.Duration) (*State, error) {
 	N := round.Set().N()
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
@@ -40,7 +43,7 @@ func NewBaseState(round rounds.Round, timeout time.Duration) (*State, error) {
 
 	s.timer = newTimer(timeout, func() {
 		s.mtx.Lock()
-		s.reportError(rounds.NewError(0, errors.New("message timeout")))
+		s.reportError(NewError(0, errors.New("message timeout")))
 		s.mtx.Unlock()
 	})
 
@@ -60,17 +63,18 @@ func NewBaseState(round rounds.Round, timeout time.Duration) (*State, error) {
 // - Is msg for us and not from us
 // - Is the sender a party in the protocol
 // - Have we already received a message from the party for this round?
-// -
-// -
+//
+// If all these checks pass, then the message is either stored for the current round,
+// or put in a queue for later rounds.
+//
+// Note: the properties of the messages are checked in ProcessAll.
+// Therefore, the check here should be a quite fast.
 func (s *State) HandleMessage(msg *messages.Message) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	if s.done {
-		if err := s.Err(); err != nil {
-			return err
-		}
-		return errors.New("already finished")
+		return errors.New("protocol already finished")
 	}
 
 	if len(s.acceptedTypes) == 0 {
@@ -113,6 +117,12 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	return nil
 }
 
+// ProcessAll checks whether all messages for this round have been received.
+// If so then all messages are fed to Round.ProcessMessage.
+// If no error was detected, then the round is processed and new messages are generated.
+// These messages are returned to the caller and should be processed.
+// If all went correctly, we take the messages for the next round out of the queue,
+// and move on to the next round.
 func (s *State) ProcessAll() []*messages.Message {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -133,6 +143,7 @@ func (s *State) ProcessAll() []*messages.Message {
 		}
 	}
 
+	// remove all messages that have been processed
 	for id := range s.receivedMessages {
 		delete(s.receivedMessages, id)
 	}
@@ -143,21 +154,27 @@ func (s *State) ProcessAll() []*messages.Message {
 		return nil
 	}
 
-	s.roundNumber++
-
+	// remove the messages for the next round from the queue
 	s.acceptedTypes = s.acceptedTypes[1:]
 	if len(s.acceptedTypes) > 0 {
+		newQueue := s.queue[:]
+		currentType := s.acceptedTypes[0]
 		for _, msg := range s.queue {
-			s.receivedMessages[msg.From] = msg
+			if msg.Type == currentType {
+				s.receivedMessages[msg.From] = msg
+			} else {
+				newQueue = append(newQueue, msg)
+			}
 		}
+		s.queue = newQueue
 	}
 
+	// We are finished and move on to the next round
 	nextRound := s.round.NextRound()
-
-	// We are finished
 	if nextRound == nil {
 		s.finish()
 	} else {
+		s.roundNumber++
 		s.round = nextRound
 	}
 
@@ -186,7 +203,7 @@ func (s *State) finish() {
 	close(s.doneChan)
 }
 
-func (s *State) reportError(err *rounds.Error) {
+func (s *State) reportError(err *Error) {
 	if s.done {
 		return
 	}
@@ -200,6 +217,12 @@ func (s *State) reportError(err *rounds.Error) {
 	}
 }
 
+// Done should be called like context.Done:
+//
+// select {
+//   case <-s.Done():
+//   // other cases
+//
 func (s *State) Done() <-chan struct{} {
 	return s.doneChan
 }
@@ -211,6 +234,9 @@ func (s *State) Err() error {
 	return nil
 }
 
+// WaitForError blocks until the protocol is done.
+// This happens either when the protocol has finished correctly,
+// or if an error has been detected.
 func (s *State) WaitForError() error {
 	if !s.done {
 		<-s.doneChan
@@ -218,6 +244,7 @@ func (s *State) WaitForError() error {
 	return s.Err()
 }
 
+// IsFinished returns true if the protocol has aborted or successfully finished.
 func (s *State) IsFinished() bool {
 	return s.done
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 func TestSchnorrProof(t *testing.T) {

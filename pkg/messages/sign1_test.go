@@ -6,7 +6,7 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 func TestSign1_MarshalBinary(t *testing.T) {

@@ -4,16 +4,16 @@ import (
 	"errors"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
+func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 	// TODO we can use custom contexts to prevent replay attacks
 	ctx := make([]byte, 32)
 
 	public := msg.KeyGen1.Commitments.Constant()
 	if !msg.KeyGen1.Proof.Verify(msg.From, public, ctx) {
-		return rounds.NewError(msg.From, errors.New("ZK Schnorr failed"))
+		return state.NewError(msg.From, errors.New("ZK Schnorr failed"))
 	}
 
 	round.Commitments[msg.From] = msg.KeyGen1.Commitments
@@ -23,7 +23,7 @@ func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
 	return nil
 }
 
-func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
+func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 	msgsOut := make([]*messages.Message, 0, round.Set().N()-1)
 	for id := range round.Set().Range() {
 		if id == round.SelfID() {
@@ -39,7 +39,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	return msgsOut, nil
 }
 
-func (round *round1) NextRound() rounds.Round {
+func (round *round1) NextRound() state.Round {
 	return &round2{round}
 }
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
@@ -14,8 +13,7 @@ import (
 // Shares holds the public keys generated during a key generation protocol.
 // It also stores the associated party set, the threshold used and the full group key.
 type Shares struct {
-	// PartySet is a party.Set but does not specify a particular ID.
-	// This is because the Shares struct is independent of the owner of a particular share.
+	// PartySet is a party.Set that represents all parties with a share.
 	PartySet  *party.Set
 	threshold party.Size
 	shares    map[party.ID]*edwards25519.Point
@@ -183,29 +181,24 @@ type sharesJSON struct {
 func (s *Shares) MarshalJSON() ([]byte, error) {
 	sharesText := make(map[string]string, len(s.shares))
 	for _, id := range s.PartySet.Sorted() {
-		idText := strconv.FormatUint(uint64(id), 10)
-		shareHex := hex.EncodeToString(s.shares[id].Bytes())
-		sharesText[idText] = shareHex
+		sharesText[id.String()] = hex.EncodeToString(s.shares[id].Bytes())
 	}
 
-	groupKeyHex := hex.EncodeToString(s.groupKey.Bytes())
-	sharesJson := sharesJSON{
+	return json.Marshal(sharesJSON{
 		Threshold: int(s.threshold),
 		Shares:    sharesText,
-		GroupKey:  groupKeyHex,
-	}
-	return json.Marshal(sharesJson)
+		GroupKey:  hex.EncodeToString(s.groupKey.Bytes()),
+	})
 }
 
-// TODO verify group key
 func (s *Shares) UnmarshalJSON(data []byte) error {
-	var sharesJson sharesJSON
-	err := json.Unmarshal(data, &sharesJson)
+	var out sharesJSON
+	err := json.Unmarshal(data, &out)
 	if err != nil {
 		return err
 	}
-	n := party.Size(len(sharesJson.Shares))
-	t := party.Size(sharesJson.Threshold)
+	n := party.Size(len(out.Shares))
+	t := party.Size(out.Threshold)
 	if t+1 > n {
 		return errors.New("t should be < n - 1")
 	}
@@ -213,7 +206,7 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 	partyIDs := make([]party.ID, 0, n)
 	sharesSlice := make([]edwards25519.Point, n)
 	shares := make(map[party.ID]*edwards25519.Point, n)
-	for idText, pointHex := range sharesJson.Shares {
+	for idText, pointHex := range out.Shares {
 		id, err := party.IDFromString(idText)
 		if err != nil {
 			return err
@@ -230,21 +223,24 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 			return err
 		}
 	}
+	s.shares = shares
+
 	s.threshold = t
 	s.PartySet, err = party.NewSet(partyIDs)
 	if err != nil {
 		return err
 	}
-	s.shares = shares
 
+	// Recompute group key to make sure it is the same
 	var groupKey edwards25519.Point
 	s.computeGroupKey()
-	groupKeyBytes, err := hex.DecodeString(sharesJson.GroupKey)
-	_, err = groupKey.SetBytes(groupKeyBytes)
+	groupKeyBytes, err := hex.DecodeString(out.GroupKey)
 	if err != nil {
 		return err
 	}
-
+	if _, err = groupKey.SetBytes(groupKeyBytes); err != nil {
+		return err
+	}
 	if groupKey.Equal(s.groupKey) != 1 {
 		return errors.New("stored GroupKey does not correspond")
 	}

@@ -1,9 +1,10 @@
-package rounds
+package state
 
 import (
 	"errors"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 )
 
 type BaseRound struct {
@@ -19,6 +20,10 @@ func NewBaseRound(selfID party.ID, partySet *party.Set) (*BaseRound, error) {
 		selfID:   selfID,
 		partySet: partySet,
 	}, nil
+}
+
+func (r *BaseRound) ProcessMessage(msg *messages.Message) *Error {
+	return nil
 }
 
 func (r *BaseRound) SelfID() party.ID {

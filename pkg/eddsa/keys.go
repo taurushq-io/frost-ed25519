@@ -12,6 +12,7 @@ type PublicKey struct {
 	pk edwards25519.Point
 }
 
+// NewPublicKeyFromPoint returns a PublicKey given an edwards25519.Point.
 func NewPublicKeyFromPoint(public *edwards25519.Point) *PublicKey {
 	var pk PublicKey
 

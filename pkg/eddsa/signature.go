@@ -12,6 +12,9 @@ const MessageLengthSig = 32 + 32
 
 var ErrInvalidMessage = errors.New("invalid message")
 
+// Signature represents an EdDSA signature.
+// When converted to bytes with .toEdDSA(), the signature is compatible with
+// the standard ed25519 library.
 type Signature struct {
 	R edwards25519.Point
 	S edwards25519.Scalar

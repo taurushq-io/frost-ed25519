@@ -8,7 +8,7 @@ import (
 
 	"crypto/sha512"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 // Schnorr is a Non-Interactive Zero-Knowledge proof of knowledge of

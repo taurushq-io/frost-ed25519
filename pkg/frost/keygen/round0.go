@@ -1,18 +1,18 @@
 package keygen
 
 import (
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/zk"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/zk"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round0) ProcessMessage(msg *messages.Message) *rounds.Error {
+func (round *round0) ProcessMessage(msg *messages.Message) *state.Error {
 	return nil
 }
 
-func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
+func (round *round0) GenerateMessages() ([]*messages.Message, *state.Error) {
 	// Sample a_i,0 which is the constant factor of the polynomial
 	scalar.SetScalarRandom(&round.Secret)
 
@@ -39,6 +39,6 @@ func (round *round0) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	return []*messages.Message{msg}, nil
 }
 
-func (round *round0) NextRound() rounds.Round {
+func (round *round0) NextRound() state.Round {
 	return &round1{round}
 }

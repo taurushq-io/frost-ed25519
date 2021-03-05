@@ -13,6 +13,9 @@ type Set struct {
 	slice []ID
 }
 
+// NewSet generates a set from a slice of ID s.
+// It returns an error if any ID represents the 0 value.
+// If partyIDs contains duplicates then only one instance will be included in the set.
 func NewSet(partyIDs []ID) (*Set, error) {
 	n := len(partyIDs)
 	s := &Set{
@@ -32,6 +35,7 @@ func NewSet(partyIDs []ID) (*Set, error) {
 	return s, nil
 }
 
+// Contains returns true if all parties in partyIDs are included in the set.
 func (s *Set) Contains(partyIDs ...ID) bool {
 	for _, id := range partyIDs {
 		if !s.set[id] {
@@ -41,10 +45,17 @@ func (s *Set) Contains(partyIDs ...ID) bool {
 	return true
 }
 
+// Sorted returns a sorted slice of the parties in the set.
+// This structure should not be altered and should be used mainly for iterating over.
+// To obtain a copy of the ID,s the caller should instead use
+// s.Take(s.N())
 func (s *Set) Sorted() []ID {
 	return s.slice
 }
 
+// Take returns a random subset of size n.
+// If n is larger than the number of entries in the set,
+// then the full set is returned.
 func (s *Set) Take(n Size) []ID {
 	if int(n) > len(s.set) {
 		n = Size(len(s.set))
@@ -59,10 +70,12 @@ func (s *Set) Take(n Size) []ID {
 	return partyIDs
 }
 
+// N returns the number of ID s in the set.
 func (s *Set) N() Size {
 	return Size(len(s.set))
 }
 
+// Equal returns true
 func (s *Set) Equal(otherSet *Set) bool {
 	if len(s.set) != len(otherSet.set) {
 		return false
@@ -79,13 +92,22 @@ func (s *Set) IsSubsetOf(otherSet *Set) bool {
 	return otherSet.Contains(s.slice...)
 }
 
+// Range returns a map[ID]bool that can be use for iterating over.
+// It returns a pointer to an internal member and should not be modified.
+//
+// Example:
+// for id := range s.Range() {
+//     // iterates over the set in a random order.
+// }
 func (s *Set) Range() map[ID]bool {
 	return s.set
 }
 
-//  Lagrange gives the Lagrange coefficient l_j(x)
-// for x = 0, since we are only interested in interpolating
-// the constant coefficient.
+// Lagrange gives the Lagrange coefficient l_j(x) for x = 0.
+//
+// We iterate over all points in the set.
+// To get the coefficients over a smaller set,
+// you should first get a smaller subset.
 //
 // The following formulas are taken from
 // https://en.wikipedia.org/wiki/Lagrange_polynomial
@@ -107,7 +129,7 @@ func (s *Set) Lagrange(partyID ID) (*edwards25519.Scalar, error) {
 
 	xJ := partyID.Scalar()
 
-	for _, id := range s.slice {
+	for id := range s.set {
 		if id == partyID {
 			continue
 		}

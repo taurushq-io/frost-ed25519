@@ -7,7 +7,7 @@ import (
 	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 func TestExponent_Evaluate(t *testing.T) {
