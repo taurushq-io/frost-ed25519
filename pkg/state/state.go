@@ -25,20 +25,17 @@ type State struct {
 	done     bool
 	err      *rounds.Error
 
-	partySet *party.SetWithSelf
-
 	mtx sync.Mutex
 }
 
-func NewBaseState(partySet *party.SetWithSelf, round rounds.Round, timeout time.Duration) (*State, error) {
-	N := partySet.N()
+func NewBaseState(round rounds.Round, timeout time.Duration) (*State, error) {
+	N := round.Set().N()
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[party.ID]*messages.Message, N),
 		queue:            make([]*messages.Message, 0, N),
 		round:            round,
 		doneChan:         make(chan struct{}),
-		partySet:         partySet,
 	}
 
 	s.timer = newTimer(timeout, func() {
@@ -47,8 +44,8 @@ func NewBaseState(partySet *party.SetWithSelf, round rounds.Round, timeout time.
 		s.mtx.Unlock()
 	})
 
-	for id := range partySet.Range() {
-		if id != partySet.Self() {
+	for id := range round.Set().Range() {
+		if id != round.SelfID() {
 			s.receivedMessages[id] = nil
 		}
 	}
@@ -83,15 +80,15 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	senderID := msg.From
 
 	// Ignore messages from self
-	if senderID == s.partySet.Self() {
+	if senderID == s.round.SelfID() {
 		return nil
 	}
 	// Ignore message not addressed to us
-	if msg.To != 0 && msg.To != s.partySet.Self() {
+	if msg.To != 0 && msg.To != s.round.SelfID() {
 		return nil
 	}
 	// Is the sender in our list of participants?
-	if !s.partySet.Contains(senderID) {
+	if !s.round.Set().Contains(senderID) {
 		return errors.New("sender is not a party")
 	}
 
@@ -125,7 +122,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	}
 
 	// Only continue if we received messages from all
-	if len(s.receivedMessages) != int(s.partySet.N()-1) {
+	if len(s.receivedMessages) != int(s.round.Set().N()-1) {
 		return nil
 	}
 

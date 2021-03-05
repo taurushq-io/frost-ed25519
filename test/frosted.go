@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/test/communication"
 )
 
 func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
@@ -23,7 +23,7 @@ func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
 	return
 }
 
-func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Shares, map[party.ID]*eddsa.PrivateKey, error) {
+func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Shares, map[party.ID]*eddsa.SecretShare, error) {
 	var err error
 	keygenHandlers := make(map[party.ID]*KeyGenHandler, N)
 	for _, id := range keygenIDs {
@@ -34,18 +34,18 @@ func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]com
 	}
 
 	var shares *eddsa.Shares
-	secrets := map[party.ID]*eddsa.PrivateKey{}
+	secrets := map[party.ID]*eddsa.SecretShare{}
 	for id, h := range keygenHandlers {
-		var secret *eddsa.PrivateKey
-		if _, shares, secret, err = h.WaitForKeygenOutput(); err != nil {
+		if err = h.state.WaitForError(); err != nil {
 			return nil, nil, err
 		}
-		secrets[id] = secret
+		shares = h.out.Shares
+		secrets[id] = h.out.SecretKey
 	}
 	return shares, secrets, nil
 }
 
-func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[party.ID]*eddsa.PrivateKey, signComm map[party.ID]communication.Communicator, message []byte) error {
+func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
 	groupKey := shares.GroupKey()
 	signHandlers := make(map[party.ID]*SignHandler, T+1)
 	var err error
@@ -59,11 +59,10 @@ func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[
 	failures := 0
 
 	for _, h := range signHandlers {
-		s, err := h.WaitForSignOutput()
-
+		err = h.state.WaitForError()
 		if err != nil {
 			failures++
-		} else if s != nil {
+		} else if s := h.out.Signature; s != nil {
 			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEdDSA(), message, s.ToEdDSA()) {
 				failures++
 			}

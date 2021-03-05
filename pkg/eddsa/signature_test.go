@@ -19,7 +19,7 @@ func generateSignature() (*Signature, *PublicKey, error) {
 		return nil, nil, err
 	}
 	sk, pk := newKeyPair(skBytes)
-	signature := NewSignature([]byte(sampleMessage), sk, pk)
+	signature := newSignature([]byte(sampleMessage), sk)
 	return signature, pk, nil
 }
 

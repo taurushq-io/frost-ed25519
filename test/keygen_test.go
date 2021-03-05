@@ -6,6 +6,7 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa_test"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
@@ -16,21 +17,14 @@ func TestKeygen(t *testing.T) {
 	N := party.Size(50)
 	T := N / 2
 
-	partyIDs := make([]party.ID, 0, N)
-	for id := party.ID(1); id <= N; id++ {
-		partyIDs = append(partyIDs, id)
-	}
+	partySet := eddsa_test.GenerateSet(N)
 
 	states := map[party.ID]*state.State{}
 	outputs := map[party.ID]*keygen.Output{}
 
-	for _, id := range partyIDs {
-		set, err := party.NewSetWithSelf(id, partyIDs)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		states[id], outputs[id], err = frost.NewKeygenState(set, T, 0)
+	for id := range partySet.Range() {
+		var err error
+		states[id], outputs[id], err = frost.NewKeygenState(id, partySet, T, 0)
 		if err != nil {
 			t.Error(err)
 			return
@@ -63,14 +57,14 @@ func TestKeygen(t *testing.T) {
 		}
 	}
 
-	id1 := partyIDs[0]
+	id1 := partySet.Sorted()[0]
 	if err := states[id1].WaitForError(); err != nil {
 		t.Error(err)
 	}
 	groupKey1 := outputs[id1].Shares.GroupKey()
 	publicShares1 := outputs[id1].Shares
-	secrets := map[party.ID]*eddsa.PrivateKey{}
-	for _, id2 := range partyIDs {
+	secrets := map[party.ID]*eddsa.SecretShare{}
+	for id2 := range partySet.Range() {
 		if err := states[id2].WaitForError(); err != nil {
 			t.Error(err)
 		}
@@ -128,9 +122,8 @@ func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicS
 	return nil
 }
 
-func ValidateSecrets(secrets map[party.ID]*eddsa.PrivateKey, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
+func ValidateSecrets(secrets map[party.ID]*eddsa.SecretShare, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
 	fullSecret := edwards25519.NewScalar()
-	allIDs := shares.PartySet.Sorted()
 
 	for id, secret := range secrets {
 		pk1 := secret.PublicKey()
@@ -142,18 +135,14 @@ func ValidateSecrets(secrets map[party.ID]*eddsa.PrivateKey, groupKey *eddsa.Pub
 			return errors.New("pk not the same")
 		}
 
-		lagrange, err := shares.Lagrange(id, allIDs)
+		lagrange, err := shares.PartySet.Lagrange(id)
 		if err != nil {
 			return err
 		}
 		fullSecret.MultiplyAdd(lagrange, secret.Scalar(), fullSecret)
 	}
 
-	fullSk := eddsa.NewPrivateKeyFromScalar(fullSecret)
 	fullPk := eddsa.NewPublicKeyFromPoint(new(edwards25519.Point).ScalarBaseMult(fullSecret))
-	if !fullSk.PublicKey().Equal(fullPk) {
-		return errors.New("computed groupKey does not match")
-	}
 	if !groupKey.Equal(fullPk) {
 		return errors.New("computed groupKey does not match")
 	}

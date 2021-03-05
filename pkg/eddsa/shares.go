@@ -9,23 +9,21 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/scalar"
 )
 
 // Shares holds the public keys generated during a key generation protocol.
-// It also stores information about
+// It also stores the associated party set, the threshold used and the full group key.
 type Shares struct {
+	// PartySet is a party.Set but does not specify a particular ID.
+	// This is because the Shares struct is independent of the owner of a particular share.
 	PartySet  *party.Set
 	threshold party.Size
 	shares    map[party.ID]*edwards25519.Point
 	groupKey  *edwards25519.Point
 }
 
-type SecretShare struct {
-	partyID party.ID
-	PrivateKey
-}
-
+// NewShares creates a Shares structure given a map of edwards25519.Point, the threshold used, and an optional group key.
+// If groupKey is nil, then it is recomputed. Otherwise it is considered correct and simply stored.
 func NewShares(shares map[party.ID]*edwards25519.Point, threshold party.Size, groupKey *edwards25519.Point) *Shares {
 	n := len(shares)
 	IDs := make([]party.ID, 0, n)
@@ -56,20 +54,19 @@ func (s *Shares) computeGroupKey() {
 	var tmp edwards25519.Point
 	s.groupKey = edwards25519.NewIdentityPoint()
 
-	// Take only the first t+1 IDs
-	partyIDs := s.PartySet.Sorted()[:s.threshold+1]
-
-	for _, id := range partyIDs {
-		lagrange, _ := s.Lagrange(id, partyIDs)
+	for id := range s.PartySet.Range() {
+		lagrange, _ := s.PartySet.Lagrange(id)
 		tmp.ScalarMult(lagrange, s.shares[id])
 		s.groupKey.Add(s.groupKey, &tmp)
 	}
 }
 
+// GroupKey returns the group key of the group by interpolating all the given points.
 func (s *Shares) GroupKey() *PublicKey {
 	return NewPublicKeyFromPoint(s.groupKey)
 }
 
+// Share returns the PublicKey for the party at index.
 func (s *Shares) Share(index party.ID) (*PublicKey, error) {
 	p, ok := s.shares[index]
 	if !ok {
@@ -78,20 +75,24 @@ func (s *Shares) Share(index party.ID) (*PublicKey, error) {
 	return NewPublicKeyFromPoint(p), nil
 }
 
-func (s *Shares) ShareNormalized(index party.ID, partyIDs []party.ID) (*PublicKey, error) {
-	if len(partyIDs) < int(s.threshold)+1 {
+// ShareNormalized returns the party index's public key share, but multiplied by the appropriate Lagrange factor of
+// the group determined by partyIDs.
+// If ShareNormalized is called for every party in partyIDs, then the resulting PublicKey s represent
+// an additive sharing of the group key.
+func (s *Shares) ShareNormalized(partyID party.ID, partySet *party.Set) (*PublicKey, error) {
+	if partySet.N() < s.threshold+1 {
 		return nil, errors.New("partyIDs does not contain a threshold number of PartySet")
 	}
-	if !s.PartySet.Contains(partyIDs...) {
+	if !partySet.IsSubsetOf(s.PartySet) {
 		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
 	}
 
-	pk, err := s.Share(index)
+	pk, err := s.Share(partyID)
 
 	if err != nil {
 		return nil, err
 	}
-	lagrange, err := s.Lagrange(index, partyIDs)
+	lagrange, err := partySet.Lagrange(partyID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,10 +100,13 @@ func (s *Shares) ShareNormalized(index party.ID, partyIDs []party.ID) (*PublicKe
 	return pk, nil
 }
 
+// Threshold returns the integer which defines the maximum number of parties that may be corrupted while
+// keeping the scheme secure.
 func (s *Shares) Threshold() party.Size {
 	return s.threshold
 }
 
+// MarshalBinary implements the BinaryMarshaler interface.
 func (s *Shares) MarshalBinary() ([]byte, error) {
 	N := s.PartySet.N()
 	size := 2*party.ByteSize + 32 + N*(party.ByteSize+32)
@@ -118,6 +122,7 @@ func (s *Shares) MarshalBinary() ([]byte, error) {
 	return out, nil
 }
 
+// UnmarshalBinary implements the BinaryUnmarshaler interface.
 func (s *Shares) UnmarshalBinary(data []byte) error {
 	var err error
 	n := party.FromBytes(data)
@@ -273,55 +278,4 @@ func (s *Shares) Equal(s2 *Shares) bool {
 	}
 
 	return true
-}
-
-//  Lagrange gives the Lagrange coefficient l_j(x)
-// for x = 0, since we are only interested in interpolating
-// the constant coefficient.
-//
-// The following formulas are taken from
-// https://en.wikipedia.org/wiki/Lagrange_polynomial
-//
-//			( x  - x_0) ... ( x  - x_k)
-// l_j(x) =	---------------------------
-//			(x_j - x_0) ... (x_j - x_k)
-//
-//			        x_0 ... x_k
-// l_j(0) =	---------------------------
-//			(x_0 - x_j) ... (x_k - x_j)
-func (s *Shares) Lagrange(idx party.ID, partyIDs []party.ID) (*edwards25519.Scalar, error) {
-	if !s.PartySet.Contains(partyIDs...) {
-		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
-	}
-
-	var xM edwards25519.Scalar
-
-	denum := scalar.NewScalarUInt32(uint32(1))
-	num := scalar.NewScalarUInt32(uint32(1))
-
-	xJ := idx.Scalar()
-
-	for _, id := range partyIDs {
-		if id == idx {
-			continue
-		}
-
-		scalar.SetScalarPartyID(&xM, id)
-
-		// num = x_0 * ... * x_k
-		num.Multiply(num, &xM) // num * xM
-
-		// denum = (x_0 - x_j) ... (x_k - x_j)
-		xM.Subtract(&xM, xJ)       // = xM - xJ
-		denum.Multiply(denum, &xM) // denum * (xm - xj)
-	}
-
-	// This should not happen since xM!=xJ
-	if denum.Equal(edwards25519.NewScalar()) == 1 {
-		return nil, errors.New("partyIDs contained idx")
-	}
-
-	denum.Invert(denum)
-	num.Multiply(num, denum)
-	return num, nil
 }

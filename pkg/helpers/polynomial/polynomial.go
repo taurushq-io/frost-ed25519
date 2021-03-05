@@ -17,7 +17,7 @@ func NewPolynomial(degree party.Size, constant *edwards25519.Scalar) *Polynomial
 	var polynomial Polynomial
 	polynomial.coefficients = make([]edwards25519.Scalar, degree+1)
 
-	// Set the constant term to the secret
+	// SetWithoutSelf the constant term to the secret
 	polynomial.coefficients[0].Set(constant)
 
 	var randomBytes [64]byte

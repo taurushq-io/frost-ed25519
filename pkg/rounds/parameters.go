@@ -2,7 +2,7 @@ package rounds
 
 //type Parameters struct {
 //	id party.ID
-//	*party.Set
+//	*party.SetWithoutSelf
 //}
 //
 //func NewParameters(selfPartyID party.ID, allPartyIDs []party.ID) (*Parameters, error) {
@@ -20,7 +20,7 @@ package rounds
 //	}
 //	p := &Parameters{
 //		id:  selfPartyID,
-//		Set: set,
+//		SetWithoutSelf: set,
 //	}
 //
 //	return p, nil

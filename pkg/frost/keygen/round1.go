@@ -24,12 +24,12 @@ func (round *round1) ProcessMessage(msg *messages.Message) *rounds.Error {
 }
 
 func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
-	msgsOut := make([]*messages.Message, 0, round.partySet.N()-1)
-	for id := range round.partySet.Range() {
-		if id == round.partySet.Self() {
+	msgsOut := make([]*messages.Message, 0, round.Set().N()-1)
+	for id := range round.Set().Range() {
+		if id == round.SelfID() {
 			continue
 		}
-		msgsOut = append(msgsOut, messages.NewKeyGen2(round.partySet.Self(), id, round.Polynomial.Evaluate(id.Scalar())))
+		msgsOut = append(msgsOut, messages.NewKeyGen2(round.SelfID(), id, round.Polynomial.Evaluate(id.Scalar())))
 	}
 
 	// Now that we have received the commitment from every one,

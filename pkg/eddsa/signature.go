@@ -17,32 +17,6 @@ type Signature struct {
 	S edwards25519.Scalar
 }
 
-func NewSignature(message []byte, secretKey *PrivateKey, publicKey *PublicKey) *Signature {
-	var sig Signature
-
-	var (
-		r      edwards25519.Scalar
-		rBytes [64]byte
-	)
-
-	if _, err := rand.Reader.Read(rBytes[:]); err != nil {
-		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
-	}
-	r.SetUniformBytes(rBytes[:])
-
-	// R = [r] • B
-	sig.R.ScalarBaseMult(&r)
-
-	// C = H(R, A, M)
-	c := ComputeChallenge(&sig.R, publicKey, message)
-
-	// S = sk * c + r
-	sig.S.Multiply(secretKey.Scalar(), c)
-	sig.S.Add(&sig.S, &r)
-
-	return &sig
-}
-
 func Verify(c, s *edwards25519.Scalar, public *PublicKey, R *edwards25519.Point) bool {
 	var publicNeg, RPrime edwards25519.Point
 	publicNeg.Negate(public.Point())
@@ -60,15 +34,6 @@ func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	k := ComputeChallenge(&s.R, publicKey, message)
 
 	return Verify(k, &s.S, publicKey, &s.R)
-	//A.Negate(&A)
-	//
-	//// RPrime = [8](R - (-[l]A + [s]B))
-	//RPrime.VarTimeDoubleScalarBaseMult(k, &A, &s.S)
-	//RPrime.Negate(&RPrime)
-	//RPrime.Add(&RPrime, &s.R)
-	//RPrime.MultByCofactor(&RPrime)
-	//
-	//return RPrime.Equal(edwards25519.NewIdentityPoint()) == 1
 }
 
 // ToEdDSA returns a signature that can be validated by ed25519.Verify.
@@ -77,6 +42,35 @@ func (s *Signature) ToEdDSA() []byte {
 	copy(sig[:32], s.R.Bytes())
 	copy(sig[32:], s.S.Bytes())
 	return sig[:]
+}
+
+func newSignature(message []byte, secretKey *edwards25519.Scalar) *Signature {
+	var sig Signature
+
+	var (
+		r              edwards25519.Scalar
+		publicKeyPoint edwards25519.Point
+		rBytes         [64]byte
+	)
+
+	if _, err := rand.Reader.Read(rBytes[:]); err != nil {
+		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
+	}
+	r.SetUniformBytes(rBytes[:])
+
+	// R = [r] • B
+	sig.R.ScalarBaseMult(&r)
+
+	// C = H(R, A, M)
+	publicKeyPoint.ScalarBaseMult(secretKey)
+	publicKey := NewPublicKeyFromPoint(&publicKeyPoint)
+	c := ComputeChallenge(&sig.R, publicKey, message)
+
+	// S = sk * c + r
+	sig.S.Multiply(secretKey, c)
+	sig.S.Add(&sig.S, &r)
+
+	return &sig
 }
 
 //

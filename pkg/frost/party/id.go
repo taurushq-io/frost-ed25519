@@ -8,7 +8,10 @@ import (
 	"filippo.io/edwards25519"
 )
 
-const ByteSize = 2
+const (
+	ByteSize = 2
+	MaxSize  = (1 << (ByteSize * 8)) - 1
+)
 
 type (
 	ID   uint16
@@ -49,19 +52,15 @@ func IDFromString(str string) (ID, error) {
 	return ID(p), nil
 }
 
-// RandIDn returns, as an ID, a non-negative pseudo-random number in [1,n)
+// RandIDn returns, as an ID, a non-negative pseudo-random number in [1,n]
 // from the default Source.
 // It panics if n <= 0.
 func RandIDn(n Size) ID {
-	return ID(rand.Int31n(int32(n))>>16) + 1
+	return ID(rand.Int31n(int32(n))) + 1
 }
 
-// RandID returns a pseudo-random 32-bit value as a ID
+// RandID returns a pseudo-random value as a ID
 // from the default Source.
 func RandID() ID {
-	return ID(rand.Uint32()>>16) + 1
-}
-
-func (p ID) Size() int {
-	return 2
+	return ID(rand.Int31n(MaxSize)) + 1
 }

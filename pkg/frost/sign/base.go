@@ -12,7 +12,7 @@ import (
 
 type (
 	round0 struct {
-		partySet *party.SetWithSelf
+		*rounds.BaseRound
 
 		// Message is the message to be signed
 		Message []byte
@@ -42,27 +42,35 @@ type (
 	}
 )
 
-type Output struct {
-	Signature *eddsa.Signature
-}
+func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
 
-func NewRound(partySet *party.SetWithSelf, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte) (rounds.Round, *Output, error) {
-	round := &round0{
-		partySet: partySet,
-		Message:  message,
-		Parties:  make(map[party.ID]*signer, partySet.N()),
-		GroupKey: shares.GroupKey(),
-		Output:   &Output{},
+	if !partySet.Contains(secret.ID) {
+		return nil, nil, errors.New("owner of SecretShare is not contained in partySet")
+	}
+	if !partySet.IsSubsetOf(shares.PartySet) {
+		return nil, nil, errors.New("not all parties of partySet are contained in shares")
 	}
 
-	partyIDs := partySet.Sorted()
+	baseRound, err := rounds.NewBaseRound(secret.ID, partySet)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	round := &round0{
+		BaseRound: baseRound,
+		Message:   message,
+		Parties:   make(map[party.ID]*signer, partySet.N()),
+		GroupKey:  shares.GroupKey(),
+		Output:    &Output{},
+	}
+
 	// Setup parties
 	for id := range partySet.Range() {
 		if id == 0 {
 			return nil, nil, errors.New("id 0 is not valid")
 		}
 
-		shareNormalized, err := shares.ShareNormalized(id, partyIDs)
+		shareNormalized, err := shares.ShareNormalized(id, partySet)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -72,7 +80,7 @@ func NewRound(partySet *party.SetWithSelf, secret *eddsa.PrivateKey, shares *edd
 	}
 
 	// Normalize secret share so that we can assume we are dealing with an additive sharing
-	lagrange, err := shares.Lagrange(partySet.Self(), partyIDs)
+	lagrange, err := partySet.Lagrange(round.SelfID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,11 +107,9 @@ func (round *round0) Reset() {
 	}
 }
 
-var acceptedMessageTypes = []messages.MessageType{
-	messages.MessageTypeSign1,
-	messages.MessageTypeSign2,
-}
-
 func (round *round0) AcceptedMessageTypes() []messages.MessageType {
-	return acceptedMessageTypes
+	return []messages.MessageType{
+		messages.MessageTypeSign1,
+		messages.MessageTypeSign2,
+	}
 }

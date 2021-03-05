@@ -10,12 +10,12 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func NewKeygenState(partySet *party.SetWithSelf, threshold party.Size, timeout time.Duration) (*state.State, *keygen.Output, error) {
-	round, output, err := keygen.NewRound(partySet, threshold)
+func NewKeygenState(partyID party.ID, partySet *party.Set, threshold party.Size, timeout time.Duration) (*state.State, *keygen.Output, error) {
+	round, output, err := keygen.NewRound(partyID, partySet, threshold)
 	if err != nil {
 		return nil, nil, err
 	}
-	s, err := state.NewBaseState(partySet, round, timeout)
+	s, err := state.NewBaseState(round, timeout)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -23,12 +23,12 @@ func NewKeygenState(partySet *party.SetWithSelf, threshold party.Size, timeout t
 	return s, output, nil
 }
 
-func NewSignState(partySet *party.SetWithSelf, secret *eddsa.PrivateKey, shares *eddsa.Shares, message []byte, timeout time.Duration) (*state.State, *sign.Output, error) {
+func NewSignState(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte, timeout time.Duration) (*state.State, *sign.Output, error) {
 	round, output, err := sign.NewRound(partySet, secret, shares, message)
 	if err != nil {
 		return nil, nil, err
 	}
-	s, _ := state.NewBaseState(partySet, round, timeout)
+	s, _ := state.NewBaseState(round, timeout)
 
 	return s, output, nil
 }

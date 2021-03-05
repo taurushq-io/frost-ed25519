@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/communication"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
+	"github.com/taurusgroup/frost-ed25519/test/communication"
 )
 
 // handler holds the information for a certain Round by a participant.
@@ -42,13 +42,13 @@ func (h *handler) HandleMessage() {
 				continue
 			}
 			if err := h.state.HandleMessage(msg); err != nil {
-				fmt.Println(err)
+				fmt.Println("handle message", err)
 			}
 			h.ProcessAll()
 		case <-h.state.Done():
 			err := h.state.Err()
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("done with err: ", err)
 			}
 			return
 		}
@@ -67,11 +67,11 @@ func (h *handler) ProcessAll() {
 }
 
 func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, T party.Size) (*KeyGenHandler, error) {
-	set, err := party.NewSetWithSelf(ID, IDs)
+	set, err := party.NewSet(IDs)
 	if err != nil {
 		return nil, err
 	}
-	s, out, err := frost.NewKeygenState(set, T, comm.Timeout())
+	s, out, err := frost.NewKeygenState(ID, set, T, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +86,8 @@ func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.
 	}, nil
 }
 
-func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, secret *eddsa.PrivateKey, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
-	set, err := party.NewSetWithSelf(ID, IDs)
+func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, secret *eddsa.SecretShare, publicShares *eddsa.Shares, message []byte) (*SignHandler, error) {
+	set, err := party.NewSet(IDs)
 	if err != nil {
 		return nil, err
 	}
@@ -104,20 +104,4 @@ func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID
 		handler: h,
 		out:     out,
 	}, nil
-}
-
-func (h *KeyGenHandler) WaitForKeygenOutput() (*eddsa.PublicKey, *eddsa.Shares, *eddsa.PrivateKey, error) {
-	err := h.state.WaitForError()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return h.out.Shares.GroupKey(), h.out.Shares, h.out.SecretKey, nil
-}
-
-func (h *SignHandler) WaitForSignOutput() (*eddsa.Signature, error) {
-	err := h.state.WaitForError()
-	if err != nil {
-		return nil, err
-	}
-	return h.out.Signature, nil
 }

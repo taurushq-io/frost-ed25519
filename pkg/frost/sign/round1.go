@@ -35,7 +35,7 @@ func (round *round1) computeRhos() {
 	*/
 	messageHash := sha512.Sum512(round.Message)
 
-	sizeB := int(round.partySet.N() * (party.ByteSize + 32 + 32))
+	sizeB := int(round.Set().N() * (party.ByteSize + 32 + 32))
 	bufferHeader := len(hashDomainSeparation) + party.ByteSize + len(messageHash)
 	sizeBuffer := bufferHeader + sizeB
 	offsetID := len(hashDomainSeparation)
@@ -53,18 +53,18 @@ func (round *round1) computeRhos() {
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
 	buffer = append(buffer, hashDomainSeparation...)
-	buffer = append(buffer, round.partySet.Self().Bytes()...)
+	buffer = append(buffer, round.SelfID().Bytes()...)
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
-	for _, id := range round.partySet.Sorted() {
+	for _, id := range round.Set().Sorted() {
 		otherParty := round.Parties[id]
 		buffer = append(buffer, id.Bytes()...)
 		buffer = append(buffer, otherParty.Di.Bytes()...)
 		buffer = append(buffer, otherParty.Ei.Bytes()...)
 	}
 
-	for id := range round.partySet.Range() {
+	for id := range round.Set().Range() {
 		// Update the four bytes with the ID
 		copy(buffer[offsetID:], id.Bytes())
 
@@ -91,8 +91,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	// c = H(R, GroupKey, M)
 	round.C.Set(eddsa.ComputeChallenge(&round.R, round.GroupKey, round.Message))
 
-	selfID := round.partySet.Self()
-	selfParty := round.Parties[selfID]
+	selfParty := round.Parties[round.SelfID()]
 
 	// Compute z = d + (e • ρ) + 𝛌 • s • c
 	// Note: since we multiply the secret by the Lagrange coefficient,
@@ -102,7 +101,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *rounds.Error) {
 	secretShare.MultiplyAdd(&round.e, &selfParty.Pi, secretShare) // (e • ρ) + s • c
 	secretShare.Add(secretShare, &round.d)                        // d + (e • ρ) + 𝛌 • s • c
 
-	msg := messages.NewSign2(selfID, secretShare)
+	msg := messages.NewSign2(round.SelfID(), secretShare)
 
 	return []*messages.Message{msg}, nil
 }
