@@ -35,14 +35,9 @@ const (
 const headerSize = 1 + 2*party.ByteSize
 
 func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
-	var header [headerSize]byte
-	header[0] = byte(m.Type)
-	offset := 1
-	copy(header[offset:], m.From.Bytes())
-	offset += party.ByteSize
-	copy(header[offset:], m.To.Bytes())
-	offset += party.ByteSize
-	existing = append(existing, header[:]...)
+	existing = append(existing, byte(m.Type))
+	existing = append(existing, m.From.Bytes()...)
+	existing = append(existing, m.To.Bytes()...)
 
 	switch m.Type {
 	case MessageTypeKeyGen1:

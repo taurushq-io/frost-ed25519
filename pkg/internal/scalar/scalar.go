@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
 // SetScalarRandom sets s to a random edwards25519.Scalar using the default randomness source from crypto/rand
@@ -24,23 +23,6 @@ func SetScalarRandom(s *edwards25519.Scalar) *edwards25519.Scalar {
 func NewScalarRandom() *edwards25519.Scalar {
 	var s edwards25519.Scalar
 	return SetScalarRandom(&s)
-}
-
-// SetScalarUInt32 set s's value to that of a uint32 x. It creates a 32 byte big-endian representation of x,
-// which is set by s.SetCanonicalBytes .
-func SetScalarPartyID(s *edwards25519.Scalar, x party.ID) *edwards25519.Scalar {
-	var bytes = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-
-	bytes[0] = byte(x)
-	bytes[1] = byte(x >> 8)
-	bytes[2] = byte(x >> 16)
-	bytes[3] = byte(x >> 24)
-
-	_, err := s.SetCanonicalBytes(bytes[:])
-	if err != nil {
-		panic(fmt.Errorf("edwards25519: failed to set uint32 Scalar: %w", err))
-	}
-	return s
 }
 
 // SetScalarUInt32 set s's value to that of a uint32 x. It creates a 32 byte big-endian representation of x,

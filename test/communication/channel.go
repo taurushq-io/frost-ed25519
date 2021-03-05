@@ -78,5 +78,4 @@ func (c *Channel) handleByteChan() {
 
 func (c *Channel) Timeout() time.Duration {
 	return 0
-	return 1000 * time.Millisecond
 }
