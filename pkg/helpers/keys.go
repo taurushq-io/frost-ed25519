@@ -1,4 +1,4 @@
-package eddsa_test
+package helpers
 
 import (
 	"filippo.io/edwards25519"

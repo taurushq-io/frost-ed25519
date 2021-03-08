@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
 )
 
 const maxN = 100
@@ -44,10 +46,11 @@ func main() {
 		return
 	}
 
-	partyIDs := make([]party.ID, 0, n)
-	for id := 0; id < n; id++ {
-		partyIDs = append(partyIDs, party.ID(42+id))
-	}
+	partySet := helpers.GenerateSet(party.ID(n))
 
-	// set, _ := party.NewSet(partyIDs)
+	for id := range partySet.Range() {
+		var err error
+		states[id], outputs[id], err = frost.NewKeygenState(id, partySet, party.Size(t), 0)
+
+	}
 }
