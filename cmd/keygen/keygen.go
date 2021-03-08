@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
@@ -56,9 +54,13 @@ func main() {
 	states := map[party.ID]*state.State{}
 	outputs := map[party.ID]*keygen.Output{}
 
-	// create a state for eahc party
+	// create a state for each party
 	for id := range partySet.Range() {
 		states[id], outputs[id], err = frost.NewKeygenState(id, partySet, party.Size(t), 0)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 
 	msgsOut1 := make([][]byte, 0, n)
@@ -90,18 +92,25 @@ func main() {
 		}
 	}
 
-	secrets := map[party.ID]*eddsa.SecretShare{}
+	// Get the public data
+	fmt.Println("Group Key:")
+	id0 := partySet.Sorted()[0]
+	if err = states[id0].WaitForError(); err != nil {
+		fmt.Println(err)
+		return
+	}
+	public := outputs[id0].Public
+	groupKey := public.GroupKey()
+	fmt.Printf("  %x\n\n", groupKey.ToEd25519())
 
-	fmt.Println("Secret shares:")
-	for id := range partySet.Sorted() {
-		Id := party.ID(id + 1)
-		if err := states[Id].WaitForError(); err != nil {
+	for _, id := range partySet.Sorted() {
+		if err := states[id].WaitForError(); err != nil {
 			fmt.Println(err)
 			return
 		}
-		secrets[Id] = outputs[Id].SecretKey
-		fmt.Printf("%v", outputs[Id].SecretKey.ID)
-		fmt.Printf(": %v\n", hex.EncodeToString(outputs[Id].SecretKey.Scalar().Bytes()))
+		shareSecret := outputs[id].SecretKey
+		sharePublic, _ := public.Share(id)
+		fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", id, shareSecret.Scalar().Bytes(), sharePublic.ToEd25519())
 	}
 
 	// TODO: write JSON file, to take as input by CLI signer
