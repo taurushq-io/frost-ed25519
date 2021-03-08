@@ -5,8 +5,7 @@
 A Go implementation of a [FROST](https://eprint.iacr.org/2020/852.pdf)
 threshold signature protocol for the Ed25519 signature scheme.
 
-Our FROST protocol is also inspired from that in the IETF
-Draft [Threshold Modes in Elliptic Curves ](https://www.ietf.org/id/draft-hallambaker-threshold-05.html).
+Our FROST protocol is also inspired from that in the IETF Draft [Threshold Modes in Elliptic Curves ](https://www.ietf.org/id/draft-hallambaker-threshold-05.html).
 
 
 ## Ed25519
@@ -81,13 +80,12 @@ We also ignore the role of _signature aggregator_ and instead let the parties br
 
 This variant is the one that is proposed for practical implementations,
 however it does not have a full security proof, unlike
-FROST-Interactive (see [Section
-6.2](https://eprint.iacr.org/2020/852.pdf) of the FROST paper).
+FROST-Interactive (see [Section 6.2](https://eprint.iacr.org/2020/852.pdf) of the FROST paper).
 
 ## Instructions
 
 FROST-Ed25519 implements a round based architecture for both the keygen and sign protocols.
-The basic cryptographic protocol are defined in `/pkg/frost/keygen` and `/pkg/frost/sign` and hold as little state as possible.
+The basic cryptographic protocol are defined in pkg/frost/keygen and pkg/frost/sign and hold as little state as possible.
 They are handled by a `State` which takes care of storing messages, passing them to the round at the right time,
 and reporting any error that may have occurred.
 
@@ -180,9 +178,9 @@ func main() {
 ##### Input 
 
 ```go
-partyID     party.ID      // ID of the party doing the signing (`ID` type is defined as `uint16`)
-partySet    *party.Set    // set containing IDs all parties that will receive a secret key share
-threshold   party.Size    // maximum number of corrupted parties allows / threshold+1 parties required for signing
+partyID     party.ID      // ID of the party initiating the key generation (`ID` type is defined as `uint16`)
+partySet    *party.Set    // set containing IDs all parties that will receive a secret key share, including the initiative party
+threshold   party.Size    // maximum number of corrupted parties allowed (`threshold`+1 parties required for signing)
 timeout     time.Duration // maximum time allowed between two messages received
 ```
 ##### Output
@@ -199,15 +197,15 @@ The GroupKey computed can be obtained by calling `.GroupKey()`.
 
 The `SecretKey` should be safely stored. It contains the secret key share of the full secret key, and the party ID associated to it.
 
-#### Sign `NewSignState`
+#### Sign: `NewSignState`
 
 ##### Input
 
 ```go
-partySet    *party.Set          // set containing all parties that will receive a secret key share
+partySet    *party.Set          // set containing all parties that will receive a secret key share (must be at least `threshold`+1)
 secret      *eddsa.SecretShare  // the secret obtained from a KeyGen protocol
 shares      *eddsa.Shares       // public shares of the key generated during a keygen protocol
-message     []byte              // message in bytes to be signed (does not need to be prehashed)
+message     []byte              // message to be signed (does not need to be prehashed)
 timeout     time.Duration       // maximum time allowed between two messages received
 ```
 ##### Output
@@ -218,21 +216,22 @@ type Output struct {
     Signature *eddsa.Signature
 }
 ```
-The `Signature` is as an ed25519 compatible signature and can be verified as such:
+The `Signature` is as an Ed25519 compatible signature and can be verified as such:
 
 ```go
-ed25519.Verify(shares.GroupKey().ToEdDSA(), message, output.Signature..ToEdDSA())
+ed25519.Verify(shares.GroupKey().ToEdDSA(), message, output.Signature.ToEdDSA())
 // or
 output.Signature.Verify(message, shares.GroupKey())
 ```
+
 ### Testing
 
-We include many tests for individual modules, as well as a bigger integration test in `/test`.
+We include many tests for individual modules, as well as a bigger integration test in test/.
 There is still some code that lacks coverage, but we are confident that main output produced is correct.
 
 ### Example usage
 
-A simple example of how to use this library can be found in `/test/sign_test.go` and `/test/keygen_test.go`
+A simple example of how to use this library can be found in test/sign_test.go and test/keygen_test.go.
 
 ## Security
 
