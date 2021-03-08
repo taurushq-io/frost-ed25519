@@ -33,7 +33,7 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
 	for id := range round.Set().Range() {
 		shares[id] = round.CommitmentsSum.Evaluate(id.Scalar())
 	}
-	round.Output.Shares = eddsa.NewShares(shares, round.Threshold, round.CommitmentsSum.Constant())
+	round.Output.Public = eddsa.NewPublic(shares, round.Threshold, round.CommitmentsSum.Constant())
 	round.Output.SecretKey = eddsa.NewSecretShare(round.SelfID(), &round.Secret)
 	return nil, nil
 }

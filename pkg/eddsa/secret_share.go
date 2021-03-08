@@ -7,12 +7,14 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 // SecretShare is a share of a secret key computed during the KeyGen protocol.
 type SecretShare struct {
 	ID party.ID
 	sk edwards25519.Scalar
+	pk PublicKey
 }
 
 // NewSecretShare returns a SecretShare given a party.ID and  edwards25519.Scalar
@@ -20,6 +22,7 @@ func NewSecretShare(id party.ID, secret *edwards25519.Scalar) *SecretShare {
 	var share SecretShare
 	share.ID = id
 	share.sk.Set(secret)
+	share.pk.pk.ScalarBaseMult(secret)
 	return &share
 }
 
@@ -30,12 +33,26 @@ func (sk *SecretShare) Scalar() *edwards25519.Scalar {
 
 // PublicKey returns a reference to the edwards25519.Scalar representing the private key.
 func (sk *SecretShare) PublicKey() *PublicKey {
-	var pk PublicKey
-	pk.pk.ScalarBaseMult(&sk.sk)
-	return &pk
+	return &sk.pk
 }
 
-// MarshalBinary implements the BinaryMarshaler interface.
+// Sign generates an Ed25519 compatible signature for the message.
+func (sk *SecretShare) Sign(message []byte) *Signature {
+	var sig Signature
+
+	// R = [r] • B
+	r := scalar.NewScalarRandom()
+	sig.R.ScalarBaseMult(r)
+
+	// C = H(R, A, M)
+	c := ComputeChallenge(&sig.R, &sk.pk, message)
+
+	// S = sk * c + r
+	sig.S.MultiplyAdd(&sk.sk, c, r)
+	return &sig
+}
+
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (sk *SecretShare) MarshalBinary() ([]byte, error) {
 	data := make([]byte, 0, party.ByteSize+32)
 	data = append(data, sk.ID.Bytes()...)
@@ -43,7 +60,7 @@ func (sk *SecretShare) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
-// UnmarshalBinary implements the BinaryUnmarshaler interface.
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (sk *SecretShare) UnmarshalBinary(data []byte) error {
 	if len(data) != party.ByteSize+32 {
 		return errors.New("SecretShare: data is not the right size")
@@ -62,6 +79,7 @@ type secretShareJSON struct {
 	SecretShare string `json:"secret"`
 }
 
+// MarshalJSON implements the json.Marshaler interface.
 func (sk *SecretShare) MarshalJSON() ([]byte, error) {
 	out := secretShareJSON{
 		ID:          sk.ID.String(),
@@ -70,7 +88,7 @@ func (sk *SecretShare) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// TODO verify group key
+// UnmarshalJSON implements the json.Unmarshaler interface.
 func (sk *SecretShare) UnmarshalJSON(data []byte) error {
 	var (
 		out secretShareJSON

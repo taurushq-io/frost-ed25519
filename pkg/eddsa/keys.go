@@ -31,8 +31,8 @@ func (pk *PublicKey) Equal(pkOther *PublicKey) bool {
 	return pk.pk.Equal(&pkOther.pk) == 1
 }
 
-// ToEdDSA converts the PublicKey to an ed25519 compatible format
-func (pk *PublicKey) ToEdDSA() ed25519.PublicKey {
+// ToEd25519 converts the PublicKey to an ed25519 compatible format
+func (pk *PublicKey) ToEd25519() ed25519.PublicKey {
 	var key [32]byte
 	copy(key[:], pk.pk.Bytes())
 	return key[:]

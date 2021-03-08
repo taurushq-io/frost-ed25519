@@ -1,7 +1,6 @@
 package eddsa
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -39,51 +38,24 @@ func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	return Verify(k, &s.S, publicKey, &s.R)
 }
 
-// ToEdDSA returns a signature that can be validated by ed25519.Verify.
-func (s *Signature) ToEdDSA() []byte {
+// ToEd25519 returns a signature that can be validated by ed25519.Verify.
+func (s *Signature) ToEd25519() []byte {
 	var sig [64]byte
 	copy(sig[:32], s.R.Bytes())
 	copy(sig[32:], s.S.Bytes())
 	return sig[:]
 }
 
-func newSignature(message []byte, secretKey *edwards25519.Scalar) *Signature {
-	var sig Signature
-
-	var (
-		r              edwards25519.Scalar
-		publicKeyPoint edwards25519.Point
-		rBytes         [64]byte
-	)
-
-	if _, err := rand.Reader.Read(rBytes[:]); err != nil {
-		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
-	}
-	r.SetUniformBytes(rBytes[:])
-
-	// R = [r] • B
-	sig.R.ScalarBaseMult(&r)
-
-	// C = H(R, A, M)
-	publicKeyPoint.ScalarBaseMult(secretKey)
-	publicKey := NewPublicKeyFromPoint(&publicKeyPoint)
-	c := ComputeChallenge(&sig.R, publicKey, message)
-
-	// S = sk * c + r
-	sig.S.Multiply(secretKey, c)
-	sig.S.Add(&sig.S, &r)
-
-	return &sig
-}
-
 //
 // FROSTMarshaller
 //
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (s *Signature) MarshalBinary() ([]byte, error) {
-	return s.ToEdDSA(), nil
+	return s.ToEd25519(), nil
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (s *Signature) UnmarshalBinary(data []byte) error {
 	var err error
 	if len(data) != MessageLengthSig {
@@ -102,7 +74,7 @@ func (s *Signature) UnmarshalBinary(data []byte) error {
 }
 
 func (s *Signature) BytesAppend(existing []byte) ([]byte, error) {
-	return append(existing, s.ToEdDSA()...), nil
+	return append(existing, s.ToEd25519()...), nil
 }
 
 func (s *Signature) Size() int {

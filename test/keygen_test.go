@@ -61,15 +61,15 @@ func TestKeygen(t *testing.T) {
 	if err := states[id1].WaitForError(); err != nil {
 		t.Error(err)
 	}
-	groupKey1 := outputs[id1].Shares.GroupKey()
-	publicShares1 := outputs[id1].Shares
+	groupKey1 := outputs[id1].Public.GroupKey()
+	publicShares1 := outputs[id1].Public
 	secrets := map[party.ID]*eddsa.SecretShare{}
 	for id2 := range partySet.Range() {
 		if err := states[id2].WaitForError(); err != nil {
 			t.Error(err)
 		}
-		groupKey2 := outputs[id2].Shares.GroupKey()
-		publicShares2 := outputs[id2].Shares
+		groupKey2 := outputs[id2].Public.GroupKey()
+		publicShares2 := outputs[id2].Public
 		secrets[id2] = outputs[id2].SecretKey
 		if err := CompareOutput(groupKey1, groupKey2, publicShares1, publicShares2); err != nil {
 			t.Error(err)
@@ -81,7 +81,7 @@ func TestKeygen(t *testing.T) {
 	}
 }
 
-func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicShares2 *eddsa.Shares) error {
+func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicShares2 *eddsa.Public) error {
 	if !publicShares1.Equal(publicShares2) {
 		return errors.New("shares not equal")
 	}
@@ -122,7 +122,7 @@ func CompareOutput(groupKey1, groupKey2 *eddsa.PublicKey, publicShares1, publicS
 	return nil
 }
 
-func ValidateSecrets(secrets map[party.ID]*eddsa.SecretShare, groupKey *eddsa.PublicKey, shares *eddsa.Shares) error {
+func ValidateSecrets(secrets map[party.ID]*eddsa.SecretShare, groupKey *eddsa.PublicKey, shares *eddsa.Public) error {
 	fullSecret := edwards25519.NewScalar()
 
 	for id, secret := range secrets {

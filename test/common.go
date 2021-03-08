@@ -41,11 +41,11 @@ func partyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
 	return out, nil
 }
 
-func setupParties(t, n party.Size) (partySet, signSet *party.Set, secretShares map[party.ID]*eddsa.SecretShare, publicShares *eddsa.Shares) {
+func setupParties(t, n party.Size) (partySet, signSet *party.Set, secretShares map[party.ID]*eddsa.SecretShare, publicShares *eddsa.Public) {
 	var err error
 	partySet = eddsa_test.GenerateSet(n)
 	_, secretShares = eddsa_test.GenerateSecrets(partySet, t)
-	publicShares = eddsa_test.GenerateShares(t, secretShares)
+	publicShares = eddsa_test.GeneratePublic(t, secretShares)
 	signIDs := partySet.Take(n + 1)
 	signSet, err = party.NewSet(signIDs)
 	if err != nil {

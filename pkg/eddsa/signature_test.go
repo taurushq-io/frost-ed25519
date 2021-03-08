@@ -19,7 +19,11 @@ func generateSignature() (*Signature, *PublicKey, error) {
 		return nil, nil, err
 	}
 	sk, pk := newKeyPair(skBytes)
-	signature := newSignature([]byte(sampleMessage), sk)
+	skShare := &SecretShare{
+		ID: 0,
+		sk: *sk,
+	}
+	signature := skShare.Sign([]byte(sampleMessage))
 	return signature, pk, nil
 }
 
@@ -31,7 +35,7 @@ func TestSignature_Verify(t *testing.T) {
 	require.True(t, sig.Verify([]byte(sampleMessage), pk), "failed to validate signature")
 
 	// Check using ed25519.Verify
-	assert.True(t, ed25519.Verify(pk.ToEdDSA(), []byte(sampleMessage), sig.ToEdDSA()))
+	assert.True(t, ed25519.Verify(pk.ToEd25519(), []byte(sampleMessage), sig.ToEd25519()))
 }
 
 func TestSignatureEncode_Decode(t *testing.T) {

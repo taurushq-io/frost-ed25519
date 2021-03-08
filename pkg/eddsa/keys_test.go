@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPrivateKey_ToEdDSA(t *testing.T) {
+func TestPrivateKey_ToEd25519(t *testing.T) {
 	pkbytes, skBytes, err := ed25519.GenerateKey(rand.Reader)
 	assert.NoError(t, err, "failed to generate key")
 

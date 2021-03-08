@@ -42,7 +42,7 @@ type (
 	}
 )
 
-func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte) (state.Round, *Output, error) {
+func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *Output, error) {
 	if !partySet.Contains(secret.ID) {
 		return nil, nil, errors.New("owner of SecretShare is not contained in partySet")
 	}

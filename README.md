@@ -22,18 +22,52 @@ We denote `B` the base point of the Edwards 25519 elliptic curve.
 
 ### Keys
 
-We represent private keys as `eddsa.PrivateKey`, and are incompatible with Ed25519.
+An Ed25519 private key is a 32 byte _seed_ `x`. 
+We compute the SHA-512 hash of `x` and obtain two 32 byte strings by splitting the output in two equal halves: `s || prefix = SHA-512(x)`
+The value `s` is encoded as a 32 byte integer, and the `prefix` is used later for deterministic signature generation.
+Finally, the public key can be computed as the 32 byte representation of the point `A = [s] • B`.
 
-Public keys (denoted by `A` or `A_i` to emphasize the party it belongs to) are represented as `eddsa.PublicKey`.
-They can be used to represent both a _GroupKey_, or a single party's _Share_ of the _GroupKey_.
+In FROST-Ed25519, the parties perform a Distributed Key Generation protocol (DKG) (see section [keygen](#keygen) 
+in order to obtain a Shamir secret sharing of the integer `s`, and the associated public key `A = [s] • B`
+(also referred to as the  _Group Key_).
+The parties must agree on a _threshold_ `t` which defines the maximum number of parties that can collaborate,
+while still keeping the value of `s` secret. 
+This means that at least `t+1` parties are required to perform a signing with key `s`.
+We denote by `n >= t+1` the number of parties that participated in the DKG protocol.
 
-An `ed25519.PublicKey` compatible with `ed25519.Verify` can be obtained by calling `.ToEdDSA()` on the public key.
+A party with ID `i` who participated in a successful execution of the DKG protocol
+should obtain at the end an integer `s_i` which defines party `i`'s _share_ of the secret key `s`.
+We represent `s_i` by a `SecretShare` object that also contains the ID `i` and the associated group key share `A_i = [s_i]•B`. 
+This type is incompatible with the original private key description, since it is not derived from a seed.
 
-Mathematically, we can think of the private key as a scalar `s`, where `A = [s] B` is the public key.
+The public values generated during the DKG are the individual public key shares `A_j`, for each party with ID `j`.
+The group key `A` and its shares `A_i` are represented as `eddsa.PublicKey` objects,
+but stored in a `eddsa.Public` structure which ensures consistency between the group key and its shares.
+
+```go
+var id party.ID
+var secretShare *eddsa.SecretShare      // private output of DKG
+var public *eddsa.Public                // public output of DKG
+var message []byte                      // message signed
+var groupSig *eddsa.Signature           // signature produced by sign protocol for message
+
+groupKey := public.GroupKey()
+// use the ed25519 library
+ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) // = true
+
+secretShare.ID == id    // = true
+publicShare, err := public.Share(id) // no error if id was present during keygen 
+
+// shares of the public key correspond to the public output
+secretShare.PublicKey().Equal(publicShare) // = true
+
+// Sign message with our own secret key share
+privateSig := secretShare.Sign(message)
+ed25519.Verify(publicShare.ToEd25519(), message, privateSig.ToEd25519()) // = true
+// or also
+privateSig.Verify(message, publicShare) // = true
 ```
-s || prefix = H(x)
-A = [s] B
-```
+
 ### Signatures
 
 Signatures for a message `M` are defined as a pair `(R, S)` where 
@@ -45,15 +79,9 @@ R = [r] B
 k = SHA-512(R || A || M)
 S = (r + k * s) mod L
 ```
-    
 
-In FROST-Ed25519, signatures are represented by `eddsa.Signature` and can be converted to a `[]byte` slice compatible with `ed25519.Verify`
-by calling `.ToEdDSA()` on it.
-
-In the original Ed25519 scheme, the nonce `R = [r] B` is generated deterministically using the `prefix` in the keygen:
-```
-r = H( prefix || M )
-```
+In the original Ed25519 scheme, the nonce `R = [r] B` is generated deterministically using the `prefix` in the keygen as `r = H( prefix || M )`. 
+Using a randomly sampled value for `r` does not impact signature verification, except for preventing deterministic
 
 For threshold signing it is much harder to generate nonce in a deterministic way. 
 We refer the reader to [FROST](https://eprint.iacr.org/2020/852.pdf) for the procedure used to generate the nonces.
@@ -65,6 +93,16 @@ It does the following:
 
 - Recompute `k' = SHA-512(R || A || M)` 
 - Verify the equality `[8S] B == [8] R + [8k'] A`
+
+#### Compatibility with `ed25519`:
+
+The goal of FROST-Ed25519 is to be compatible with the `ed25519` library included in Go.
+In particular, the `frost.PublicKey` and `frost.Signature` types can be converted to the `ed25119.PublicKey` and `[]byte` types respectively,
+by calling the method `.ToEd25519()` on objects of these type.
+This makes it possible to use the standard verification function from `ed25519` like so:
+```go
+ed25519.Verify(publicKey.ToEd25519(), sig.ToEd25519())
+```
 
 
 ## Protocol version implemented
@@ -175,38 +213,40 @@ func main() {
 }
 ```
 
-#### Keygen: `NewKeygenState`
+#### Keygen
 
-##### Input 
+The key generation protocol we implement is as described in the original paper.
 
+Calling `NewKeygenState()` with the following arguments creates a `State` object that can execute the protocol. 
 ```go
-partyID     party.ID      // ID of the party doing the signing
-partySet    *party.Set    // set containing all parties that will receive a secret key share
-threshold   party.Size    // maximum number of corrupted parties allows / threshold+1 parties required for signing
-timeout     time.Duration // maximum time allowed between two messages received
+partyID:     party.ID      // ID of the party doing the signing
+partySet:    *party.Set    // party.Set containing all parties that will receive a secret key share
+threshold:   party.Size    // maximum number of corrupted parties allows / threshold+1 parties required for signing
+timeout:     time.Duration // maximum time allowed between two messages received
 ```
-##### Output
+The second argument returned by `NewKeygenState()` is the output, and it contains the following fields:
 
 ```go
-// pkg/frost/keygen/output.go
+// ./pkg/frost/keygen/output.go
 type Output struct {
-	Shares    *eddsa.Shares     
+	Public    *eddsa.Shares
 	SecretKey *eddsa.SecretShare
 }
 ```
-The `Shares` output contains the public key shares of all parties that participated in the protocol.
+The `Shares` field contains all public information 
+contains the public key shares of all parties that participated in the protocol.
 The GroupKey computed can be obtained by calling `.GroupKey()`.
 
 The `SecretKey` should be safely stored. It contains the secret key share of the full secret key, and the party ID associated to it.
 
-#### Sign `NewSignState`
+#### Sign `NewSignState` <a name="sign"></a>
 
 ##### Input
 
 ```go
 partySet    *party.Set          // set containing all parties that will receive a secret key share
 secret      *eddsa.SecretShare  // the secret obtained from a KeyGen protocol
-shares      *eddsa.Shares       // public shares of the key generated during a keygen protocol
+public      *eddsa.Public       // contains the public information including the group key and individual public shares
 message     []byte              // message in bytes to be signed (does not need to be prehashed)
 timeout     time.Duration       // maximum time allowed between two messages received
 ```
@@ -221,9 +261,9 @@ type Output struct {
 The `Signature` is as an ed25519 compatible signature and can be verified as such:
 
 ```go
-ed25519.Verify(shares.GroupKey().ToEdDSA(), message, output.Signature..ToEdDSA())
+ed25519.Verify(public.GroupKey().ToEd25519(), message, output.Signature..ToEd25519())
 // or
-output.Signature.Verify(message, shares.GroupKey())
+output.Signature.Verify(message, public.GroupKey())
 ```
 ### Testing
 

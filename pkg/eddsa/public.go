@@ -10,9 +10,9 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
-// Shares holds the public keys generated during a key generation protocol.
+// Public holds the public keys generated during a key generation protocol.
 // It also stores the associated party set, the threshold used and the full group key.
-type Shares struct {
+type Public struct {
 	// PartySet is a party.Set that represents all parties with a share.
 	PartySet  *party.Set
 	threshold party.Size
@@ -20,9 +20,9 @@ type Shares struct {
 	groupKey  *edwards25519.Point
 }
 
-// NewShares creates a Shares structure given a map of edwards25519.Point, the threshold used, and an optional group key.
+// NewPublic creates a Public structure given a map of public key shares as edwards25519.Point, the threshold used, and an optional group key.
 // If groupKey is nil, then it is recomputed. Otherwise it is considered correct and simply stored.
-func NewShares(shares map[party.ID]*edwards25519.Point, threshold party.Size, groupKey *edwards25519.Point) *Shares {
+func NewPublic(shares map[party.ID]*edwards25519.Point, threshold party.Size, groupKey *edwards25519.Point) *Public {
 	n := len(shares)
 	IDs := make([]party.ID, 0, n)
 	for id := range shares {
@@ -34,7 +34,7 @@ func NewShares(shares map[party.ID]*edwards25519.Point, threshold party.Size, gr
 		panic(err)
 	}
 
-	s := &Shares{
+	s := &Public{
 		PartySet:  set,
 		threshold: threshold,
 		shares:    shares,
@@ -48,7 +48,7 @@ func NewShares(shares map[party.ID]*edwards25519.Point, threshold party.Size, gr
 	return s
 }
 
-func (s *Shares) computeGroupKey() {
+func (s *Public) computeGroupKey() {
 	var tmp edwards25519.Point
 	s.groupKey = edwards25519.NewIdentityPoint()
 
@@ -60,12 +60,12 @@ func (s *Shares) computeGroupKey() {
 }
 
 // GroupKey returns the group key of the group by interpolating all the given points.
-func (s *Shares) GroupKey() *PublicKey {
+func (s *Public) GroupKey() *PublicKey {
 	return NewPublicKeyFromPoint(s.groupKey)
 }
 
 // Share returns the PublicKey for the party at index.
-func (s *Shares) Share(index party.ID) (*PublicKey, error) {
+func (s *Public) Share(index party.ID) (*PublicKey, error) {
 	p, ok := s.shares[index]
 	if !ok {
 		return nil, fmt.Errorf("shares does not contain partyID %d", index)
@@ -77,7 +77,7 @@ func (s *Shares) Share(index party.ID) (*PublicKey, error) {
 // the group determined by partyIDs.
 // If ShareNormalized is called for every party in partyIDs, then the resulting PublicKey s represent
 // an additive sharing of the group key.
-func (s *Shares) ShareNormalized(partyID party.ID, partySet *party.Set) (*PublicKey, error) {
+func (s *Public) ShareNormalized(partyID party.ID, partySet *party.Set) (*PublicKey, error) {
 	if partySet.N() < s.threshold+1 {
 		return nil, errors.New("partyIDs does not contain a threshold number of PartySet")
 	}
@@ -100,12 +100,12 @@ func (s *Shares) ShareNormalized(partyID party.ID, partySet *party.Set) (*Public
 
 // Threshold returns the integer which defines the maximum number of parties that may be corrupted while
 // keeping the scheme secure.
-func (s *Shares) Threshold() party.Size {
+func (s *Public) Threshold() party.Size {
 	return s.threshold
 }
 
-// MarshalBinary implements the BinaryMarshaler interface.
-func (s *Shares) MarshalBinary() ([]byte, error) {
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
+func (s *Public) MarshalBinary() ([]byte, error) {
 	N := s.PartySet.N()
 	size := 2*party.ByteSize + 32 + N*(party.ByteSize+32)
 	out := make([]byte, 0, size)
@@ -121,7 +121,7 @@ func (s *Shares) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the BinaryUnmarshaler interface.
-func (s *Shares) UnmarshalBinary(data []byte) error {
+func (s *Public) UnmarshalBinary(data []byte) error {
 	var err error
 	n := party.FromBytes(data)
 	data = data[party.ByteSize:]
@@ -178,7 +178,8 @@ type sharesJSON struct {
 	Shares    map[string]string `json:"shares"`
 }
 
-func (s *Shares) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the json.Marshaler interface.
+func (s *Public) MarshalJSON() ([]byte, error) {
 	sharesText := make(map[string]string, len(s.shares))
 	for _, id := range s.PartySet.Sorted() {
 		sharesText[id.String()] = hex.EncodeToString(s.shares[id].Bytes())
@@ -191,7 +192,8 @@ func (s *Shares) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (s *Shares) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (s *Public) UnmarshalJSON(data []byte) error {
 	var out sharesJSON
 	err := json.Unmarshal(data, &out)
 	if err != nil {
@@ -248,7 +250,7 @@ func (s *Shares) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *Shares) Equal(s2 *Shares) bool {
+func (s *Public) Equal(s2 *Public) bool {
 	if len(s.shares) != len(s2.shares) {
 		return false
 	}

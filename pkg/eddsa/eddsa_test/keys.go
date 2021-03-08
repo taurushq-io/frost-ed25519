@@ -21,11 +21,11 @@ func GenerateSecrets(set *party.Set, threshold party.Size) (*edwards25519.Scalar
 	return secret, shares
 }
 
-func GenerateShares(threshold party.Size, secretShares map[party.ID]*eddsa.SecretShare) *eddsa.Shares {
+func GeneratePublic(threshold party.Size, secretShares map[party.ID]*eddsa.SecretShare) *eddsa.Public {
 	publicShares := make(map[party.ID]*edwards25519.Point, len(secretShares))
 	for id, secret := range secretShares {
 		var pk edwards25519.Point
 		publicShares[id] = pk.ScalarBaseMult(secret.Scalar())
 	}
-	return eddsa.NewShares(publicShares, threshold, nil)
+	return eddsa.NewPublic(publicShares, threshold, nil)
 }

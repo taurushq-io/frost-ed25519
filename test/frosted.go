@@ -23,7 +23,7 @@ func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
 	return
 }
 
-func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Shares, map[party.ID]*eddsa.SecretShare, error) {
+func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Public, map[party.ID]*eddsa.SecretShare, error) {
 	var err error
 	keygenHandlers := make(map[party.ID]*KeyGenHandler, N)
 	for _, id := range keygenIDs {
@@ -33,19 +33,19 @@ func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]com
 		}
 	}
 
-	var shares *eddsa.Shares
+	var public *eddsa.Public
 	secrets := map[party.ID]*eddsa.SecretShare{}
 	for id, h := range keygenHandlers {
 		if err = h.state.WaitForError(); err != nil {
 			return nil, nil, err
 		}
-		shares = h.out.Shares
+		public = h.out.Public
 		secrets[id] = h.out.SecretKey
 	}
-	return shares, secrets, nil
+	return public, secrets, nil
 }
 
-func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
+func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
 	groupKey := shares.GroupKey()
 	signHandlers := make(map[party.ID]*SignHandler, T+1)
 	var err error
@@ -63,7 +63,7 @@ func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[
 		if err != nil {
 			failures++
 		} else if s := h.out.Signature; s != nil {
-			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEdDSA(), message, s.ToEdDSA()) {
+			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
 				failures++
 			}
 		}

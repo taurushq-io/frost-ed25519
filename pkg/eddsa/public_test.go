@@ -11,7 +11,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
-func fakeShares(n, t party.Size) (*Shares, *edwards25519.Scalar) {
+func fakeShares(n, t party.Size) (*Public, *edwards25519.Scalar) {
 	shares := make(map[party.ID]*edwards25519.Point, n)
 	secret := scalar.NewScalarRandom()
 	poly := polynomial.NewPolynomial(t, secret)
@@ -21,7 +21,7 @@ func fakeShares(n, t party.Size) (*Shares, *edwards25519.Scalar) {
 		p := new(edwards25519.Point).ScalarBaseMult(s)
 		shares[id] = p
 	}
-	return NewShares(shares, t, nil), secret
+	return NewPublic(shares, t, nil), secret
 }
 
 func TestShares_GroupKey(t *testing.T) {
@@ -38,8 +38,8 @@ func TestShares_GroupKey(t *testing.T) {
 		p := new(edwards25519.Point).ScalarBaseMult(s)
 		shares[id] = p
 	}
-	s1 := NewShares(shares, T, &public)
-	s2 := NewShares(shares, T, nil)
+	s1 := NewPublic(shares, T, &public)
+	s2 := NewPublic(shares, T, nil)
 
 	if !s1.GroupKey().Equal(s2.GroupKey()) {
 		t.Error("group key not equal")
@@ -60,7 +60,7 @@ func TestShares_MarshalJSON(t *testing.T) {
 	}
 	fmt.Println(string(out))
 
-	var s2 Shares
+	var s2 Public
 	err = json.Unmarshal(out, &s2)
 	if err != nil {
 		t.Error(err)
@@ -84,7 +84,7 @@ func TestShares_MarshalBinary(t *testing.T) {
 		t.Error(err)
 	}
 
-	var s2 Shares
+	var s2 Public
 	err = s2.UnmarshalBinary(out)
 	if err != nil {
 		t.Error(err)
