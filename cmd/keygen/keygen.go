@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/communication"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
 const maxN = 100
@@ -44,14 +44,10 @@ func main() {
 		return
 	}
 
-	keygenIDs := make([]uint32, 0, n)
-	for id := uint32(0); id < n; id++ {
-		keygenIDs = append(keygenIDs, 42+id)
+	partyIDs := make([]party.ID, 0, n)
+	for id := 0; id < n; id++ {
+		partyIDs = append(partyIDs, party.ID(42+id))
 	}
-	signIDs = make([]uint32, T+1)
-	copy(signIDs, keygenIDs)
 
-	keygenComm := communication.NewChannelCommunicatorMap(keygenIDs)
-
-	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenComm)
+	// set, _ := party.NewSet(partyIDs)
 }
