@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -56,6 +57,13 @@ func NewBaseState(round Round, timeout time.Duration) (*State, error) {
 	return s, nil
 }
 
+func (s *State) wrapError(err error, culprit party.ID) error {
+	if culprit == 0 {
+		return fmt.Errorf("party %d, round %d: %w", s.round.SelfID(), s.roundNumber, err)
+	}
+	return fmt.Errorf("party %d, round %d, culprit %d: %w", s.round.SelfID(), culprit, s.roundNumber, err)
+}
+
 // HandleMessage should be called on an unmarshalled messages.Message appropriate for the protocol execution.
 // It performs basic checks to see whether the message can be used.
 // - Is the protocol already done
@@ -70,18 +78,18 @@ func NewBaseState(round Round, timeout time.Duration) (*State, error) {
 // Note: the properties of the messages are checked in ProcessAll.
 // Therefore, the check here should be a quite fast.
 func (s *State) HandleMessage(msg *messages.Message) error {
+	senderID := msg.From
+
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	if s.done {
-		return errors.New("protocol already finished")
+		return s.wrapError(errors.New("protocol already finished"), senderID)
 	}
 
 	if len(s.acceptedTypes) == 0 {
-		return errors.New("no more messages being accepted")
+		return s.wrapError(errors.New("no more messages being accepted"), senderID)
 	}
-
-	senderID := msg.From
 
 	// Ignore messages from self
 	if senderID == s.round.SelfID() {
@@ -93,17 +101,17 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	}
 	// Is the sender in our list of participants?
 	if !s.round.Set().Contains(senderID) {
-		return errors.New("sender is not a party")
+		return s.wrapError(errors.New("sender is not a party"), senderID)
 	}
 
 	// Check if we have already received a message from this party.
 	// exists should never be false, but you never know
 	if _, exists := s.receivedMessages[senderID]; exists {
-		return errors.New("message from this party was already received")
+		return s.wrapError(errors.New("message from this party was already received"), senderID)
 	}
 
 	if !s.isAcceptedType(msg.Type) {
-		return errors.New("message type is not accepted for this type of round")
+		return s.wrapError(errors.New("message type is not accepted for this type of round"), senderID)
 	}
 
 	s.ackMessage()
@@ -157,7 +165,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	// remove the messages for the next round from the queue
 	s.acceptedTypes = s.acceptedTypes[1:]
 	if len(s.acceptedTypes) > 0 {
-		newQueue := s.queue[:]
+		newQueue := s.queue[:0]
 		currentType := s.acceptedTypes[0]
 		for _, msg := range s.queue {
 			if msg.Type == currentType {
