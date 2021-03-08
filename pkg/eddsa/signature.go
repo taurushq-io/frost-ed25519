@@ -1,6 +1,7 @@
 package eddsa
 
 import (
+	"crypto/sha512"
 	"errors"
 	"fmt"
 
@@ -12,7 +13,7 @@ const MessageLengthSig = 32 + 32
 var ErrInvalidMessage = errors.New("invalid message")
 
 // Signature represents an EdDSA signature.
-// When converted to bytes with .toEdDSA(), the signature is compatible with
+// When converted to bytes with .ToEd25519(), the signature is compatible with
 // the standard ed25519 library.
 type Signature struct {
 	R edwards25519.Point
@@ -44,6 +45,21 @@ func (s *Signature) ToEd25519() []byte {
 	copy(sig[:32], s.R.Bytes())
 	copy(sig[32:], s.S.Bytes())
 	return sig[:]
+}
+
+// ComputeChallenge computes the value H(R, A, M), and assumes nothing about whether M is hashed.
+// It returns a Scalar.
+func ComputeChallenge(R *edwards25519.Point, groupKey *PublicKey, message []byte) *edwards25519.Scalar {
+	var s edwards25519.Scalar
+
+	data := make([]byte, 0, 64+len(message))
+	data = append(data, R.Bytes()...)
+	data = append(data, groupKey.Point().Bytes()...)
+	data = append(data, message...)
+	digest := sha512.Sum512(data)
+	s.SetUniformBytes(digest[:])
+
+	return &s
 }
 
 //
