@@ -96,11 +96,13 @@ func (proof *Schnorr) Verify(partyID party.ID, public *edwards25519.Point, conte
 // FROSTMarshaller
 //
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (proof *Schnorr) MarshalBinary() (data []byte, err error) {
 	var buf [64]byte
 	return proof.BytesAppend(buf[:0])
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (proof *Schnorr) UnmarshalBinary(data []byte) error {
 	if len(data) != 64 {
 		return errors.New("length is wrong")

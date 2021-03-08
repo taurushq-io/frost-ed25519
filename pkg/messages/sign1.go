@@ -32,11 +32,13 @@ func (m *Sign1) BytesAppend(existing []byte) ([]byte, error) {
 	return existing, nil
 }
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (m *Sign1) MarshalBinary() ([]byte, error) {
-	var buf [sizeSign1]byte
-	return m.BytesAppend(buf[:0])
+	buf := make([]byte, 0, sizeSign1)
+	return m.BytesAppend(buf)
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *Sign1) UnmarshalBinary(data []byte) error {
 	var err error
 

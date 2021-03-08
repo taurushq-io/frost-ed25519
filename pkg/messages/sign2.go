@@ -27,11 +27,13 @@ func (m *Sign2) BytesAppend(existing []byte) ([]byte, error) {
 	return append(existing, m.Zi.Bytes()...), nil
 }
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (m *Sign2) MarshalBinary() ([]byte, error) {
-	var buf [sizeSign2]byte
-	return m.BytesAppend(buf[:0])
+	buf := make([]byte, 0, sizeSign2)
+	return m.BytesAppend(buf)
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *Sign2) UnmarshalBinary(data []byte) error {
 	if len(data) != sizeSign2 {
 		return fmt.Errorf("msg2: %w", ErrInvalidMessage)

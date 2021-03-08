@@ -83,11 +83,13 @@ func (m *Message) Size() int {
 	panic("message contains no data")
 }
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (m *Message) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 0, m.Size())
 	return m.BytesAppend(buf)
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *Message) UnmarshalBinary(data []byte) error {
 	msgType := MessageType(data[0])
 	m.Type = msgType

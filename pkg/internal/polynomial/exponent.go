@@ -153,11 +153,13 @@ func (p *Exponent) Reset() {
 // FROSTMarshaller
 //
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (p *Exponent) MarshalBinary() (data []byte, err error) {
 	buf := make([]byte, 0, p.Size())
 	return p.BytesAppend(buf)
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (p *Exponent) UnmarshalBinary(data []byte) error {
 	coefficientCount := party.FromBytes(data) + 1
 	remaining := data[party.ByteSize:]

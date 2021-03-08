@@ -26,11 +26,13 @@ func (m *KeyGen2) BytesAppend(existing []byte) ([]byte, error) {
 	return append(existing, m.Share.Bytes()...), nil
 }
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (m *KeyGen2) MarshalBinary() ([]byte, error) {
-	var buf [sizeKeygen2]byte
-	return m.BytesAppend(buf[:0])
+	buf := make([]byte, 0, sizeKeygen2)
+	return m.BytesAppend(buf)
 }
 
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *KeyGen2) UnmarshalBinary(data []byte) error {
 	if len(data) != sizeKeygen2 {
 		return fmt.Errorf("msg2: %w", ErrInvalidMessage)
