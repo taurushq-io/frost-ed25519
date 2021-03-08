@@ -44,29 +44,7 @@ The public values generated during the DKG are the individual public key shares 
 The group key `A` and its shares `A_i` are represented as `eddsa.PublicKey` objects,
 but stored in a `eddsa.Public` structure which ensures consistency between the group key and its shares.
 
-```go
-var id party.ID
-var secretShare *eddsa.SecretShare      // private output of DKG
-var public *eddsa.Public                // public output of DKG
-var message []byte                      // message signed
-var groupSig *eddsa.Signature           // signature produced by sign protocol for message
 
-groupKey := public.GroupKey()
-// use the ed25519 library
-ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) // = true
-
-secretShare.ID == id    // = true
-publicShare, err := public.Share(id) // no error if id was present during keygen 
-
-// shares of the public key correspond to the public output
-secretShare.PublicKey().Equal(publicShare) // = true
-
-// Sign message with our own secret key share
-privateSig := secretShare.Sign(message)
-ed25519.Verify(publicShare.ToEd25519(), message, privateSig.ToEd25519()) // = true
-// or also
-privateSig.Verify(message, publicShare) // = true
-```
 
 ### Signatures
 
@@ -94,17 +72,39 @@ It does the following:
 - Recompute `k' = SHA-512(R || A || M)` 
 - Verify the equality `[8S] B == [8] R + [8k'] A`
 
-#### Compatibility with `ed25519`:
+### Compatibility with `ed25519`:
 
 The goal of FROST-Ed25519 is to be compatible with the `ed25519` library included in Go.
 In particular, the `frost.PublicKey` and `frost.Signature` types can be converted to the `ed25119.PublicKey` and `[]byte` types respectively,
 by calling the method `.ToEd25519()` on objects of these type.
-This makes it possible to use the standard verification function from `ed25519` like so:
+
+### Example
+The following example shows some possible interaction with the types described above:
 ```go
-ed25519.Verify(publicKey.ToEd25519(), sig.ToEd25519())
+var (
+    id          party.ID                // id of the party
+    secretShare *eddsa.SecretShare      // private output of DKG for party id
+    public      *eddsa.Public           // public output of DKG
+    message     []byte                  // message signed
+    groupSig    *eddsa.Signature        // signature produced by sign protocol for message
+)
+
+groupKey := public.GroupKey()
+// use the ed25519 library
+ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) // = true
+
+secretShare.ID == id    // = true
+publicShare, err := public.Share(id) // no error if id was present during keygen 
+
+// shares of the public key correspond to the public output
+secretShare.PublicKey().Equal(publicShare) // = true
+
+// Sign message with our own secret key share
+privateSig := secretShare.Sign(message)
+ed25519.Verify(publicShare.ToEd25519(), message, privateSig.ToEd25519()) // = true
+// or also
+privateSig.Verify(message, publicShare) // = true
 ```
-
-
 ## Protocol version implemented
 
 The FROST paper proposes two variants of the protocol. 
@@ -145,73 +145,8 @@ They both return the following:
 - A `State` object used to interact with the protocol
 - An `Output` object whose attributes are initialized to `nil`, and populated asynchronously when protocol has successfully completed.
 - An `error` indicating whether the state was successfully created.
-### Managing State
 
-Once a `State` has been created, the protocol is ready to receive and send messages.
 
-```go
-package example
-
-import (
-	"log"
-	"time"
-
-	"github.com/taurusgroup/frost-ed25519/pkg/frost"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/state"
-)
-
-func main() {
-	set, _ := party.NewSet([]party.ID{1, 2, 42, 8})
-	s, output, err := frost.NewState(set, /* other parameters, */ 2*time.Second)
-	if err != nil {
-		// handle error
-	}
-	go func() {
-		var msgBytesIn, msgBytesOut chan []byte
-		// in a different thread, we can handle messages 
-		for {
-			select {
-			case msgBytes := <-msgBytesIn:
-				var msg messages.Message
-				if err = msg.UnmarshalBinary(&msgBytes); err != nil {
-					// We received a message that is badly formed, the sender could try to send again.
-					log.Println("failed to unmarshal message", err)
-				}
-				if err = s.HandleMessage(&msg); err != nil {
-					// An error here may not be too bad, it is not necessary to abort.
-					log.Println("failed to handle message", err)
-					continue
-				}
-
-				for msgOut := range s.ProcessAll() {
-					bytesOut, err := msgOut.MarshalBinary()
-					if err != nil {
-						// This should never happen since we created the message.
-						// We should probably abort
-						log.Panicln("failed to marshal", err)
-                    }
-					msgBytesOut <- bytesOut
-                }
-			case <-s.Done():
-				// The protocol has finished
-				// We can recover the error here too
-				err = s.WaitForError()
-				return 
-			}
-		}
-	}()
-
-	// Block until the protocol has finished
-	err = s.WaitForError()
-	if err != nil {
-		// the protocol has aborted
-	} else {
-		// output now contains the protocol output and can be used.
-	}
-}
-```
 
 #### Keygen
 
@@ -219,8 +154,8 @@ The key generation protocol we implement is as described in the original paper.
 
 Calling `NewKeygenState()` with the following arguments creates a `State` object that can execute the protocol. 
 ```go
-partyID:     party.ID      // ID of the party doing the signing
-partySet:    *party.Set    // party.Set containing all parties that will receive a secret key share
+partyID:     party.ID      // ID of the party performing 
+partySet:    *party.Set    // Set containing all party ID of the participants performing the DKG.
 threshold:   party.Size    // maximum number of corrupted parties allows / threshold+1 parties required for signing
 timeout:     time.Duration // maximum time allowed between two messages received
 ```
@@ -245,7 +180,7 @@ The `SecretKey` should be safely stored. It contains the secret key share of the
 
 ```go
 partySet    *party.Set          // set containing all parties that will receive a secret key share
-secret      *eddsa.SecretShare  // the secret obtained from a KeyGen protocol
+secret      *eddsa.SecretShare  // the secret key share obtained from a KeyGen protocol
 public      *eddsa.Public       // contains the public information including the group key and individual public shares
 message     []byte              // message in bytes to be signed (does not need to be prehashed)
 timeout     time.Duration       // maximum time allowed between two messages received
