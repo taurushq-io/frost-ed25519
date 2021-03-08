@@ -180,8 +180,8 @@ func main() {
 ##### Input 
 
 ```go
-partyID     party.ID      // ID of the party doing the signing
-partySet    *party.Set    // set containing all parties that will receive a secret key share
+partyID     party.ID      // ID of the party doing the signing (`ID` type is defined as `uint16`)
+partySet    *party.Set    // set containing IDs all parties that will receive a secret key share
 threshold   party.Size    // maximum number of corrupted parties allows / threshold+1 parties required for signing
 timeout     time.Duration // maximum time allowed between two messages received
 ```
