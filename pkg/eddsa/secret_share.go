@@ -71,6 +71,7 @@ func (sk *SecretShare) UnmarshalBinary(data []byte) error {
 	if err != nil {
 		return err
 	}
+	sk.pk.pk.ScalarBaseMult(&sk.sk)
 	return nil
 }
 
@@ -105,7 +106,11 @@ func (sk *SecretShare) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	_, err = sk.sk.SetCanonicalBytes(pointBytes)
-	return err
+	if err != nil {
+		return err
+	}
+	sk.pk.pk.ScalarBaseMult(&sk.sk)
+	return nil
 }
 
 func (sk *SecretShare) Equal(sk2 *SecretShare) bool {
