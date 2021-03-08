@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -105,6 +107,24 @@ func main() {
 	}
 
 	// TODO: write JSON file, to take as input by CLI signer
+	type KeyGenOutput struct {
+		Secrets map[party.ID]*eddsa.SecretShare
+		Shares  *eddsa.Shares
+	}
+
+	kgOutput := KeyGenOutput{
+		Secrets: secrets,
+		Shares:  outputs[party.ID(1)].Shares,
+	}
+
+	var jsonData []byte
+	jsonData, err = json.MarshalIndent(kgOutput, "", " ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	_ = ioutil.WriteFile("keygenout.json", jsonData, 0644)
 
 	fmt.Println("OK")
 }
