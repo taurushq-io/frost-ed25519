@@ -25,23 +25,22 @@ We compute the SHA-512 hash of `x` and obtain two 32 byte strings by splitting t
 The value `s` is encoded as a 32 byte integer, and the `prefix` is used later for deterministic signature generation.
 Finally, the public key can be computed as the 32 byte representation of the point `A = [s] • B`.
 
-In FROST-Ed25519, the parties perform a Distributed Key Generation protocol (DKG) (see section [keygen](#keygen),
-in order to obtain a Shamir secret sharing of the integer `s`, and the associated public key `A = [s] • B`
+In FROST-Ed25519, the parties perform a Distributed Key Generation protocol (DKG),
+in order to obtain a Shamir secret sharing of the integer `s` and the associated public key `A = [s] • B`
 (also referred to as the  _Group Key_).
-The parties must agree on a _threshold_ `t` which defines the maximum number of parties that can collaborate,
+The parties must agree on a _threshold_ `t` which defines the maximum number of parties that can collaborate maliciously,
 while still keeping the value of `s` secret.
 This means that at least `t+1` parties are required to perform a signing with key `s`.
 We denote by `n >= t+1` the number of parties that participated in the DKG protocol.
 
 A party with ID `i` who participated in a successful execution of the DKG protocol
 should obtain at the end an integer `s_i` which defines party `i`'s _share_ of the secret key `s`.
-We represent `s_i` by a `SecretShare` object that contains the ID `i` and the associated group key share `A_i = [s_i]•B`.
+We represent `s_i` by a [`eddsa.SecretShare`](pkg/eddsa/secret_share.go) object that contains the ID `i` and the associated group key share `A_i = [s_i]•B`.
 This type is incompatible with the original private key description, since it is not derived from a seed.
 Fortunately, it is still possible to generate valid signatures, albeit in a non-deterministic way.
 
-Public keys (denoted by `A` or `A_i` to emphasize the party it belongs to) are represented as `eddsa.PublicKey`.
-<!-- They can be used to represent both a group key (`GroupKey` object), or a single party's share of the group key (`Share` object). -->
-All of these public key objects are stored in a `eddsa.Public` structure which ensures consistency between the group key and its shares.
+Public keys (denoted by `A` or `A_i` to emphasize the party it belongs to) are represented as [`eddsa.PublicKey`](pkg/eddsa/keys.go).
+All of these public key objects are stored in a [`eddsa.Public`](pkg/eddsa/public.go). structure which ensures consistency between the group key and its shares.
 
 ### Signatures
 
@@ -58,9 +57,10 @@ S = (r + k * s) mod L
 
 In the original Ed25519 scheme, the nonce `R = [r] B` is generated deterministically using the `prefix` in the key generation.
 The integer `r` is computed as `r = H( prefix || M )`.
+For threshold signing, it is harder to generate nonce in such a deterministic way.
+In FROST-Ed25519, the nonce pair `(r,R)` is generated as detailed in the [FROST paper](https://eprint.iacr.org/2020/852.pdf)
 
-For threshold signing, it is harder to generate nonce in a deterministic way.
-We refer to the [FROST paper](https://eprint.iacr.org/2020/852.pdf) for more information about the procedure used to generate these nonces securely.
+Signatures are represented by the [`eddsa.Signature`](pkg/eddsa/signature.go) type.
 
 ### Verification
 
@@ -73,7 +73,7 @@ It does the following:
 ### Compatibility with `ed25519`:
 
 The goal of FROST-Ed25519 is to be compatible with the `ed25519` library included in Go.
-In particular, the `frost.PublicKey` and `frost.Signature` types can be converted to the `ed25119.PublicKey` and `[]byte` types respectively,
+In particular, the [`frost.PublicKey`](pkg/eddsa/public_key.go) and [`frost.Signature`](pkg/eddsa/signature.go) types can be converted to the `ed25119.PublicKey` and `[]byte` types respectively,
 by calling the method `.ToEd25519()` on objects of these type.
 
 ### Example
@@ -120,30 +120,32 @@ This variant is the one that is proposed for practical implementations, however 
 ## Instructions
 
 This FROST-Ed25519 implementation includes a round-based architecture for both the key generation and signing protocols.
-The cryptographic protocols are defined in pkg/frost/keygen and pkg/frost/sign and hold as little state as possible.
-They are handled by a `State` object that takes care of storing messages, passing them to the round at the right time, and reporting any error that may have occurred.
+The cryptographic protocols are defined in [pkg/frost/keygen]() and [pkg/frost/sign]().
+They are handled by a [`State`](pkg/state/state.go) object that takes care of storing messages, passing them to the round at the right time, and reporting any error that may have occurred.
 
-Users of this library should only interact with `State` types. 
+Users of this library should only interact with `[`State`](pkg/state/state.go) types. 
 
 ### Basics
 
-Each party must be assigned a unique numerical `party.ID` (internally represented as an `uint16`).
-Once IDs have been assigned, each party must generate an appropriate `party.Set` object, which is a structure used to more easily query the participants.
+Each party must be assigned a unique numerical [`party.ID`](pkg/frost/party/id.go) (internally represented as an `uint16`).
+Once IDs have been assigned, each party must generate an appropriate [`party.Set`](pkg/frost/party/set.go) object, which is a structure used to more easily query the participants.
 
 Optionally, a `timeout` argument can be provided, to force the protocol to abort if the time duration between two received messages is longer than `timeout`.
 If it is set to 0, then there is no limit.
 
-Appropriate `State`s can be created by calling the functions `frost.NewKeygenState` or `frost.NewSignState`.
+Appropriate [`State`](pkg/state/state.go)s can be created by calling the functions [`frost.NewKeygenState`](pkg/frost/frost.go) or [`frost.NewSignState`](pkg/frost/frost.go).
 They both return the following:
-- A `State` object used to interact with the protocol
+- A [`State`](pkg/state/state.go) object used to interact with the protocol
 - An `Output` object whose attributes are initialized to `nil`, and populated asynchronously when protocol has successfully completed.
 - An `error` indicating whether the state was successfully created.
 
-#### Keygen
+An example of how to use the  [`State`](pkg/state/state.go) struct can be found in [example/main.go]().
+
+### Keygen
 
 The key generation protocol we implement is as described in the original paper.
 
-Calling `NewKeygenState()` with the following arguments creates a `State` object that can execute the protocol. 
+Calling [`frost.NewKeygenState`](pkg/frost/frost.go) with the following arguments creates a [`State`](pkg/state/state.go) object that can execute the protocol. 
 ```go
 var (
     partyID     party.ID        // ID of the party initiating the key generation (`ID` type is an alias for `uint16`)
@@ -153,44 +155,21 @@ var (
 )
 
 state, output, err := frost.NewKeygenState(partyID, partySet, threshold, timeout)
-
-go func() {/* Handle state}*/}()
-
-// blocking
-err = state.WaitForError()
-if err != nil {
-	// handle abort error
-} 
 ```
 
-```go
-type Output struct {
-	Public    *eddsa.Shares
-	SecretKey *eddsa.SecretShare
-}
-```
-The `Shares` field contains all public information 
-contains the public key shares of all parties that participated in the protocol.
-The GroupKey computed can be obtained by calling `.GroupKey()`.
+Once the protocol has finished, the [`output`](pkg/frost/keygen/output.go) contains the following two fields:
 
-The `SecretKey` should be safely stored. It contains the secret key share of the full secret key, and the party ID associated to it.
+- [`Public`](pkg/eddsa/public.go)
+  contains the public key shares of all parties that participated in the protocol,
+  as well as the group key these define.
+- [`SecretKey`](pkg/eddsa/secret_share.go) is the party's share of the group's signing key.
 
-#### Sign `NewSignState` <a name="sign"></a>
+### Sign
 
-##### Input
 
 ```go
-partySet    *party.Set          // set containing all parties that will receive a secret key share
-secret      *eddsa.SecretShare  // the secret key share obtained from a KeyGen protocol
-public      *eddsa.Public       // contains the public information including the group key and individual public shares
-message     []byte              // message in bytes to be signed (does not need to be prehashed)
-partySet    *party.Set          // set containing all parties that will receive a secret key share (must be at least `threshold`+1)
-secret      *eddsa.SecretShare  // the secret obtained from a KeyGen protocol
-shares      *eddsa.Shares       // public shares of the key generated during a keygen protocol
-message     []byte              // message to be signed (does not need to be prehashed)
-timeout     time.Duration       // maximum time allowed between two messages received
 var (
-        partySet    *party.Set          // Set containing all IDs of the signers (can be a subset of the original parties, of size > threshold)
+        partySet    *party.Set          // set containing all parties that will receive a secret key share (must be of size at least `threshold`+1)
         secret      *eddsa.SecretShare  // the secret key share obtained from the keygen protocol
         public      *eddsa.Public       // contains the public information including the group key and individual public shares
         message     []byte              // message in bytes to be signed (does not need to be prehashed)
@@ -198,19 +177,13 @@ var (
 )
 
 state, output, err := frost.NewSignState(partySet, secret, public, message, timeout)
-
 ```
-##### Output
 
-```go
-type Output struct {
-    Signature *eddsa.Signature
-}
-```
+Once the protocol has finished, the [`output`](pkg/frost/sign/output.go) contains a single field for the [`Signature`](pkg/eddsa/signature.go):
 The `Signature` is as an Ed25519 compatible signature and can be verified as follows:
 
 ```go
-ed25519.Verify(shares.GroupKey().ToEdDSA(), message, output.Signature.ToEdDSA())
+ed25519.Verify(shares.GroupKey().ToEd25519(), message, output.Signature.ToEd25519())
 ```
 
 or alternatively as
