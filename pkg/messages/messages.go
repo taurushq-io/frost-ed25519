@@ -1,19 +1,28 @@
 package messages
 
 import (
-	"encoding/binary"
 	"errors"
+
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
-var (
-	ErrInvalidMessage = errors.New("invalid message")
-)
+type Message struct {
+	Type     MessageType
+	From, To party.ID
+	KeyGen1  *KeyGen1
+	KeyGen2  *KeyGen2
+	Sign1    *Sign1
+	Sign2    *Sign2
+}
+
+var ErrInvalidMessage = errors.New("invalid message")
 
 type MessageType uint8
 
 // MessageType s must be increasing.
 const (
-	MessageTypeKeyGen1 MessageType = iota
+	MessageTypeNone MessageType = iota
+	MessageTypeKeyGen1
 	MessageTypeKeyGen2
 	MessageTypeSign1
 	MessageTypeSign2
@@ -23,23 +32,12 @@ const (
 //  1 for MessageType
 //  4 for Sender
 //  4 for receiver
-const headerSize = 1 + 8
-
-type Message struct {
-	Type     MessageType
-	From, To uint32
-	KeyGen1  *KeyGen1
-	KeyGen2  *KeyGen2
-	Sign1    *Sign1
-	Sign2    *Sign2
-}
+const headerSize = 1 + 2*party.ByteSize
 
 func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
-	var header [headerSize]byte
-	header[0] = byte(m.Type)
-	binary.BigEndian.PutUint32(header[1:5], m.From)
-	binary.BigEndian.PutUint32(header[5:9], m.To)
-	existing = append(existing, header[:]...)
+	existing = append(existing, byte(m.Type))
+	existing = append(existing, m.From.Bytes()...)
+	existing = append(existing, m.To.Bytes()...)
 
 	switch m.Type {
 	case MessageTypeKeyGen1:
@@ -93,31 +91,34 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 func (m *Message) UnmarshalBinary(data []byte) error {
 	msgType := MessageType(data[0])
 	m.Type = msgType
-	m.From = binary.BigEndian.Uint32(data[1:])
-	m.To = binary.BigEndian.Uint32(data[5:])
+	data = data[1:]
+	m.From = party.FromBytes(data)
+	data = data[party.ByteSize:]
+
+	m.To = party.FromBytes(data)
+	data = data[party.ByteSize:]
 
 	switch msgType {
 	case MessageTypeKeyGen1:
 		var keygen1 KeyGen1
 		m.KeyGen1 = &keygen1
-		return m.KeyGen1.UnmarshalBinary(data[headerSize:])
+		return m.KeyGen1.UnmarshalBinary(data)
 
 	case MessageTypeKeyGen2:
 		var keygen2 KeyGen2
 		m.KeyGen2 = &keygen2
-		return m.KeyGen2.UnmarshalBinary(data[headerSize:])
+		return m.KeyGen2.UnmarshalBinary(data)
 
 	case MessageTypeSign1:
 		var sign1 Sign1
 		m.Sign1 = &sign1
 
-		return m.Sign1.UnmarshalBinary(data[headerSize:])
+		return m.Sign1.UnmarshalBinary(data)
 
 	case MessageTypeSign2:
 		var sign2 Sign2
 		m.Sign2 = &sign2
-
-		return m.Sign2.UnmarshalBinary(data[headerSize:])
+		return m.Sign2.UnmarshalBinary(data)
 	}
 	return errors.New("message type not recognized")
 }

@@ -1,18 +1,22 @@
 package keygen
 
 import (
-	"fmt"
+	"errors"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
 	round0 struct {
-		*rounds.BaseRound
+		*state.BaseRound
+
+		// Threshold is the degree of the polynomial used for Shamir.
+		// It is the number of tolerated party corruptions.
+		Threshold party.Size
 
 		// Secret is first set to the zero coefficient of the polynomial we send to the other parties.
 		// Once all received shares are declared, they are summed here to produce the party's
@@ -21,25 +25,14 @@ type (
 
 		// Polynomial used to sample shares
 		Polynomial *polynomial.Polynomial
+
 		// CommitmentsSum is the sum of all commitments, we use it to compute public key shares
 		CommitmentsSum *polynomial.Exponent
-		// CommitmentsOthers contains all other parties commitment polynomials
-		CommitmentsOthers map[uint32]*polynomial.Exponent
 
-		// Threshold is the degree of the polynomial used for Shamir.
-		// It is the number of tolerated party corruptions.
-		Threshold uint32
+		// Commitments contains all other parties commitment polynomials
+		Commitments map[party.ID]*polynomial.Exponent
 
-		// GroupKey is the public key for the entire group.
-		// It is Shamir shared.
-		GroupKey *eddsa.PublicKey
-
-		// GroupKeyShares are the Shamir shares of the public key,
-		// "in-the-exponent".
-		GroupKeyShares eddsa.PublicKeyShares
-
-		// SecretKeyShare is the party's Shamir share of the secret of the GroupKey.
-		SecretKeyShare *eddsa.PrivateKey
+		Output *Output
 	}
 	round1 struct {
 		*round0
@@ -49,46 +42,45 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, threshold uint32, partyIDs []uint32) (rounds.KeyGenRound, error) {
-	accepted := []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
-	baseRound, err := rounds.NewBaseRound(selfID, partyIDs, accepted)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
+func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (state.Round, *Output, error) {
+	N := partySet.N()
+
+	if threshold == 0 {
+		return nil, nil, errors.New("threshold must be at least 1, or a minimum of T+1=2 signers")
+	}
+	if threshold > N-1 {
+		return nil, nil, errors.New("threshold must be at most N-1, or a maximum of T+1=N signers")
 	}
 
-	N := len(partyIDs)
+	baseRound, err := state.NewBaseRound(selfID, partySet)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	r := round0{
-		BaseRound:         baseRound,
-		Threshold:         threshold,
-		CommitmentsOthers: make(map[uint32]*polynomial.Exponent, N),
-		GroupKeyShares:    make(eddsa.PublicKeyShares, N),
+		BaseRound:   baseRound,
+		Threshold:   threshold,
+		Commitments: make(map[party.ID]*polynomial.Exponent, N),
+		Output:      &Output{},
 	}
 
-	return &r, nil
-}
-
-func (round *round0) WaitForKeygenOutput() (*eddsa.PublicKey, eddsa.PublicKeyShares, *eddsa.PrivateKey, error) {
-	err := round.WaitForFinish()
-	round.Reset()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	groupKey := *round.GroupKey
-	groupKeyShares := round.GroupKeyShares
-	secretKeyShare := *round.SecretKeyShare
-
-	return &groupKey, groupKeyShares, &secretKeyShare, nil
+	return &r, r.Output, nil
 }
 
 func (round *round0) Reset() {
 	round.Secret.Set(edwards25519.NewScalar())
-	if round.Polynomial != nil {
-		round.Polynomial.Reset()
-	}
+	round.Polynomial.Reset()
 	round.CommitmentsSum.Reset()
-	for id, p := range round.CommitmentsOthers {
+	for _, p := range round.Commitments {
 		p.Reset()
-		delete(round.CommitmentsOthers, id)
 	}
+	round.Output = nil
+}
+
+// ---
+// Messages
+// ---
+
+func (round *round0) AcceptedMessageTypes() []messages.MessageType {
+	return []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
 }

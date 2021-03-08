@@ -1,94 +1,241 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/taurusgroup/frost-ed25519/pkg"
-	"github.com/taurusgroup/frost-ed25519/pkg/communication"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/test/communication"
 )
 
-func setupUDP(IDs []uint32) map[uint32]*communication.UDP {
-	comms := map[uint32]*communication.UDP{}
-	addresses := map[uint32]string{}
-	for _, id := range IDs {
-		comms[id], _, addresses[id] = communication.NewUDPCommunicator(id)
+func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
+	message = []byte("hello")
+	keygenIDs = make([]party.ID, 0, N)
+	for id := party.Size(0); id < N; id++ {
+		keygenIDs = append(keygenIDs, 42+id)
 	}
-	for id1, c := range comms {
-		for id2, addr := range addresses {
-			if id1 != id2 {
-				c.AddPeer(id2, addr)
-			}
-		}
-		c.Start()
-	}
-	return comms
+	signIDs = make([]party.ID, T+1)
+	copy(signIDs, keygenIDs)
+	return
 }
 
-func FROSTest(N, T uint32) {
-	fmt.Printf("(n, t) = (%v, %v): ", N, T)
-
-	message := []byte("hello")
-
-	keygenIDs := make([]uint32, 0, N)
-	for id := uint32(0); id < N; id++ {
-		keygenIDs = append(keygenIDs, 2*id+10)
-	}
-
-	signIDs := make([]uint32, T+1)
-	copy(signIDs, keygenIDs)
-
-	//keygenComm := setupUDP(keygenIDs)
-	keygenComm := communication.NewChannelCommunicatorForAll(keygenIDs)
-	keygenHandlers := make(map[uint32]*pkg.KeyGenHandler, N)
+func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Shares, map[party.ID]*eddsa.SecretShare, error) {
+	var err error
+	keygenHandlers := make(map[party.ID]*KeyGenHandler, N)
 	for _, id := range keygenIDs {
-		keygenHandlers[id], _ = pkg.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
-	}
-
-	party1 := keygenIDs[0]
-	// obtain the public key from the first party and wait for the others
-	groupKey, _, _, _ := keygenHandlers[party1].WaitForKeygenOutput()
-
-	for _, h := range keygenHandlers {
-		if _, _, _, err := h.WaitForKeygenOutput(); err != nil {
-			panic(err)
-		}
-	}
-
-	signComm := setupUDP(signIDs)
-	//signComm := communication.NewChannelCommunicatorForAll(signIDs)
-	signHandlers := make(map[uint32]*pkg.SignHandler, T+1)
-	for _, id := range signIDs {
-		_, publicShares, secretShare, err := keygenHandlers[id].WaitForKeygenOutput()
+		keygenHandlers[id], err = NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
 		if err != nil {
-			panic(err)
+			return nil, nil, err
 		}
-		signHandlers[id], _ = pkg.NewSignHandler(signComm[id], id, signIDs, secretShare, publicShares, message)
+	}
+
+	var shares *eddsa.Shares
+	secrets := map[party.ID]*eddsa.SecretShare{}
+	for id, h := range keygenHandlers {
+		if err = h.state.WaitForError(); err != nil {
+			return nil, nil, err
+		}
+		shares = h.out.Shares
+		secrets[id] = h.out.SecretKey
+	}
+	return shares, secrets, nil
+}
+
+func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Shares, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
+	groupKey := shares.GroupKey()
+	signHandlers := make(map[party.ID]*SignHandler, T+1)
+	var err error
+	for _, id := range signIDs {
+		signHandlers[id], err = NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
+		if err != nil {
+			return err
+		}
 	}
 
 	failures := 0
 
 	for _, h := range signHandlers {
-		s, _ := h.WaitForSignOutput()
-		if !s.Verify(message, groupKey) {
+		err = h.state.WaitForError()
+		if err != nil {
 			failures++
+		} else if s := h.out.Signature; s != nil {
+			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEdDSA(), message, s.ToEdDSA()) {
+				failures++
+			}
 		}
 	}
 
 	if failures != 0 {
-		fmt.Printf("%v signatures verifications failed\n", failures)
-	} else {
-		fmt.Printf("ok\n")
+		return fmt.Errorf("%v signatures verifications failed", failures)
+	}
+	return nil
+}
+
+func FROSTestUDP(N, T party.Size) error {
+	fmt.Printf("Using UDP:\n(n, t) = (%v, %v): ", N, T)
+
+	message, keygenIDs, signIDs := Setup(N, T)
+	keygenComm := communication.NewUDPCommunicatorMap(keygenIDs)
+	defer destroyCommMap(keygenComm)
+	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenComm)
+	if err != nil {
+		return err
+	}
+
+	signComm := communication.NewUDPCommunicatorMap(signIDs)
+	defer destroyCommMap(signComm)
+
+	return DoSign(T, signIDs, shares, secrets, signComm, message)
+}
+
+func FROSTestChannel(N, T party.Size) error {
+	fmt.Printf("Using Channels:\n(n, t) = (%v, %v): ", N, T)
+
+	message, keygenIDs, signIDs := Setup(N, T)
+	keygenComm := communication.NewChannelCommunicatorMap(keygenIDs)
+	defer destroyCommMap(keygenComm)
+	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenComm)
+	if err != nil {
+		return err
+	}
+
+	signComm := communication.NewChannelCommunicatorMap(signIDs)
+	defer destroyCommMap(signComm)
+
+	return DoSign(T, signIDs, shares, secrets, signComm, message)
+}
+
+func destroyCommMap(m map[party.ID]communication.Communicator) {
+	for _, c := range m {
+		c.Done()
 	}
 }
 
-func main() {
-	ns := []uint32{5, 10, 50, 100}
+func FROSTestMonkey(N, T party.Size) error {
+	fmt.Printf("Using Monkey Channels:\n(n, t) = (%v, %v): ", N, T)
 
+	message, keygenIDs, signIDs := Setup(N, T)
+	keygenComm := communication.NewMonkeyChannelCommunicatorMap(keygenIDs, messages.MessageTypeKeyGen1)
+	keygenCommNormal := communication.NewChannelCommunicatorMap(keygenIDs)
+
+	defer destroyCommMap(keygenComm)
+	defer destroyCommMap(keygenCommNormal)
+
+	_, _, err := DoKeygen(N, T, keygenIDs, keygenComm)
+	if err == nil {
+		return errors.New("failed to fail")
+	} else {
+		fmt.Println("good fail: ", err)
+	}
+	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenCommNormal)
+	if err != nil {
+		return err
+	}
+
+	signComm1 := communication.NewMonkeyChannelCommunicatorMap(signIDs, messages.MessageTypeSign1)
+	defer destroyCommMap(signComm1)
+
+	if err = DoSign(T, signIDs, shares, secrets, signComm1, message); err == nil {
+		return errors.New("failed to fail")
+	} else {
+		fmt.Println("good fail: ", err)
+	}
+	signComm2 := communication.NewMonkeyChannelCommunicatorMap(signIDs, messages.MessageTypeSign2)
+	defer destroyCommMap(signComm2)
+	if err = DoSign(T, signIDs, shares, secrets, signComm2, message); err == nil {
+		return errors.New("failed to fail")
+	} else {
+		fmt.Println("good fail: ", err)
+	}
+	return nil
+}
+
+func main() {
+	ns := []party.Size{5, 10, 50}
+
+	// what should work
 	for _, n := range ns {
 		start := time.Now()
-		FROSTest(n, n/2)
+		err := FROSTestUDP(n, n/2)
 		elapsed := time.Since(start)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
 		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestUDP(n, n-1)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		elapsed = time.Since(start)
+		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestChannel(n, n/2)
+		elapsed = time.Since(start)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestChannel(n, n-1)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		elapsed = time.Since(start)
+		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestMonkey(n, n/2)
+		elapsed = time.Since(start)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestMonkey(n, n-1)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		elapsed = time.Since(start)
+		fmt.Printf("%s\n", elapsed)
+	}
+
+	// what should NOT work, but should not panic
+	for _, n := range ns {
+		if FROSTestUDP(n, n) == nil {
+			fmt.Println("ERROR: failed to fail")
+		} else {
+			fmt.Println("ok (failed)")
+		}
+		if FROSTestUDP(n, 0) == nil {
+			fmt.Println("ERROR: failed to fail")
+		} else {
+			fmt.Println("ok (failed)")
+		}
+		if FROSTestUDP(n, n*10) == nil {
+			fmt.Println("ERROR: failed to fail")
+		} else {
+			fmt.Println("ok (failed)")
+		}
 	}
 }

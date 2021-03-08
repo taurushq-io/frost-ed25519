@@ -2,27 +2,26 @@ package sign
 
 import (
 	"errors"
-	"fmt"
 
 	"filippo.io/edwards25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/helpers/polynomial"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/pkg/rounds"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type (
 	round0 struct {
-		*rounds.BaseRound
+		*state.BaseRound
 
 		// Message is the message to be signed
 		Message []byte
 
 		// Parties maps IDs to a struct containing all intermediary data for each signer.
-		Parties map[uint32]*signer
+		Parties map[party.ID]*signer
 
 		// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
-		GroupKey       edwards25519.Point
+		GroupKey       *eddsa.PublicKey
 		SecretKeyShare edwards25519.Scalar
 
 		// e and d are the scalars committed to in the first round
@@ -33,8 +32,7 @@ type (
 		// R = ∑ Ri
 		R edwards25519.Point
 
-		// Signature is the output
-		Signature *eddsa.Signature
+		Output *Output
 	}
 	round1 struct {
 		*round0
@@ -44,58 +42,50 @@ type (
 	}
 )
 
-func NewRound(selfID uint32, partyIDs []uint32, secret *eddsa.PrivateKey, publicKeys eddsa.PublicKeyShares, message []byte) (rounds.Round, error) {
-	var (
-		round round0
-		err   error
-	)
+func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Shares, message []byte) (state.Round, *Output, error) {
+	if !partySet.Contains(secret.ID) {
+		return nil, nil, errors.New("owner of SecretShare is not contained in partySet")
+	}
+	if !partySet.IsSubsetOf(shares.PartySet) {
+		return nil, nil, errors.New("not all parties of partySet are contained in shares")
+	}
 
-	round.GroupKey.Set(edwards25519.NewIdentityPoint())
-	round.Parties = make(map[uint32]*signer, len(partyIDs))
-	for _, id := range partyIDs {
-		var party signer
+	baseRound, err := state.NewBaseRound(secret.ID, partySet)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	round := &round0{
+		BaseRound: baseRound,
+		Message:   message,
+		Parties:   make(map[party.ID]*signer, partySet.N()),
+		GroupKey:  shares.GroupKey(),
+		Output:    &Output{},
+	}
+
+	// Setup parties
+	for id := range partySet.Range() {
 		if id == 0 {
-			return nil, errors.New("id 0 is not valid")
+			return nil, nil, errors.New("id 0 is not valid")
 		}
 
-		pkShare, ok := publicKeys[id]
-		if !ok {
-			return nil, fmt.Errorf("missing public key from %d", id)
+		shareNormalized, err := shares.ShareNormalized(id, partySet)
+		if err != nil {
+			return nil, nil, err
 		}
-
-		lagrange := polynomial.LagrangeCoefficient(id, partyIDs)
-
-		party.Public.ScalarMult(lagrange, pkShare.Point())
-
-		round.GroupKey.Add(&round.GroupKey, &party.Public)
-
-		round.Parties[id] = &party
-	}
-	if _, ok := round.Parties[selfID]; !ok {
-		return nil, errors.New("secret data and ID don't match")
+		round.Parties[id] = &signer{
+			Public: shareNormalized,
+		}
 	}
 
-	accepted := []messages.MessageType{messages.MessageTypeSign1, messages.MessageTypeSign2}
-	round.BaseRound, err = rounds.NewBaseRound(selfID, partyIDs, accepted)
+	// Normalize secret share so that we can assume we are dealing with an additive sharing
+	lagrange, err := partySet.Lagrange(round.SelfID())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create messageHolder: %w", err)
+		return nil, nil, err
 	}
+	round.SecretKeyShare.Multiply(lagrange, secret.Scalar())
 
-	round.Message = message
-
-	round.SecretKeyShare.Multiply(polynomial.LagrangeCoefficient(selfID, partyIDs), secret.Scalar())
-
-	return &round, nil
-}
-
-func (round *round0) WaitForSignOutput() (signature *eddsa.Signature, err error) {
-	err = round.WaitForFinish()
-	round.Reset()
-	if err != nil {
-		return nil, err
-	}
-
-	return round.Signature, nil
+	return round, round.Output, nil
 }
 
 func (round *round0) Reset() {
@@ -103,7 +93,6 @@ func (round *round0) Reset() {
 	one := edwards25519.NewIdentityPoint()
 
 	round.Message = nil
-	round.GroupKey.Set(one)
 	round.SecretKeyShare.Set(zero)
 
 	round.e.Set(zero)
@@ -114,5 +103,13 @@ func (round *round0) Reset() {
 	for id, p := range round.Parties {
 		p.Reset()
 		delete(round.Parties, id)
+	}
+	round.Output = nil
+}
+
+func (round *round0) AcceptedMessageTypes() []messages.MessageType {
+	return []messages.MessageType{
+		messages.MessageTypeSign1,
+		messages.MessageTypeSign2,
 	}
 }

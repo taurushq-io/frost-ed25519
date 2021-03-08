@@ -14,6 +14,7 @@ type FROSTMarshaller interface {
 	// Size should return the number of bytes used to store the type.
 	Size() int
 
+	// Equal is used mostly for testing and returns true if other represents the same value as the receiver.
 	Equal(other interface{}) bool
 }
 

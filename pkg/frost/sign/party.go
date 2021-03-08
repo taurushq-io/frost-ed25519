@@ -2,6 +2,7 @@ package sign
 
 import (
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 )
 
 // A signer represents the state we store for one particular
@@ -11,12 +12,10 @@ type signer struct {
 	// signer's additive share of the Public key.
 	// It is multiplied by the party's Lagrange coefficient
 	// so the we do need to do so later.
-	Public edwards25519.Point
+	Public *eddsa.PublicKey
 
 	// Di = [di]•B
 	// Ei = [ei]•B
-	// These are the commitments which can be
-	// preprocessed
 	Di, Ei edwards25519.Point
 
 	// Ri = Di + [ρ] Ei
@@ -38,9 +37,9 @@ func (signer *signer) Reset() {
 	zero := edwards25519.NewScalar()
 	identity := edwards25519.NewIdentityPoint()
 
-	signer.Public.Set(identity)
 	signer.Ei.Set(identity)
 	signer.Di.Set(identity)
+
 	signer.Ri.Set(identity)
 
 	signer.Pi.Set(zero)

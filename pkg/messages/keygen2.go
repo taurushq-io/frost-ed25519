@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 )
 
 const sizeKeygen2 = 32
 
 type KeyGen2 struct {
-	// Share is the
 	Share edwards25519.Scalar
 }
 
-func NewKeyGen2(from, to uint32, share *edwards25519.Scalar) *Message {
+func NewKeyGen2(from, to party.ID, share *edwards25519.Scalar) *Message {
 	return &Message{
 		Type:    MessageTypeKeyGen2,
 		From:    from,
