@@ -10,6 +10,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -38,7 +39,7 @@ func TestSign(t *testing.T) {
 	var start time.Time
 	start = time.Now()
 	for _, s := range states {
-		msgs1, err := partyRoutine(nil, s)
+		msgs1, err := helpers.PartyRoutine(nil, s)
 		if err != nil {
 			t.Error(err)
 		}
@@ -48,7 +49,7 @@ func TestSign(t *testing.T) {
 
 	start = time.Now()
 	for _, s := range states {
-		msgs2, err := partyRoutine(msgsOut1, s)
+		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
 		if err != nil {
 			t.Error(err)
 		}
@@ -58,7 +59,7 @@ func TestSign(t *testing.T) {
 
 	start = time.Now()
 	for _, s := range states {
-		_, err := partyRoutine(msgsOut2, s)
+		_, err := helpers.PartyRoutine(msgsOut2, s)
 		if err != nil {
 			t.Error(err)
 		}

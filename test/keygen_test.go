@@ -6,10 +6,10 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/eddsa/eddsa_test"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -17,7 +17,7 @@ func TestKeygen(t *testing.T) {
 	N := party.Size(50)
 	T := N / 2
 
-	partySet := eddsa_test.GenerateSet(N)
+	partySet := helpers.GenerateSet(N)
 
 	states := map[party.ID]*state.State{}
 	outputs := map[party.ID]*keygen.Output{}
@@ -35,7 +35,7 @@ func TestKeygen(t *testing.T) {
 	msgsOut2 := make([][]byte, 0, N*(N-1)/2)
 
 	for _, s := range states {
-		msgs1, err := partyRoutine(nil, s)
+		msgs1, err := helpers.PartyRoutine(nil, s)
 		if err != nil {
 			t.Error(err)
 		}
@@ -43,7 +43,7 @@ func TestKeygen(t *testing.T) {
 	}
 
 	for _, s := range states {
-		msgs2, err := partyRoutine(msgsOut1, s)
+		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
 		if err != nil {
 			t.Error(err)
 		}
@@ -51,7 +51,7 @@ func TestKeygen(t *testing.T) {
 	}
 
 	for _, s := range states {
-		_, err := partyRoutine(msgsOut2, s)
+		_, err := helpers.PartyRoutine(msgsOut2, s)
 		if err != nil {
 			t.Error(err)
 		}
