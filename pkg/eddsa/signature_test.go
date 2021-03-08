@@ -19,10 +19,7 @@ func generateSignature() (*Signature, *PublicKey, error) {
 		return nil, nil, err
 	}
 	sk, pk := newKeyPair(skBytes)
-	skShare := &SecretShare{
-		ID: 0,
-		sk: *sk,
-	}
+	skShare := NewSecretShare(0, sk)
 	signature := skShare.Sign([]byte(sampleMessage))
 	return signature, pk, nil
 }

@@ -8,16 +8,15 @@ import (
 	"log"
 	"time"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-var (
-	// these channels are placeholders for a transport layer
-	messagesIn, messagesOut chan *messages.Message
-)
+// these channels are placeholders for a transport layer
+var messagesIn, messagesOut chan *messages.Message
 
 func MessageRoutine(msgsIn, msgsOut chan *messages.Message, s *state.State) {
 	for {
@@ -55,9 +54,9 @@ func main() {
 	set, _ := party.NewSet([]party.ID{selfID, 2, 42, 8})
 
 	keygenState, keygenOutput, err := frost.NewKeygenState(selfID, set, threshold, 2*time.Second)
-	go func() {
 
-	}()
+	// Handle messages in another thread
+	go MessageRoutine(messagesIn, messagesOut, keygenState)
 
 	// Block until the protocol has finished
 	err = keygenState.WaitForError()
@@ -72,23 +71,31 @@ func main() {
 
 	message := []byte("example")
 
+	SignSingle(secretShare, publicShare, message)
+
 	// Get a smaller set of size t+1
 	signers, err := party.NewSet([]party.ID{selfID, 2, 8})
 	signState, signOutput, err := frost.NewSignState(signers, secretShare, public, message, 1*time.Second)
+
+	// Handle messages in another thread
+	go MessageRoutine(messagesIn, messagesOut, signState)
 
 	// Block until the protocol has finished
 	err = signState.WaitForError()
 	if err != nil {
 		// the protocol has aborted
 	}
+
+	// Verify signatyre
 	groupSig := signOutput.Signature
 	if !ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) {
 		log.Println("failed to validate single signature")
 	}
+}
 
-	singleSig := secretShare.Sign(message)
-	if !ed25519.Verify(publicShare.ToEd25519(), message, singleSig.ToEd25519()) {
-		log.Println("failed to validate single signature")
+func SignSingle(secretShare *eddsa.SecretShare, publicShare *eddsa.PublicKey, message []byte) {
+	sig := secretShare.Sign(message)
+	if !sig.Verify(message, publicShare) {
+		log.Println("single signature verification failed")
 	}
-
 }

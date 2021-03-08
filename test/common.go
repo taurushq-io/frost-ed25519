@@ -8,11 +8,11 @@ import (
 
 var MESSAGE = []byte("Hello Everybody")
 
-func setupParties(t, n party.Size) (partySet, signSet *party.Set, secretShares map[party.ID]*eddsa.SecretShare, publicShares *eddsa.Shares) {
+func setupParties(t, n party.Size) (partySet, signSet *party.Set, secretShares map[party.ID]*eddsa.SecretShare, publicShares *eddsa.Public) {
 	var err error
 	partySet = helpers.GenerateSet(n)
 	_, secretShares = helpers.GenerateSecrets(partySet, t)
-	publicShares = helpers.GenerateShares(t, secretShares)
+	publicShares = helpers.GeneratePublic(t, secretShares)
 	signIDs := partySet.Take(n + 1)
 	signSet, err = party.NewSet(signIDs)
 	if err != nil {
