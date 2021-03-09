@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
@@ -21,7 +24,6 @@ func usage() {
 }
 
 func main() {
-
 	if len(os.Args) != 3 {
 		usage()
 		return
@@ -100,6 +102,7 @@ func main() {
 		return
 	}
 	public := outputs[id0].Public
+	secrets := make(map[party.ID]*eddsa.SecretShare, n)
 	groupKey := public.GroupKey()
 	fmt.Printf("  %x\n\n", groupKey.ToEd25519())
 
@@ -110,10 +113,31 @@ func main() {
 		}
 		shareSecret := outputs[id].SecretKey
 		sharePublic, _ := public.Share(id)
+		secrets[id] = shareSecret
 		fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", id, shareSecret.Scalar().Bytes(), sharePublic.ToEd25519())
 	}
 
 	// TODO: write JSON file, to take as input by CLI signer
+	type KeyGenOutput struct {
+		Secrets map[party.ID]*eddsa.SecretShare
+		Shares  *eddsa.Public
+	}
 
-	fmt.Println("OK")
+	kgOutput := KeyGenOutput{
+		Secrets: secrets,
+		Shares:  public,
+	}
+
+	var jsonData []byte
+	jsonData, err = json.MarshalIndent(kgOutput, "", " ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	filename := "keygenout.json"
+
+	_ = ioutil.WriteFile(filename, jsonData, 0644)
+
+	fmt.Printf("Success: output written to %v\n", filename)
 }
