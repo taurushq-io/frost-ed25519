@@ -124,7 +124,9 @@ func main() {
 		return
 	}
 
-	_ = ioutil.WriteFile("keygenout.json", jsonData, 0644)
+	filename := "keygenout.json"
 
-	fmt.Println("OK")
+	_ = ioutil.WriteFile(filename, jsonData, 0644)
+
+	fmt.Printf("Success: output written to %v\n", filename)
 }
