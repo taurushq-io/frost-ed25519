@@ -15,9 +15,7 @@ type PublicKey struct {
 // NewPublicKeyFromPoint returns a PublicKey given an edwards25519.Point.
 func NewPublicKeyFromPoint(public *edwards25519.Point) *PublicKey {
 	var pk PublicKey
-
 	pk.pk.Set(public)
-
 	return &pk
 }
 
@@ -33,17 +31,13 @@ func (pk *PublicKey) Equal(pkOther *PublicKey) bool {
 
 // ToEd25519 converts the PublicKey to an ed25519 compatible format
 func (pk *PublicKey) ToEd25519() ed25519.PublicKey {
-	var key [32]byte
-	copy(key[:], pk.pk.Bytes())
-	return key[:]
+	return pk.pk.Bytes()
 }
 
 func newPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
 	var pk PublicKey
-	if _, err := pk.pk.SetBytes(key); err != nil {
-		return nil, err
-	}
-	return &pk, nil
+	_, err := pk.pk.SetBytes(key)
+	return &pk, err
 }
 
 func newKeyPair(key ed25519.PrivateKey) (*edwards25519.Scalar, *PublicKey) {

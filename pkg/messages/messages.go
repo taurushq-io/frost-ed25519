@@ -114,7 +114,6 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 	case MessageTypeSign1:
 		var sign1 Sign1
 		m.Sign1 = &sign1
-
 		return m.Sign1.UnmarshalBinary(data)
 
 	case MessageTypeSign2:

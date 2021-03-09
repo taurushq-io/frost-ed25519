@@ -89,7 +89,7 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 	}
 
 	// c = H(R, GroupKey, M)
-	round.C.Set(eddsa.ComputeChallenge(&round.R, round.GroupKey, round.Message))
+	round.C.Set(eddsa.ComputeChallenge(&round.R, &round.GroupKey, round.Message))
 
 	selfParty := round.Parties[round.SelfID()]
 

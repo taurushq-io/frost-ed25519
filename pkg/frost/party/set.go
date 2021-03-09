@@ -122,12 +122,21 @@ func (s *Set) Range() map[ID]bool {
 // l_j(0) =	---------------------------
 //			(x_0 - x_j) ... (x_k - x_j)
 func (s *Set) Lagrange(partyID ID) (*edwards25519.Scalar, error) {
+	var l edwards25519.Scalar
+	return s.lagrange(&l, partyID)
+}
+
+var one, _ = edwards25519.NewScalar().SetCanonicalBytes([]byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+
+func (s *Set) lagrange(num *edwards25519.Scalar, partyID ID) (*edwards25519.Scalar, error) {
+	var denum edwards25519.Scalar
+
+	num.Set(one)
+	denum.Set(one)
+
 	if !s.Contains(partyID) {
 		return nil, errors.New("the Set must contain")
 	}
-
-	denum := ID(1).Scalar()
-	num := ID(1).Scalar()
 
 	xJ := partyID.Scalar()
 
@@ -142,8 +151,8 @@ func (s *Set) Lagrange(partyID ID) (*edwards25519.Scalar, error) {
 		num.Multiply(num, xM) // num * xM
 
 		// denum = (x_0 - x_j) ... (x_k - x_j)
-		xM.Subtract(xM, xJ)       // = xM - xJ
-		denum.Multiply(denum, xM) // denum * (xm - xj)
+		xM.Subtract(xM, xJ)        // = xM - xJ
+		denum.Multiply(&denum, xM) // denum * (xm - xj)
 	}
 
 	// This should not happen since xM!=xJ
@@ -151,7 +160,7 @@ func (s *Set) Lagrange(partyID ID) (*edwards25519.Scalar, error) {
 		return nil, errors.New("partyIDs contained idx")
 	}
 
-	denum.Invert(denum)
-	num.Multiply(num, denum)
+	denum.Invert(&denum)
+	num.Multiply(num, &denum)
 	return num, nil
 }

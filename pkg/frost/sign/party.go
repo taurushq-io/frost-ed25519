@@ -12,7 +12,7 @@ type signer struct {
 	// signer's additive share of the Public key.
 	// It is multiplied by the party's Lagrange coefficient
 	// so the we do need to do so later.
-	Public *eddsa.PublicKey
+	Public eddsa.PublicKey
 
 	// Di = [di]•B
 	// Ei = [ei]•B

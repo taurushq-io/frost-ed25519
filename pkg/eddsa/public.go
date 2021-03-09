@@ -64,20 +64,23 @@ func (s *Public) GroupKey() *PublicKey {
 	return NewPublicKeyFromPoint(s.groupKey)
 }
 
-// Share returns the PublicKey for the party at index.
-func (s *Public) Share(index party.ID) (*PublicKey, error) {
+// share returns the PublicKey for the party at index.
+func (s *Public) share(index party.ID, result *PublicKey) (*PublicKey, error) {
 	p, ok := s.shares[index]
 	if !ok {
 		return nil, fmt.Errorf("shares does not contain partyID %d", index)
 	}
-	return NewPublicKeyFromPoint(p), nil
+	result.pk.Set(p)
+	return result, nil
 }
 
-// ShareNormalized returns the party index's public key share, but multiplied by the appropriate Lagrange factor of
-// the group determined by partyIDs.
-// If ShareNormalized is called for every party in partyIDs, then the resulting PublicKey s represent
-// an additive sharing of the group key.
-func (s *Public) ShareNormalized(partyID party.ID, partySet *party.Set) (*PublicKey, error) {
+// Share returns the PublicKey for the party at index.
+func (s *Public) Share(index party.ID) (*PublicKey, error) {
+	var pk PublicKey
+	return s.share(index, &pk)
+}
+
+func (s *Public) shareNormalized(partyID party.ID, partySet *party.Set, result *PublicKey) (*PublicKey, error) {
 	if partySet.N() < s.threshold+1 {
 		return nil, errors.New("partyIDs does not contain a threshold number of PartySet")
 	}
@@ -85,17 +88,26 @@ func (s *Public) ShareNormalized(partyID party.ID, partySet *party.Set) (*Public
 		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
 	}
 
-	pk, err := s.Share(partyID)
-
+	_, err := s.share(partyID, result)
 	if err != nil {
 		return nil, err
 	}
+
 	lagrange, err := partySet.Lagrange(partyID)
 	if err != nil {
 		return nil, err
 	}
-	pk.pk.ScalarMult(lagrange, &pk.pk)
-	return pk, nil
+	result.pk.ScalarMult(lagrange, &result.pk)
+	return result, nil
+}
+
+// ShareNormalized returns the party index's public key share, but multiplied by the appropriate Lagrange factor of
+// the group determined by partyIDs.
+// If ShareNormalized is called for every party in partyIDs, then the resulting PublicKey s represent
+// an additive sharing of the group key.
+func (s *Public) ShareNormalized(partyID party.ID, partySet *party.Set) (*PublicKey, error) {
+	var result PublicKey
+	return s.shareNormalized(partyID, partySet, &result)
 }
 
 // Threshold returns the integer which defines the maximum number of parties that may be corrupted while

@@ -21,7 +21,7 @@ type (
 		Parties map[party.ID]*signer
 
 		// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
-		GroupKey       *eddsa.PublicKey
+		GroupKey       eddsa.PublicKey
 		SecretKeyShare edwards25519.Scalar
 
 		// e and d are the scalars committed to in the first round
@@ -59,7 +59,7 @@ func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Publ
 		BaseRound: baseRound,
 		Message:   message,
 		Parties:   make(map[party.ID]*signer, partySet.N()),
-		GroupKey:  shares.GroupKey(),
+		GroupKey:  *shares.GroupKey(),
 		Output:    &Output{},
 	}
 
@@ -68,13 +68,12 @@ func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Publ
 		if id == 0 {
 			return nil, nil, errors.New("id 0 is not valid")
 		}
-
 		shareNormalized, err := shares.ShareNormalized(id, partySet)
 		if err != nil {
 			return nil, nil, err
 		}
 		round.Parties[id] = &signer{
-			Public: shareNormalized,
+			Public: *shareNormalized,
 		}
 	}
 
@@ -109,6 +108,7 @@ func (round *round0) Reset() {
 
 func (round *round0) AcceptedMessageTypes() []messages.MessageType {
 	return []messages.MessageType{
+		messages.MessageTypeNone,
 		messages.MessageTypeSign1,
 		messages.MessageTypeSign2,
 	}

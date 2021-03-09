@@ -23,9 +23,8 @@ type ID uint16
 // Size is an alias for ID that allows us to differentiate between a party's ID and the threshold for example.
 type Size = ID
 
-// Scalar returns the corresponding edwards25519.Scalar
-func (p ID) Scalar() *edwards25519.Scalar {
-	var s edwards25519.Scalar
+// setScalar returns the corresponding edwards25519.Scalar
+func (p ID) setScalar(s *edwards25519.Scalar) *edwards25519.Scalar {
 	var bytes = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 	bytes[0] = byte(p)
@@ -35,7 +34,14 @@ func (p ID) Scalar() *edwards25519.Scalar {
 	if err != nil {
 		panic(fmt.Errorf("edwards25519: failed to set uint32 Scalar: %w", err))
 	}
-	return &s
+	return s
+}
+
+// Scalar returns the corresponding edwards25519.Scalar
+func (p ID) Scalar() *edwards25519.Scalar {
+	// We outline the function so that s is not allocated on the heap
+	var s edwards25519.Scalar
+	return p.setScalar(&s)
 }
 
 // Bytes returns a []byte slice of length party.ByteSize

@@ -16,7 +16,7 @@ var (
 func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	id := msg.From
 	otherParty := round.Parties[id]
-	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, otherParty.Public, &otherParty.Ri) {
+	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, &otherParty.Public, &otherParty.Ri) {
 		return state.NewError(id, ErrValidateSigShare)
 	}
 	otherParty.Zi.Set(&msg.Sign2.Zi)
@@ -36,7 +36,7 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
 	Signature.R.Set(&round.R)
 
 	// Verify the full signature here too.
-	if !Signature.Verify(round.Message, round.GroupKey) {
+	if !Signature.Verify(round.Message, &round.GroupKey) {
 		return nil, state.NewError(0, ErrValidateSignature)
 	}
 

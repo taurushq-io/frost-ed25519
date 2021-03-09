@@ -35,7 +35,7 @@ type State struct {
 func NewBaseState(round Round, timeout time.Duration) (*State, error) {
 	N := round.Set().N()
 	s := &State{
-		acceptedTypes:    append([]messages.MessageType{messages.MessageTypeNone}, round.AcceptedMessageTypes()...),
+		acceptedTypes:    append([]messages.MessageType{}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[party.ID]*messages.Message, N),
 		queue:            make([]*messages.Message, 0, N),
 		round:            round,

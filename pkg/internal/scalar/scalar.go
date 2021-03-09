@@ -16,7 +16,8 @@ func SetScalarRandom(s *edwards25519.Scalar) *edwards25519.Scalar {
 		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
 	}
 
-	return s.SetUniformBytes(bytes[:])
+	s.SetUniformBytes(bytes[:])
+	return s
 }
 
 // NewScalarRandom generates a new edwards25519.Scalar using the default randomness source from crypto/rand
@@ -28,14 +29,14 @@ func NewScalarRandom() *edwards25519.Scalar {
 // SetScalarUInt32 set s's value to that of a uint32 x. It creates a 32 byte big-endian representation of x,
 // which is set by s.SetCanonicalBytes .
 func SetScalarUInt32(s *edwards25519.Scalar, x uint32) *edwards25519.Scalar {
-	var bytes = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	bytes := make([]byte, 32)
 
 	bytes[0] = byte(x)
 	bytes[1] = byte(x >> 8)
 	bytes[2] = byte(x >> 16)
 	bytes[3] = byte(x >> 24)
 
-	_, err := s.SetCanonicalBytes(bytes[:])
+	_, err := s.SetCanonicalBytes(bytes)
 	if err != nil {
 		panic(fmt.Errorf("edwards25519: failed to set uint32 Scalar: %w", err))
 	}

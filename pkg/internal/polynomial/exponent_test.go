@@ -12,6 +12,7 @@ import (
 
 func TestExponent_Evaluate(t *testing.T) {
 	var lhs edwards25519.Point
+	var rhs1, rhs2, rhs3 edwards25519.Point
 	for x := 0; x < 5; x++ {
 		N := party.Size(1000)
 		secret := scalar.NewScalarRandom()
@@ -21,13 +22,13 @@ func TestExponent_Evaluate(t *testing.T) {
 		randomIndex := party.RandID().Scalar()
 
 		lhs.ScalarBaseMult(poly.Evaluate(randomIndex))
-		rhs1 := polyExp.evaluateHorner(randomIndex)
-		rhs2 := polyExp.evaluateClassic(randomIndex)
-		rhs3 := polyExp.evaluateVar(randomIndex)
+		polyExp.evaluateHorner(randomIndex, &rhs1)
+		polyExp.evaluateClassic(randomIndex, &rhs2)
+		polyExp.evaluateVar(randomIndex, &rhs3)
 
-		assert.Equal(t, 1, lhs.Equal(rhs1), fmt.Sprint(x))
-		assert.Equal(t, 1, lhs.Equal(rhs2), fmt.Sprint(x))
-		assert.Equal(t, 1, lhs.Equal(rhs3), fmt.Sprint(x))
+		assert.Equal(t, 1, lhs.Equal(&rhs1), fmt.Sprint(x))
+		assert.Equal(t, 1, lhs.Equal(&rhs2), fmt.Sprint(x))
+		assert.Equal(t, 1, lhs.Equal(&rhs3), fmt.Sprint(x))
 	}
 }
 
@@ -38,21 +39,24 @@ func Benchmark_Evaluate(b *testing.B) {
 	polyExp := NewPolynomialExponent(poly)
 
 	b.Run("normal", func(b *testing.B) {
+		var result edwards25519.Point
 		for i := 0; i < b.N; i++ {
 			randomIndex := party.RandID().Scalar()
-			polyExp.evaluateClassic(randomIndex)
+			polyExp.evaluateClassic(randomIndex, &result)
 		}
 	})
 	b.Run("horner", func(b *testing.B) {
+		var result edwards25519.Point
 		for i := 0; i < b.N; i++ {
 			randomIndex := party.RandID().Scalar()
-			polyExp.evaluateHorner(randomIndex)
+			polyExp.evaluateHorner(randomIndex, &result)
 		}
 	})
 	b.Run("vartime", func(b *testing.B) {
+		var result edwards25519.Point
 		for i := 0; i < b.N; i++ {
 			randomIndex := party.RandID().Scalar()
-			polyExp.evaluateVar(randomIndex)
+			polyExp.evaluateVar(randomIndex, &result)
 		}
 	})
 }

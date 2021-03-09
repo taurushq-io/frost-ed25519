@@ -26,11 +26,6 @@ func NewKeyGen1(from party.ID, proof *zk.Schnorr, commitments *polynomial.Expone
 
 func (m *KeyGen1) BytesAppend(existing []byte) ([]byte, error) {
 	var err error
-
-	if m.Proof == nil || m.Commitments == nil {
-		return nil, fmt.Errorf("msg1: %w", ErrInvalidMessage)
-	}
-
 	existing, err = m.Proof.BytesAppend(existing)
 	if err != nil {
 		return nil, err
@@ -54,18 +49,16 @@ func (m *KeyGen1) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("msg1: %w", ErrInvalidMessage)
 	}
 
-	var proof zk.Schnorr
-	var commitments polynomial.Exponent
+	m.Proof = &zk.Schnorr{}
+	m.Commitments = &polynomial.Exponent{}
 
-	if err := proof.UnmarshalBinary(data[:64]); err != nil {
+	if err := m.Proof.UnmarshalBinary(data[:64]); err != nil {
 		return err
 	}
-	m.Proof = &proof
-
-	if err := commitments.UnmarshalBinary(data[64:]); err != nil {
+	if err := m.Commitments.UnmarshalBinary(data[64:]); err != nil {
 		return err
 	}
-	m.Commitments = &commitments
+
 	return nil
 }
 

@@ -41,9 +41,8 @@ func challenge(partyID party.ID, context []byte, public, M *edwards25519.Point) 
 	hashBuffer = append(hashBuffer, M.Bytes()...)
 
 	digest := sha512.Sum512(hashBuffer)
-	S.SetUniformBytes(digest[:])
 
-	return &S
+	return S.SetUniformBytes(digest[:])
 }
 
 // NewSchnorrProof computes a NIZK proof of knowledge of discrete.
@@ -58,15 +57,13 @@ func challenge(partyID party.ID, context []byte, public, M *edwards25519.Point) 
 //
 // The proof returned is the tuple (S,R)
 func NewSchnorrProof(partyID party.ID, public *edwards25519.Point, context []byte, private *edwards25519.Scalar) *Schnorr {
-	var (
-		proof Schnorr
-		M     edwards25519.Point
-	)
+	var proof Schnorr
 
 	// Compute commitment for random nonce
 	k := scalar.NewScalarRandom()
 
 	// M = [k] B
+	var M edwards25519.Point
 	M.ScalarBaseMult(k)
 
 	S := challenge(partyID, context, public, &M)
@@ -98,8 +95,8 @@ func (proof *Schnorr) Verify(partyID party.ID, public *edwards25519.Point, conte
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (proof *Schnorr) MarshalBinary() (data []byte, err error) {
-	var buf [64]byte
-	return proof.BytesAppend(buf[:0])
+	buf := make([]byte, 0, 64)
+	return proof.BytesAppend(buf)
 }
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.

@@ -82,5 +82,5 @@ func (round *round0) Reset() {
 // ---
 
 func (round *round0) AcceptedMessageTypes() []messages.MessageType {
-	return []messages.MessageType{messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
+	return []messages.MessageType{messages.MessageTypeNone, messages.MessageTypeKeyGen1, messages.MessageTypeKeyGen2}
 }

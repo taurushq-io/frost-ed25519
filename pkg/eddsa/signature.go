@@ -35,30 +35,27 @@ func Verify(c, s *edwards25519.Scalar, public *PublicKey, R *edwards25519.Point)
 // Verify checks that the signature is valid
 func (s *Signature) Verify(message []byte, publicKey *PublicKey) bool {
 	k := ComputeChallenge(&s.R, publicKey, message)
-
 	return Verify(k, &s.S, publicKey, &s.R)
 }
 
 // ToEd25519 returns a signature that can be validated by ed25519.Verify.
 func (s *Signature) ToEd25519() []byte {
-	var sig [64]byte
-	copy(sig[:32], s.R.Bytes())
-	copy(sig[32:], s.S.Bytes())
-	return sig[:]
+	out := make([]byte, 0, 64)
+	out = append(out, s.R.Bytes()...)
+	out = append(out, s.S.Bytes()...)
+	return out
 }
 
 // ComputeChallenge computes the value H(R, A, M), and assumes nothing about whether M is hashed.
 // It returns a Scalar.
 func ComputeChallenge(R *edwards25519.Point, groupKey *PublicKey, message []byte) *edwards25519.Scalar {
 	var s edwards25519.Scalar
-
 	data := make([]byte, 0, 64+len(message))
 	data = append(data, R.Bytes()...)
 	data = append(data, groupKey.Point().Bytes()...)
 	data = append(data, message...)
 	digest := sha512.Sum512(data)
 	s.SetUniformBytes(digest[:])
-
 	return &s
 }
 

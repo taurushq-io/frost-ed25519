@@ -20,10 +20,14 @@ type SecretShare struct {
 // NewSecretShare returns a SecretShare given a party.ID and  edwards25519.Scalar
 func NewSecretShare(id party.ID, secret *edwards25519.Scalar) *SecretShare {
 	var share SecretShare
+	return newSecretShare(id, secret, &share)
+}
+
+func newSecretShare(id party.ID, secret *edwards25519.Scalar, share *SecretShare) *SecretShare {
 	share.ID = id
 	share.sk.Set(secret)
 	share.pk.pk.ScalarBaseMult(secret)
-	return &share
+	return share
 }
 
 // Scalar returns a reference to the edwards25519.Scalar representing the private key.
