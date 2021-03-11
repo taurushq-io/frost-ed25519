@@ -14,7 +14,7 @@ import (
 var hashDomainSeparation = []byte("FROST-SHA512")
 
 func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
-	id := msg.From
+	id := msg.From()
 	otherParty := round.Parties[id]
 	identity := edwards25519.NewIdentityPoint()
 	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {

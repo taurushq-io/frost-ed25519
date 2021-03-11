@@ -14,7 +14,7 @@ func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	var computedShareExp edwards25519.Point
 	computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 
-	id := msg.From
+	id := msg.From()
 	shareExp := round.Commitments[id].Evaluate(round.SelfID().Scalar())
 
 	if computedShareExp.Equal(shareExp) != 1 {

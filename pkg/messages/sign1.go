@@ -17,8 +17,8 @@ type Sign1 struct {
 
 func NewSign1(from party.ID, commitmentD, commitmentE *edwards25519.Point) *Message {
 	return &Message{
-		Type: MessageTypeSign1,
-		From: from,
+		messageType: MessageTypeSign1,
+		from:        from,
 		Sign1: &Sign1{
 			Di: *commitmentD,
 			Ei: *commitmentE,

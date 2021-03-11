@@ -10,13 +10,14 @@ import (
 func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 	// TODO we can use custom contexts to prevent replay attacks
 	ctx := make([]byte, 32)
+	from := msg.From()
 
 	public := msg.KeyGen1.Commitments.Constant()
-	if !msg.KeyGen1.Proof.Verify(msg.From, public, ctx) {
-		return state.NewError(msg.From, errors.New("ZK Schnorr failed"))
+	if !msg.KeyGen1.Proof.Verify(from, public, ctx) {
+		return state.NewError(from, errors.New("ZK Schnorr failed"))
 	}
 
-	round.Commitments[msg.From] = msg.KeyGen1.Commitments
+	round.Commitments[from] = msg.KeyGen1.Commitments
 
 	// Add the commitments to our own, so that we can interpolate the final polynomial
 	_ = round.CommitmentsSum.Add(msg.KeyGen1.Commitments)

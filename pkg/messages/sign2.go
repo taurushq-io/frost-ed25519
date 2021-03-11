@@ -17,9 +17,9 @@ type Sign2 struct {
 
 func NewSign2(from party.ID, signatureShare *edwards25519.Scalar) *Message {
 	return &Message{
-		Type:  MessageTypeSign2,
-		From:  from,
-		Sign2: &Sign2{Zi: *signatureShare},
+		messageType: MessageTypeSign2,
+		from:        from,
+		Sign2:       &Sign2{Zi: *signatureShare},
 	}
 }
 

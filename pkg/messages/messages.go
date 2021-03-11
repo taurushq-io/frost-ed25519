@@ -7,12 +7,12 @@ import (
 )
 
 type Message struct {
-	Type     MessageType
-	From, To party.ID
-	KeyGen1  *KeyGen1
-	KeyGen2  *KeyGen2
-	Sign1    *Sign1
-	Sign2    *Sign2
+	messageType MessageType
+	from, to    party.ID
+	KeyGen1     *KeyGen1
+	KeyGen2     *KeyGen2
+	Sign1       *Sign1
+	Sign2       *Sign2
 }
 
 var ErrInvalidMessage = errors.New("invalid message")
@@ -35,11 +35,11 @@ const (
 const headerSize = 1 + 2*party.ByteSize
 
 func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
-	existing = append(existing, byte(m.Type))
-	existing = append(existing, m.From.Bytes()...)
-	existing = append(existing, m.To.Bytes()...)
+	existing = append(existing, byte(m.messageType))
+	existing = append(existing, m.from.Bytes()...)
+	existing = append(existing, m.to.Bytes()...)
 
-	switch m.Type {
+	switch m.messageType {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil {
 			return m.KeyGen1.BytesAppend(existing)
@@ -62,7 +62,7 @@ func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
 }
 
 func (m *Message) Size() int {
-	switch m.Type {
+	switch m.messageType {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil {
 			return headerSize + m.KeyGen1.Size()
@@ -92,12 +92,12 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *Message) UnmarshalBinary(data []byte) error {
 	msgType := MessageType(data[0])
-	m.Type = msgType
+	m.messageType = msgType
 	data = data[1:]
-	m.From = party.FromBytes(data)
+	m.from = party.FromBytes(data)
 	data = data[party.ByteSize:]
 
-	m.To = party.FromBytes(data)
+	m.to = party.FromBytes(data)
 	data = data[party.ByteSize:]
 
 	switch msgType {
@@ -130,19 +130,19 @@ func (m *Message) Equal(other interface{}) bool {
 		return false
 	}
 
-	if m.Type != otherMsg.Type {
+	if m.messageType != otherMsg.messageType {
 		return false
 	}
 
-	if m.From != otherMsg.From {
+	if m.from != otherMsg.from {
 		return false
 	}
 
-	if m.To != otherMsg.To {
+	if m.to != otherMsg.to {
 		return false
 	}
 
-	switch m.Type {
+	switch m.messageType {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil && otherMsg.KeyGen1 != nil {
 			return m.KeyGen1.Equal(otherMsg.KeyGen1)
@@ -161,4 +161,20 @@ func (m *Message) Equal(other interface{}) bool {
 		}
 	}
 	return false
+}
+
+func (m *Message) Type() MessageType {
+	return m.messageType
+}
+
+func (m *Message) From() party.ID {
+	return m.from
+}
+
+func (m *Message) To() party.ID {
+	return m.to
+}
+
+func (m *Message) IsBroadcast() bool {
+	return m.to == 0
 }

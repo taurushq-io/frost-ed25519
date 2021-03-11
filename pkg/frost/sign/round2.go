@@ -14,7 +14,7 @@ var (
 )
 
 func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
-	id := msg.From
+	id := msg.From()
 	otherParty := round.Parties[id]
 	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, &otherParty.Public, &otherParty.Ri) {
 		return state.NewError(id, ErrValidateSigShare)
