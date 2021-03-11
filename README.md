@@ -27,7 +27,7 @@ Finally, the public key can be computed as the 32 byte representation of the poi
 
 In FROST-Ed25519, the parties perform a Distributed Key Generation protocol (DKG),
 in order to obtain a Shamir secret sharing of the integer `s` and the associated public key `A = [s] • B`
-(also referred to as the  _Group Key_).
+(also referred to as the  _group key_).
 The parties must agree on a _threshold_ `t` which defines the maximum number of parties that can collaborate maliciously,
 while still keeping the value of `s` secret.
 This means that at least `t+1` parties are required to perform a signing with key `s`.
@@ -123,7 +123,7 @@ This FROST-Ed25519 implementation includes a round-based architecture for both t
 The cryptographic protocols are defined in [pkg/frost/keygen]() and [pkg/frost/sign]().
 They are handled by a [`State`](pkg/state/state.go) object that takes care of storing messages, passing them to the round at the right time, and reporting any error that may have occurred.
 
-Users of this library should only interact with `[`State`](pkg/state/state.go) types. 
+Users of this library should only interact with [`State`](pkg/state/state.go) types. 
 
 ### Basics
 
@@ -180,15 +180,57 @@ state, output, err := frost.NewSignState(partySet, secret, public, message, time
 ```
 
 Once the protocol has finished, the [`output`](pkg/frost/sign/output.go) contains a single field for the [`Signature`](pkg/eddsa/signature.go):
-The `Signature` is as an Ed25519 compatible signature and can be verified as follows:
+The `Signature` can be by calling:
+```go
+output.Signature.Verify(message, shares.GroupKey())
+```
 
+Alternatively, it is also possible to use Go's included `ed25519` library, by converting the group key and signature to compatible types.
 ```go
 ed25519.Verify(shares.GroupKey().ToEd25519(), message, output.Signature.ToEd25519())
 ```
 
-or alternatively as
+or alternatively,
+
+
+### Transport Layer
+
+If the round was successfully executed, `State.ProcessAll()` returns a slice [`[]*messages.Message`](pkg/messages/messages.go).
+It is up to the user of this library to properly route messages between participants.
+The ID's of the sender and destination party of a particular [`messages.Message`](pkg/messages/messages.go) can be found by calling `.From()` and `.To()`
+on the [`messages.Message`](pkg/messages/messages.go) object.
+Users should first check if the message is intended for broadcast by calling `.IsBroadcast()`, since `.To()` is undefined in this case.
+
 ```go
-output.Signature.Verify(message, shares.GroupKey())
+var msg messages.Message
+data, err := msg.MarshalBinary()
+if err != nil {
+	// handle marshalling error, but we cannot continue
+	return
+}
+if msg.IsBroadcast() {
+	// send data to all parties except ourselves
+} else {
+	dest := msg.To()
+	// send data to party with ID dest
+}
+```
+
+On the reception, the message should be unmarshalled and then given to the `State`:
+```go
+var data []byte
+var msg messages.Message
+err := msg.Unmarshal(data)
+if err != nil {
+	// handle marshalling error, but we cannot continue
+	return
+}
+err = state.HandleMessage(&msg)
+if err != nil {
+	// May indicate that an error occurred during transport
+	// does not mean we should abort necessarily
+	return
+}
 ```
 
 ### Testing

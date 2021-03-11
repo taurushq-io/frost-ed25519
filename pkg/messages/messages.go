@@ -163,18 +163,24 @@ func (m *Message) Equal(other interface{}) bool {
 	return false
 }
 
+// Type returns the MessageType of the message.
 func (m *Message) Type() MessageType {
 	return m.messageType
 }
 
+// From returns the party.ID of the party who sent this message.
 func (m *Message) From() party.ID {
 	return m.from
 }
 
+// To returns the party.ID of the party the message is addressed to.
+// If the message is intended for broadcast, the ID returned is 0 (invalid),
+// therefore, you should call IsBroadcast() first.
 func (m *Message) To() party.ID {
 	return m.to
 }
 
+// IsBroadcast returns true if the message is intended to be broadcast
 func (m *Message) IsBroadcast() bool {
 	return m.to == 0
 }
