@@ -8,6 +8,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
+// Exponent represents a polynomial whose coefficients are points on an elliptic curve.
 type Exponent struct {
 	coefficients []*edwards25519.Point
 }
@@ -82,7 +83,7 @@ func (p *Exponent) evaluateVar(index *edwards25519.Scalar, result *edwards25519.
 
 // evaluateHorner evaluates a polynomial in a given variable index
 // We create a list of all powers of index, and use VarTimeMultiScalarMult
-// to speed things up
+// to speed things up.
 func (p *Exponent) evaluateHorner(index *edwards25519.Scalar, result *edwards25519.Point) *edwards25519.Point {
 	if index.Equal(edwards25519.NewScalar()) == 1 {
 		panic("you should be using .Constant() instead")
@@ -134,10 +135,7 @@ func Sum(polynomials []*Exponent) (*Exponent, error) {
 	summed := polynomials[0].Copy()
 
 	// we assume all polynomials have the same degree as the first
-	for j := range polynomials {
-		if j == 0 {
-			continue
-		}
+	for j := 1; j < len(polynomials); j++ {
 		err = summed.Add(polynomials[j])
 		if err != nil {
 			return nil, err
@@ -227,6 +225,7 @@ func (p *Exponent) Equal(other interface{}) bool {
 	return true
 }
 
+// Constant returns the constant coefficient of the polynomial 'in the exponent'
 func (p *Exponent) Constant() *edwards25519.Point {
 	var result edwards25519.Point
 	result.Set(p.coefficients[0])

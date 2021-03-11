@@ -2,6 +2,7 @@ package polynomial
 
 import (
 	"crypto/rand"
+	"fmt"
 
 	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
@@ -20,10 +21,14 @@ func NewPolynomial(degree party.Size, constant *edwards25519.Scalar) *Polynomial
 	// SetWithoutSelf the constant term to the secret
 	polynomial.coefficients[0].Set(constant)
 
-	var randomBytes [64]byte
+	var err error
+	randomBytes := make([]byte, 64)
 	for i := party.Size(1); i <= degree; i++ {
-		_, _ = rand.Read(randomBytes[:64])
-		polynomial.coefficients[i].SetUniformBytes(randomBytes[:64])
+		_, err = rand.Read(randomBytes)
+		if err != nil {
+			panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
+		}
+		polynomial.coefficients[i].SetUniformBytes(randomBytes)
 	}
 
 	return &polynomial

@@ -9,14 +9,14 @@ import (
 
 // SetScalarRandom sets s to a random edwards25519.Scalar using the default randomness source from crypto/rand
 func SetScalarRandom(s *edwards25519.Scalar) *edwards25519.Scalar {
-	var bytes [64]byte
+	bytes := make([]byte, 64)
 
-	_, err := rand.Reader.Read(bytes[:])
+	_, err := rand.Reader.Read(bytes)
 	if err != nil {
 		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
 	}
 
-	s.SetUniformBytes(bytes[:])
+	s.SetUniformBytes(bytes)
 	return s
 }
 
