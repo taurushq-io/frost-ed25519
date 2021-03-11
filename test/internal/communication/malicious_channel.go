@@ -23,7 +23,7 @@ type MonkeyChannel struct {
 }
 
 func (c *MonkeyChannel) manipulate(msg *messages.Message) {
-	if msg.From == 42 {
+	if msg.From() == 42 {
 		randPtIdx := rand.Intn(len(order8))
 		randPt := order8[randPtIdx]
 		if msg.Sign1 != nil && c.chosenType == messages.MessageTypeSign1 {
@@ -48,14 +48,14 @@ func (c *MonkeyChannel) Send(msg *messages.Message) error {
 	if err != nil {
 		return err
 	}
-	if msg.To == 0 {
+	if msg.IsBroadcast() {
 		for id, ch := range c.channels {
 			if id != c.receiver {
 				ch <- b
 			}
 		}
-	} else if msg.To != c.receiver {
-		c.channels[msg.To] <- b
+	} else if to := msg.To(); to != c.receiver {
+		c.channels[to] <- b
 	}
 	return nil
 }

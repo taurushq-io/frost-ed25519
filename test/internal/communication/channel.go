@@ -22,14 +22,14 @@ func (c *Channel) Send(msg *messages.Message) error {
 	if err != nil {
 		return err
 	}
-	if msg.To == 0 {
+	if msg.IsBroadcast() {
 		for id, ch := range c.channels {
 			if id != c.receiver {
 				ch <- b
 			}
 		}
-	} else if msg.To != c.receiver {
-		c.channels[msg.To] <- b
+	} else if to := msg.To(); to != c.receiver {
+		c.channels[to] <- b
 	}
 	return nil
 }

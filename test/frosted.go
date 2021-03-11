@@ -9,7 +9,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
-	"github.com/taurusgroup/frost-ed25519/test/communication"
+	"github.com/taurusgroup/frost-ed25519/test/internal/communication"
 )
 
 func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
@@ -25,9 +25,9 @@ func Setup(N, T party.Size) (message []byte, keygenIDs, signIDs []party.ID) {
 
 func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]communication.Communicator) (*eddsa.Public, map[party.ID]*eddsa.SecretShare, error) {
 	var err error
-	keygenHandlers := make(map[party.ID]*KeyGenHandler, N)
+	keygenHandlers := make(map[party.ID]*communication.KeyGenHandler, N)
 	for _, id := range keygenIDs {
-		keygenHandlers[id], err = NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
+		keygenHandlers[id], err = communication.NewKeyGenHandler(keygenComm[id], id, keygenIDs, T)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -36,21 +36,21 @@ func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]com
 	var public *eddsa.Public
 	secrets := map[party.ID]*eddsa.SecretShare{}
 	for id, h := range keygenHandlers {
-		if err = h.state.WaitForError(); err != nil {
+		if err = h.State.WaitForError(); err != nil {
 			return nil, nil, err
 		}
-		public = h.out.Public
-		secrets[id] = h.out.SecretKey
+		public = h.Out.Public
+		secrets[id] = h.Out.SecretKey
 	}
 	return public, secrets, nil
 }
 
 func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
 	groupKey := shares.GroupKey()
-	signHandlers := make(map[party.ID]*SignHandler, T+1)
+	signHandlers := make(map[party.ID]*communication.SignHandler, T+1)
 	var err error
 	for _, id := range signIDs {
-		signHandlers[id], err = NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
+		signHandlers[id], err = communication.NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
 		if err != nil {
 			return err
 		}
@@ -59,10 +59,10 @@ func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[
 	failures := 0
 
 	for _, h := range signHandlers {
-		err = h.state.WaitForError()
+		err = h.State.WaitForError()
 		if err != nil {
 			failures++
-		} else if s := h.out.Signature; s != nil {
+		} else if s := h.Out.Signature; s != nil {
 			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
 				failures++
 			}

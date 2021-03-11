@@ -1,4 +1,4 @@
-package main
+package communication
 
 import (
 	"fmt"
@@ -9,64 +9,63 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
-	"github.com/taurusgroup/frost-ed25519/test/communication"
 )
 
-// handler holds the information for a certain Round by a participant.
+// Handler holds the information for a certain Round by a participant.
 // It makes it easier to work with the underlying Round interface.
-type handler struct {
-	state *state.State
-	comm  communication.Communicator
+type Handler struct {
+	State *state.State
+	Comm  Communicator
 }
 
 type (
 	KeyGenHandler struct {
-		*handler
-		out *keygen.Output
+		*Handler
+		Out *keygen.Output
 	}
 
 	SignHandler struct {
-		*handler
-		out *sign.Output
+		*Handler
+		Out *sign.Output
 	}
 )
 
 // HandleMessage is a blocking function that exits
-func (h *handler) HandleMessage() {
+func (h *Handler) HandleMessage() {
 	h.ProcessAll()
 
 	for {
 		select {
-		case msg := <-h.comm.Incoming():
+		case msg := <-h.Comm.Incoming():
 			if msg == nil {
 				continue
 			}
-			if err := h.state.HandleMessage(msg); err != nil {
-				fmt.Println("handle message", err)
+			if err := h.State.HandleMessage(msg); err != nil {
+				//fmt.Println("handle message", err)
 			}
 			h.ProcessAll()
-		case <-h.state.Done():
-			err := h.state.Err()
+		case <-h.State.Done():
+			err := h.State.Err()
 			if err != nil {
-				fmt.Println("done with err: ", err)
+				//fmt.Println("done with err: ", err)
 			}
 			return
 		}
 	}
 }
 
-func (h *handler) ProcessAll() {
-	msgsOut := h.state.ProcessAll()
+func (h *Handler) ProcessAll() {
+	msgsOut := h.State.ProcessAll()
 
 	for _, msg := range msgsOut {
-		err := h.comm.Send(msg)
+		err := h.Comm.Send(msg)
 		if err != nil {
 			fmt.Println("process all", err)
 		}
 	}
 }
 
-func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, T party.Size) (*KeyGenHandler, error) {
+func NewKeyGenHandler(comm Communicator, ID party.ID, IDs []party.ID, T party.Size) (*KeyGenHandler, error) {
 	set, err := party.NewSet(IDs)
 	if err != nil {
 		return nil, err
@@ -75,18 +74,18 @@ func NewKeyGenHandler(comm communication.Communicator, ID party.ID, IDs []party.
 	if err != nil {
 		return nil, err
 	}
-	h := &handler{
-		state: s,
-		comm:  comm,
+	h := &Handler{
+		State: s,
+		Comm:  comm,
 	}
 	go h.HandleMessage()
 	return &KeyGenHandler{
-		handler: h,
-		out:     out,
+		Handler: h,
+		Out:     out,
 	}, nil
 }
 
-func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
+func NewSignHandler(comm Communicator, ID party.ID, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
 	set, err := party.NewSet(IDs)
 	if err != nil {
 		return nil, err
@@ -95,13 +94,13 @@ func NewSignHandler(comm communication.Communicator, ID party.ID, IDs []party.ID
 	if err != nil {
 		return nil, err
 	}
-	h := &handler{
-		state: s,
-		comm:  comm,
+	h := &Handler{
+		State: s,
+		Comm:  comm,
 	}
 	go h.HandleMessage()
 	return &SignHandler{
-		handler: h,
-		out:     out,
+		Handler: h,
+		Out:     out,
 	}, nil
 }

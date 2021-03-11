@@ -70,19 +70,20 @@ func (c *UDP) Start() {
 }
 
 func (c *UDP) Send(msg *messages.Message) error {
+
 	b, err := msg.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	if msg.To == 0 {
+	if msg.IsBroadcast() {
 		for _, ip := range c.peers {
 			_, err = c.conn.WriteToUDP(b, ip)
 			if err != nil {
 				return err
 			}
 		}
-	} else if msg.To != c.id {
-		_, err = c.conn.WriteToUDP(b, c.peers[msg.To])
+	} else if to := msg.To(); to != c.id {
+		_, err = c.conn.WriteToUDP(b, c.peers[to])
 		return err
 	}
 	return nil
