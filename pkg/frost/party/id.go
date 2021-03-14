@@ -1,6 +1,7 @@
 package party
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -25,10 +26,9 @@ type Size = ID
 
 // setScalar returns the corresponding edwards25519.Scalar
 func (p ID) setScalar(s *edwards25519.Scalar) *edwards25519.Scalar {
-	var bytes = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	bytes := make([]byte, 32)
 
-	bytes[0] = byte(p)
-	bytes[1] = byte(p >> 8)
+	binary.LittleEndian.PutUint16(bytes, uint16(p))
 
 	_, err := s.SetCanonicalBytes(bytes[:])
 	if err != nil {
@@ -46,10 +46,10 @@ func (p ID) Scalar() *edwards25519.Scalar {
 
 // Bytes returns a []byte slice of length party.ByteSize
 func (p ID) Bytes() []byte {
-	var b [2]byte
-	b[0] = byte(p >> 8)
-	b[1] = byte(p)
-	return b[:]
+	bytes := make([]byte, ByteSize)
+
+	binary.BigEndian.PutUint16(bytes, uint16(p))
+	return bytes
 }
 
 // String returns a base 10 representation of ID
@@ -59,8 +59,7 @@ func (p ID) String() string {
 
 // FromBytes reads the first party.ByteSize bytes from b and creates an ID from it.
 func FromBytes(b []byte) ID {
-	_ = b[2] // bounds check hint to compiler; see golang.org/issue/14808
-	return ID(b[1]) | ID(b[0])<<8
+	return ID(binary.BigEndian.Uint16(b))
 }
 
 // IDFromString reads a base 10 string and attempts to generate an ID from it.
