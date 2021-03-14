@@ -166,16 +166,17 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 	coefficientCount := party.FromBytes(data) + 1
 	remaining := data[party.ByteSize:]
 
-	coefficients := make([]edwards25519.Point, coefficientCount)
-	p.coefficients = make([]*edwards25519.Point, coefficientCount)
-
 	count := len(remaining)
 	if count%32 != 0 {
 		return errors.New("length of data is wrong")
 	}
-	if count/32 != len(p.coefficients) {
+	if count != int(coefficientCount)*32 {
 		return errors.New("wrong number of coefficients embedded")
 	}
+
+	coefficients := make([]edwards25519.Point, coefficientCount)
+	p.coefficients = make([]*edwards25519.Point, coefficientCount)
+
 	var err error
 	for i := 0; i < len(p.coefficients); i++ {
 		p.coefficients[i], err = coefficients[i].SetBytes(remaining[:32])
