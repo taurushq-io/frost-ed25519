@@ -163,6 +163,10 @@ func (p *Exponent) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (p *Exponent) UnmarshalBinary(data []byte) error {
+	var eightInv edwards25519.Scalar
+	scalar.SetScalarUInt32(&eightInv, 8)
+	eightInv.Invert(&eightInv)
+	order8Test := edwards25519.NewIdentityPoint()
 	coefficientCount := party.FromBytes(data) + 1
 	remaining := data[party.ByteSize:]
 
@@ -180,10 +184,18 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 	var err error
 	for i := 0; i < len(p.coefficients); i++ {
 		p.coefficients[i], err = coefficients[i].SetBytes(remaining[:32])
-		remaining = remaining[32:]
 		if err != nil {
 			return err
 		}
+
+		// test if [8^{-1} mod q]•([8]•P) == P
+		order8Test.MultByCofactor(p.coefficients[i])
+		order8Test.ScalarMult(&eightInv, order8Test)
+		if p.coefficients[i].Equal(order8Test) != 1 {
+			return errors.New("polynomial.exponent.UnmarshalBinary: point was not in prime subgroup")
+		}
+
+		remaining = remaining[32:]
 	}
 	return nil
 }
