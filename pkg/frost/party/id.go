@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"strconv"
 
-	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 // ByteSize is the number of bytes required to store and ID or Size
@@ -24,8 +24,8 @@ type ID uint16
 // Size is an alias for ID that allows us to differentiate between a party's ID and the threshold for example.
 type Size = ID
 
-// setScalar returns the corresponding edwards25519.Scalar
-func (p ID) setScalar(s *edwards25519.Scalar) *edwards25519.Scalar {
+// setScalar returns the corresponding ristretto.Scalar
+func (p ID) setScalar(s *ristretto.Scalar) *ristretto.Scalar {
 	bytes := make([]byte, 32)
 
 	binary.LittleEndian.PutUint16(bytes, uint16(p))
@@ -37,10 +37,10 @@ func (p ID) setScalar(s *edwards25519.Scalar) *edwards25519.Scalar {
 	return s
 }
 
-// Scalar returns the corresponding edwards25519.Scalar
-func (p ID) Scalar() *edwards25519.Scalar {
+// Scalar returns the corresponding ristretto.Scalar
+func (p ID) Scalar() *ristretto.Scalar {
 	// We outline the function so that s is not allocated on the heap
-	var s edwards25519.Scalar
+	var s ristretto.Scalar
 	return p.setScalar(&s)
 }
 
@@ -62,15 +62,6 @@ func FromBytes(b []byte) ID {
 	return ID(binary.BigEndian.Uint16(b))
 }
 
-// IDFromString reads a base 10 string and attempts to generate an ID from it.
-func IDFromString(str string) (ID, error) {
-	p, err := strconv.ParseUint(str, 10, 16)
-	if err != nil {
-		return 0, err
-	}
-	return ID(p), nil
-}
-
 // RandIDn returns, as an ID, a non-negative pseudo-random number in [1,n]
 // from the default Source.
 // It panics if n <= 0.
@@ -82,4 +73,64 @@ func RandIDn(n Size) ID {
 // from the default Source.
 func RandID() ID {
 	return ID(rand.Int31n(MAX)) + 1
+}
+
+// MarshalText implements encoding/TextMarshaler interface
+func (p ID) MarshalText() (text []byte, err error) {
+	return []byte(strconv.FormatUint(uint64(p), 10)), nil
+}
+
+// UnmarshalText implements encoding/TextMarshaler interface
+func (p *ID) UnmarshalText(text []byte) error {
+	id, err := strconv.ParseUint(string(text), 10, 16)
+	if err != nil {
+		return err
+	}
+	*p = ID(id)
+	return nil
+}
+
+// Lagrange gives the Lagrange coefficient l_j(x) for x = 0.
+//
+// We iterate over all points in the set.
+// To get the coefficients over a smaller set,
+// you should first get a smaller subset.
+//
+// The following formulas are taken from
+// https://en.wikipedia.org/wiki/Lagrange_polynomial
+//
+//			( x  - x_0) ... ( x  - x_k)
+// l_j(x) =	---------------------------
+//			(x_j - x_0) ... (x_j - x_k)
+//
+//			        x_0 ... x_k
+// l_j(0) =	---------------------------
+//			(x_0 - x_j) ... (x_k - x_j)
+func (p ID) Lagrange(ids IDSlice) *ristretto.Scalar {
+	var one, num, denum, xM, xJ ristretto.Scalar
+	_, _ = one.SetCanonicalBytes([]byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+
+	num.Set(&one)
+	denum.Set(&one)
+
+	p.setScalar(&xJ)
+
+	for _, id := range ids {
+		if id == p {
+			continue
+		}
+
+		id.setScalar(&xM)
+
+		// num = x_0 * ... * x_k
+		num.Multiply(&num, &xM) // num * xM
+
+		// denum = (x_0 - x_j) ... (x_k - x_j)
+		xM.Subtract(&xM, &xJ)       // = xM - xJ
+		denum.Multiply(&denum, &xM) // denum * (xm - xj)
+	}
+
+	denum.Invert(&denum)
+	num.Multiply(&num, &denum)
+	return &num
 }
