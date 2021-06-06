@@ -58,13 +58,16 @@ func (sk *SecretShare) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (sk *SecretShare) UnmarshalBinary(data []byte) error {
+	var err error
 	if len(data) != party.ByteSize+32 {
 		return errors.New("SecretShare: data is not the right size")
 	}
-	sk.ID = party.FromBytes(data)
+	if sk.ID, err = party.FromBytes(data); err != nil {
+		return err
+	}
 	data = data[party.ByteSize:]
-	_, err := sk.Secret.SetCanonicalBytes(data)
-	if err != nil {
+
+	if _, err = sk.Secret.SetCanonicalBytes(data); err != nil {
 		return err
 	}
 	sk.Public.ScalarBaseMult(&sk.Secret)

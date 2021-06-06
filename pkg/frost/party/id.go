@@ -58,8 +58,12 @@ func (p ID) String() string {
 }
 
 // FromBytes reads the first party.ByteSize bytes from b and creates an ID from it.
-func FromBytes(b []byte) ID {
-	return ID(binary.BigEndian.Uint16(b))
+// Returns an error if b is too small to hold an ID.
+func FromBytes(b []byte) (ID, error) {
+	if len(b) < ByteSize {
+		return 0, errors.New("party.FromBytes: b is not long enough to hold an ID")
+	}
+	return ID(binary.BigEndian.Uint16(b)), nil
 }
 
 // RandIDn returns, as an ID, a non-negative pseudo-random number in [1,n]

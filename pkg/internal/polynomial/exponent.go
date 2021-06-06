@@ -163,7 +163,11 @@ func (p *Exponent) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (p *Exponent) UnmarshalBinary(data []byte) error {
-	coefficientCount := party.FromBytes(data) + 1
+	degree, err := party.FromBytes(data)
+	if err != nil {
+		return err
+	}
+	coefficientCount := degree + 1
 	remaining := data[party.ByteSize:]
 
 	count := len(remaining)

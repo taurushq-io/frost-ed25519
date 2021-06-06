@@ -91,13 +91,24 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *Message) UnmarshalBinary(data []byte) error {
+	var err error
+	// ensure the length is long enough to hold the header
+	// 1 byte for message type + 2*party.ByteSize for from/to
+	if len(data) < 1+2*party.ByteSize {
+		return errors.New("data does not contain header")
+	}
+
 	msgType := MessageType(data[0])
 	m.messageType = msgType
 	data = data[1:]
-	m.from = party.FromBytes(data)
+	if m.from, err = party.FromBytes(data); err != nil {
+		return err
+	}
 	data = data[party.ByteSize:]
 
-	m.to = party.FromBytes(data)
+	if m.to, err = party.FromBytes(data); err != nil {
+		return err
+	}
 	data = data[party.ByteSize:]
 
 	switch msgType {
