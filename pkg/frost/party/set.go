@@ -4,12 +4,7 @@ import (
 	"sort"
 )
 
-// Set holds a set of party.ID s that can be queried in various ways.
-type Set struct {
-	set   map[ID]bool
-	slice []ID
-}
-
+// IDSlice is an alias for []ID
 type IDSlice []ID
 
 func NewIDSlice(partyIDs []ID) IDSlice {
