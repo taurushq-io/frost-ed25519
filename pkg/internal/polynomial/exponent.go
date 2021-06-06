@@ -111,10 +111,13 @@ func (p *Exponent) EvaluateMulti(indices []party.ID) map[party.ID]*ristretto.Ele
 	return evaluations
 }
 
+// Degree returns the degree of the polynomial, the integer t such that p = F(X) = a_0•G + a_1*X•G + ... + a_t * X^t•G
 func (p *Exponent) Degree() party.Size {
 	return party.Size(len(p.coefficients)) - 1
 }
 
+// Add performs coefficient-wise addition of the coefficients of p and q, and sets p to the resulting polynomial
+// Returns an error if the length of the coefficients are different
 func (p *Exponent) Add(q *Exponent) error {
 	if len(p.coefficients) != len(q.coefficients) {
 		return errors.New("q is not the same length as p")
@@ -151,6 +154,23 @@ func (p *Exponent) Reset() {
 	}
 }
 
+// Constant returns the constant coefficient of the polynomial 'in the exponent'
+func (p *Exponent) Constant() *ristretto.Element {
+	var result ristretto.Element
+	return result.Set(p.coefficients[0])
+}
+
+// Copy returns a deep copy of p
+func (p *Exponent) Copy() *Exponent {
+	var q Exponent
+	coefficients := make([]ristretto.Element, len(p.coefficients))
+	q.coefficients = make([]*ristretto.Element, len(p.coefficients))
+	for i := 0; i < len(p.coefficients); i++ {
+		q.coefficients[i] = coefficients[i].Set(p.coefficients[i])
+	}
+	return &q
+}
+
 //
 // FROSTMarshaller
 //
@@ -181,7 +201,6 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 	coefficients := make([]ristretto.Element, coefficientCount)
 	p.coefficients = make([]*ristretto.Element, coefficientCount)
 
-	var err error
 	for i := 0; i < len(p.coefficients); i++ {
 		p.coefficients[i], err = coefficients[i].SetCanonicalBytes(remaining[:32])
 		if err != nil {
@@ -205,16 +224,6 @@ func (p *Exponent) Size() int {
 	return party.ByteSize + 32*len(p.coefficients)
 }
 
-func (p *Exponent) Copy() *Exponent {
-	var q Exponent
-	coefficients := make([]ristretto.Element, len(p.coefficients))
-	q.coefficients = make([]*ristretto.Element, len(p.coefficients))
-	for i := 0; i < len(p.coefficients); i++ {
-		q.coefficients[i] = coefficients[i].Set(p.coefficients[i])
-	}
-	return &q
-}
-
 func (p *Exponent) Equal(other interface{}) bool {
 	otherExponent, ok := other.(*Exponent)
 	if !ok {
@@ -229,16 +238,4 @@ func (p *Exponent) Equal(other interface{}) bool {
 		}
 	}
 	return true
-}
-
-// Constant returns the constant coefficient of the polynomial 'in the exponent'
-func (p *Exponent) Constant() *ristretto.Element {
-	var result ristretto.Element
-	return result.Set(p.coefficients[0])
-}
-
-func (p *Exponent) AddConstant(c *ristretto.Element) *Exponent {
-	q := p.Copy()
-	q.coefficients[0].Add(q.coefficients[0], c)
-	return q
 }
