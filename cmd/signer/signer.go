@@ -57,12 +57,12 @@ func main() {
 	var n party.Size
 	var t party.Size
 
-	n = kgOutput.Shares.PartySet.N()
-	t = kgOutput.Shares.Threshold()
+	n = kgOutput.Shares.PartyIDs.N()
+	t = kgOutput.Shares.Threshold
 
 	fmt.Printf("(t, n) = (%v, %v)\n", t, n)
 
-	partySet := helpers.GenerateSet(n)
+	partyIDs := helpers.GenerateSet(n)
 	secretShares := kgOutput.Secrets
 	publicShares := kgOutput.Shares
 
@@ -73,14 +73,14 @@ func main() {
 	msgsOut1 := make([][]byte, 0, n)
 	msgsOut2 := make([][]byte, 0, n)
 
-	for id := range partySet.Range() {
-		states[id], outputs[id], err = frost.NewSignState(partySet, secretShares[id], publicShares, message, 0)
+	for _, id := range partyIDs {
+		states[id], outputs[id], err = frost.NewSignState(partyIDs, secretShares[id], publicShares, message, 0)
 		if err != nil {
 			fmt.Println()
 		}
 	}
 
-	pk := publicShares.GroupKey()
+	pk := publicShares.GroupKey
 
 	for _, s := range states {
 		msgs1, err := helpers.PartyRoutine(nil, s)
@@ -108,7 +108,7 @@ func main() {
 		}
 	}
 
-	id0 := partySet.Sorted()[0]
+	id0 := partyIDs[0]
 	sig := outputs[id0].Signature
 	if sig == nil {
 		fmt.Println("null signature")
@@ -120,7 +120,7 @@ func main() {
 		return
 	}
 
-	if !sig.Verify(message, pk) {
+	if !pk.Verify(message, sig) {
 		fmt.Println("signature verification failed")
 		return
 	}
