@@ -5,6 +5,7 @@ import (
 
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -16,7 +17,13 @@ var (
 func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	id := msg.From()
 	otherParty := round.Parties[id]
-	if !eddsa.Verify(&round.C, &msg.Sign2.Zi, &otherParty.Public, &otherParty.Ri) {
+
+	var publicNeg, RPrime ristretto.Element
+	publicNeg.Negate(&otherParty.Public)
+
+	// RPrime = [c](-A) + [s]B
+	RPrime.VarTimeDoubleScalarBaseMult(&round.C, &publicNeg, &msg.Sign2.Zi)
+	if RPrime.Equal(&otherParty.Ri) != 1 {
 		return state.NewError(id, ErrValidateSigShare)
 	}
 	otherParty.Zi.Set(&msg.Sign2.Zi)
@@ -24,23 +31,24 @@ func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 }
 
 func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
-	var Signature eddsa.Signature
-
 	// S = ∑ s_i
-	S := &Signature.S
+	S := ristretto.NewScalar()
 	for _, otherParty := range round.Parties {
 		// s += s_i
 		S.Add(S, &otherParty.Zi)
 	}
 
-	Signature.R.Set(&round.R)
+	sig := &eddsa.Signature{
+		R: round.R,
+		S: *S,
+	}
 
-	// Verify the full signature here too.
-	if !Signature.Verify(round.Message, &round.GroupKey) {
+	if !round.GroupKey.Verify(round.Message, sig) {
 		return nil, state.NewError(0, ErrValidateSignature)
 	}
 
-	round.Output.Signature = &Signature
+	round.Output.Signature = sig
+
 	return nil, nil
 }
 

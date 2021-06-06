@@ -3,8 +3,8 @@ package messages
 import (
 	"fmt"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 const sizeSign1 = 32 + 32
@@ -12,10 +12,10 @@ const sizeSign1 = 32 + 32
 type Sign1 struct {
 	// Di = [di] B
 	// Ei = [ei] B
-	Di, Ei edwards25519.Point
+	Di, Ei ristretto.Element
 }
 
-func NewSign1(from party.ID, commitmentD, commitmentE *edwards25519.Point) *Message {
+func NewSign1(from party.ID, commitmentD, commitmentE *ristretto.Element) *Message {
 	return &Message{
 		messageType: MessageTypeSign1,
 		from:        from,
@@ -46,12 +46,12 @@ func (m *Sign1) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("msg1: %w", ErrInvalidMessage)
 	}
 
-	_, err = m.Di.SetBytes(data[:32])
+	_, err = m.Di.SetCanonicalBytes(data[:32])
 	if err != nil {
 		return fmt.Errorf("msg1.D: %w", err)
 	}
 
-	_, err = m.Ei.SetBytes(data[32:])
+	_, err = m.Ei.SetCanonicalBytes(data[32:])
 	if err != nil {
 		return fmt.Errorf("msg1.E: %w", err)
 	}

@@ -9,16 +9,16 @@ import (
 
 type BaseRound struct {
 	selfID   party.ID
-	partySet *party.Set
+	partyIDs party.IDSlice
 }
 
-func NewBaseRound(selfID party.ID, partySet *party.Set) (*BaseRound, error) {
-	if !partySet.Contains(selfID) {
-		return nil, errors.New("partySet should contain selfID")
+func NewBaseRound(selfID party.ID, partyIDs party.IDSlice) (*BaseRound, error) {
+	if !partyIDs.Contains(selfID) {
+		return nil, errors.New("PartyIDs should contain selfID")
 	}
 	return &BaseRound{
 		selfID:   selfID,
-		partySet: partySet,
+		partyIDs: partyIDs,
 	}, nil
 }
 
@@ -26,10 +26,10 @@ func (r *BaseRound) ProcessMessage(msg *messages.Message) *Error {
 	return nil
 }
 
-func (r *BaseRound) SelfID() party.ID {
+func (r BaseRound) SelfID() party.ID {
 	return r.selfID
 }
 
-func (r *BaseRound) Set() *party.Set {
-	return r.partySet
+func (r BaseRound) PartyIDs() party.IDSlice {
+	return r.partyIDs
 }

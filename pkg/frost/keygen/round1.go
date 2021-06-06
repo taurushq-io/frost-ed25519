@@ -25,8 +25,8 @@ func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 }
 
 func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
-	msgsOut := make([]*messages.Message, 0, round.Set().N()-1)
-	for id := range round.Set().Range() {
+	msgsOut := make([]*messages.Message, 0, len(round.PartyIDs())-1)
+	for _, id := range round.PartyIDs() {
 		if id == round.SelfID() {
 			continue
 		}

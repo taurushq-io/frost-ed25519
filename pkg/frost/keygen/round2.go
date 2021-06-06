@@ -3,15 +3,15 @@ package keygen
 import (
 	"errors"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
-	var computedShareExp edwards25519.Point
+	var computedShareExp ristretto.Element
 	computedShareExp.ScalarBaseMult(&msg.KeyGen2.Share)
 
 	id := msg.From()
@@ -23,17 +23,22 @@ func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	round.Secret.Add(&round.Secret, &msg.KeyGen2.Share)
 
 	// We can reset the share in the message now
-	msg.KeyGen2.Share.Set(edwards25519.NewScalar())
+	msg.KeyGen2.Share.Set(ristretto.NewScalar())
 
 	return nil
 }
 
 func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
-	shares := make(map[party.ID]*edwards25519.Point, round.Set().N())
-	for id := range round.Set().Range() {
+	shares := make(map[party.ID]*ristretto.Element, round.PartyIDs().N())
+	for _, id := range round.PartyIDs() {
 		shares[id] = round.CommitmentsSum.Evaluate(id.Scalar())
 	}
-	round.Output.Public = eddsa.NewPublic(shares, round.Threshold, round.CommitmentsSum.Constant())
+	round.Output.Public = &eddsa.Public{
+		PartyIDs:  round.BaseRound.PartyIDs().Copy(),
+		Threshold: round.Threshold,
+		Shares:    shares,
+		GroupKey:  eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Constant()),
+	}
 	round.Output.SecretKey = eddsa.NewSecretShare(round.SelfID(), &round.Secret)
 	return nil, nil
 }

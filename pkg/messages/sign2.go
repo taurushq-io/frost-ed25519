@@ -3,19 +3,19 @@ package messages
 import (
 	"fmt"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 const sizeSign2 = 32
 
 type Sign2 struct {
-	// Zi is a edwards25519.Scalar.
+	// Zi is a ristretto.Scalar.
 	// It represents the sender's share of the 's' part of the final signature
-	Zi edwards25519.Scalar
+	Zi ristretto.Scalar
 }
 
-func NewSign2(from party.ID, signatureShare *edwards25519.Scalar) *Message {
+func NewSign2(from party.ID, signatureShare *ristretto.Scalar) *Message {
 	return &Message{
 		messageType: MessageTypeSign2,
 		from:        from,

@@ -33,7 +33,7 @@ type State struct {
 }
 
 func NewBaseState(round Round, timeout time.Duration) (*State, error) {
-	N := round.Set().N()
+	N := round.PartyIDs().N()
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[party.ID]*messages.Message, N),
@@ -48,7 +48,7 @@ func NewBaseState(round Round, timeout time.Duration) (*State, error) {
 		s.mtx.Unlock()
 	})
 
-	for id := range round.Set().Range() {
+	for _, id := range round.PartyIDs() {
 		if id != round.SelfID() {
 			s.receivedMessages[id] = nil
 		}
@@ -101,7 +101,7 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 		return nil
 	}
 	// Is the sender in our list of participants?
-	if !s.round.Set().Contains(senderID) {
+	if !s.round.PartyIDs().Contains(senderID) {
 		return s.wrapError(errors.New("sender is not a party"), senderID)
 	}
 
@@ -141,7 +141,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	}
 
 	// Only continue if we received messages from all
-	if len(s.receivedMessages) != int(s.round.Set().N()-1) {
+	if len(s.receivedMessages) != int(s.round.PartyIDs().N()-1) {
 		return nil
 	}
 

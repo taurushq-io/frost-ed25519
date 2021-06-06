@@ -4,10 +4,10 @@ import (
 	"crypto/sha512"
 	"errors"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -16,7 +16,7 @@ var hashDomainSeparation = []byte("FROST-SHA512")
 func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 	id := msg.From()
 	otherParty := round.Parties[id]
-	identity := edwards25519.NewIdentityPoint()
+	identity := ristretto.NewIdentityElement()
 	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
 		return state.NewError(id, errors.New("commitment Ei or Di was the identity"))
 	}
@@ -35,7 +35,7 @@ func (round *round1) computeRhos() {
 	*/
 	messageHash := sha512.Sum512(round.Message)
 
-	sizeB := int(round.Set().N() * (party.ByteSize + 32 + 32))
+	sizeB := int(round.PartyIDs().N() * (party.ByteSize + 32 + 32))
 	bufferHeader := len(hashDomainSeparation) + party.ByteSize + len(messageHash)
 	sizeBuffer := bufferHeader + sizeB
 	offsetID := len(hashDomainSeparation)
@@ -57,27 +57,27 @@ func (round *round1) computeRhos() {
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
-	for _, id := range round.Set().Sorted() {
+	for _, id := range round.PartyIDs() {
 		otherParty := round.Parties[id]
 		buffer = append(buffer, id.Bytes()...)
 		buffer = append(buffer, otherParty.Di.Bytes()...)
 		buffer = append(buffer, otherParty.Ei.Bytes()...)
 	}
 
-	for id := range round.Set().Range() {
+	for _, id := range round.PartyIDs() {
 		// Update the four bytes with the ID
 		copy(buffer[offsetID:], id.Bytes())
 
 		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
 		digest := sha512.Sum512(buffer)
-		round.Parties[id].Pi.SetUniformBytes(digest[:])
+		_, _ = round.Parties[id].Pi.SetUniformBytes(digest[:])
 	}
 }
 
 func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 	round.computeRhos()
 
-	round.R.Set(edwards25519.NewIdentityPoint())
+	round.R.Set(ristretto.NewIdentityElement())
 	for _, p := range round.Parties {
 		// TODO Find a way to do this faster since we don't need constant time
 		// Ri = D + [ρ] E
