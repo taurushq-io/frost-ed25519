@@ -48,7 +48,7 @@ func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[
 	signHandlers := make(map[party.ID]*communication.SignHandler, T+1)
 	var err error
 	for _, id := range signIDs {
-		signHandlers[id], err = communication.NewSignHandler(signComm[id], id, signIDs, secrets[id], shares, message)
+		signHandlers[id], err = communication.NewSignHandler(signComm[id], signIDs, secrets[id], shares, message)
 		if err != nil {
 			return err
 		}

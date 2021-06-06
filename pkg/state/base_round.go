@@ -22,7 +22,7 @@ func NewBaseRound(selfID party.ID, partyIDs party.IDSlice) (*BaseRound, error) {
 	}, nil
 }
 
-func (r *BaseRound) ProcessMessage(msg *messages.Message) *Error {
+func (r *BaseRound) ProcessMessage(*messages.Message) *Error {
 	return nil
 }
 

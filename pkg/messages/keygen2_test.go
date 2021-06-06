@@ -17,6 +17,6 @@ func TestKeyGen2_MarshalBinary(t *testing.T) {
 	msg := NewKeyGen2(from, to, secret)
 
 	var msg2 Message
-	require.NoError(t, CheckFROSTMarshaller(msg, &msg2))
+	require.NoError(t, CheckFROSTMarshaler(msg, &msg2))
 	require.True(t, msg.Equal(&msg2), "messages are not equal")
 }

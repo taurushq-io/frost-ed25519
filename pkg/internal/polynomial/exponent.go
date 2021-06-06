@@ -172,7 +172,7 @@ func (p *Exponent) Copy() *Exponent {
 }
 
 //
-// FROSTMarshaller
+// FROSTMarshaler
 //
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.

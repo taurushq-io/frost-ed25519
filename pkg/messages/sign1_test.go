@@ -20,6 +20,6 @@ func TestSign1_MarshalBinary(t *testing.T) {
 	msg := NewSign1(from, D, E)
 
 	var msgDec Message
-	require.NoError(t, CheckFROSTMarshaller(msg, &msgDec))
+	require.NoError(t, CheckFROSTMarshaler(msg, &msgDec))
 	require.True(t, msg.Equal(&msgDec), "messages are not equal")
 }

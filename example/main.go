@@ -88,7 +88,7 @@ func main() {
 		// the protocol has aborted
 	}
 
-	// Verify signatyre
+	// Verify signature
 	groupSig := signOutput.Signature
 	if !ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) {
 		log.Println("failed to validate single signature")

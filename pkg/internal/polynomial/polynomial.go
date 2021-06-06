@@ -28,7 +28,7 @@ func NewPolynomial(degree party.Size, constant *ristretto.Scalar) *Polynomial {
 		if err != nil {
 			panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
 		}
-		polynomial.coefficients[i].SetUniformBytes(randomBytes)
+		_, _ = polynomial.coefficients[i].SetUniformBytes(randomBytes)
 	}
 
 	return &polynomial

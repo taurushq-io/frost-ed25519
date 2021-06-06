@@ -16,7 +16,7 @@ func SetScalarRandom(s *ristretto.Scalar) *ristretto.Scalar {
 		panic(fmt.Errorf("edwards25519: failed to generate random Scalar: %w", err))
 	}
 
-	s.SetUniformBytes(bytes)
+	_, _ = s.SetUniformBytes(bytes)
 	return s
 }
 

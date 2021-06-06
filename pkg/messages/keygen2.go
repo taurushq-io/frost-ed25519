@@ -10,6 +10,7 @@ import (
 const sizeKeygen2 = 32
 
 type KeyGen2 struct {
+	// Share is a Shamir additive share for the destination party
 	Share ristretto.Scalar
 }
 

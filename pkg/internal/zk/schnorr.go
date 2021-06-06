@@ -4,11 +4,10 @@ import (
 	"errors"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 
 	"crypto/sha512"
-
-	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
 // Schnorr is a Non-Interactive Zero-Knowledge proof of knowledge of
@@ -23,27 +22,6 @@ type Schnorr struct {
 	// S = H( ID || CTX || public || M )
 	// R = k + secret • s
 	S, R ristretto.Scalar
-}
-
-// challenge computes the hash H(partyID, context, public, M), where
-//   partyID: prover's uint32 ID
-//   context: 32 byte context string,
-//   public:  [secret] B
-//   M:       [k] B
-func challenge(partyID party.ID, context []byte, public, M *ristretto.Element) *ristretto.Scalar {
-	// S = H( ID || CTX || Public || M )
-	var S ristretto.Scalar
-
-	h := sha512.New()
-	_, _ = h.Write(partyID.Bytes())
-	_, _ = h.Write(context[:32])
-	_, _ = h.Write(public.Bytes())
-	_, _ = h.Write(M.Bytes())
-
-	buffer := make([]byte, 64)
-	// SetUniformBytes only returns an error when the length is wrong so we're okay here
-	_, _ = S.SetUniformBytes(h.Sum(buffer))
-	return &S
 }
 
 // NewSchnorrProof computes a NIZK proof of knowledge of discrete.
@@ -90,8 +68,29 @@ func (proof *Schnorr) Verify(partyID party.ID, public *ristretto.Element, contex
 	return proof.S.Equal(SPrime) == 1
 }
 
+// challenge computes the hash H(partyID, context, public, M), where
+//   partyID: prover's uint32 ID
+//   context: 32 byte context string,
+//   public:  [secret] B
+//   M:       [k] B
+func challenge(partyID party.ID, context []byte, public, M *ristretto.Element) *ristretto.Scalar {
+	// S = H( ID || CTX || Public || M )
+	var S ristretto.Scalar
+
+	h := sha512.New()
+	_, _ = h.Write(partyID.Bytes())
+	_, _ = h.Write(context[:32])
+	_, _ = h.Write(public.Bytes())
+	_, _ = h.Write(M.Bytes())
+
+	buffer := make([]byte, 64)
+	// SetUniformBytes only returns an error when the length is wrong so we're okay here
+	_, _ = S.SetUniformBytes(h.Sum(buffer))
+	return &S
+}
+
 //
-// FROSTMarshaller
+// FROSTMarshaler
 //
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
@@ -102,7 +101,7 @@ func (proof *Schnorr) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (proof *Schnorr) UnmarshalBinary(data []byte) error {
-	if len(data) != 64 {
+	if len(data) < 64 {
 		return errors.New("length is wrong")
 	}
 	var err error

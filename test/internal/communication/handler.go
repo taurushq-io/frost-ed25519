@@ -82,7 +82,7 @@ func NewKeyGenHandler(comm Communicator, ID party.ID, IDs []party.ID, T party.Si
 	}, nil
 }
 
-func NewSignHandler(comm Communicator, ID party.ID, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
+func NewSignHandler(comm Communicator, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
 	set := party.NewIDSlice(IDs)
 	s, out, err := frost.NewSignState(set, secret, public, message, comm.Timeout())
 	if err != nil {

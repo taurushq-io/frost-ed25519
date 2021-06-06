@@ -6,7 +6,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round0) ProcessMessage(msg *messages.Message) *state.Error {
+func (round *round0) ProcessMessage(*messages.Message) *state.Error {
 	return nil
 }
 

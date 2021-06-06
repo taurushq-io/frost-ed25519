@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-type FROSTMarshaller interface {
+type FROSTMarshaler interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 	// BytesAppend is the same as BinaryMarshall but allows the caller to perform the allocation
@@ -18,9 +18,9 @@ type FROSTMarshaller interface {
 	Equal(other interface{}) bool
 }
 
-// CheckFROSTMarshaller provides some basic tests to make sure the interface is properly implemented.
+// CheckFROSTMarshaler provides some basic tests to make sure the interface is properly implemented.
 // Should be used for tests of message types.
-func CheckFROSTMarshaller(input, output FROSTMarshaller) error {
+func CheckFROSTMarshaler(input, output FROSTMarshaler) error {
 	var err error
 	var firstData, secondData, thirdData []byte
 
