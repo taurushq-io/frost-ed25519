@@ -207,21 +207,6 @@ func mapToPoint(out *edwards25519.Point, t *field.Element) {
 	}
 }
 
-// sliceForAppend takes a slice and a requested number of bytes. It returns a
-// slice with the contents of the given slice followed by that many bytes and a
-// second slice that aliases into it and contains only the extra bytes. If the
-// original slice has sufficient capacity then no allocation is performed.
-func sliceForAppend(in []byte, n int) (head, tail []byte) {
-	if total := len(in) + n; cap(in) >= total {
-		head = in[:total]
-	} else {
-		head = make([]byte, total)
-		copy(head, in)
-	}
-	tail = head[len(in):]
-	return
-}
-
 // Bytes returns the 32 bytes canonical encoding of e.
 func (e *Element) Bytes() []byte {
 	// Bytes is outlined to let the allocation happen on the stack of the caller.
