@@ -3,25 +3,32 @@ package eddsa
 import (
 	"crypto/ed25519"
 	"crypto/sha512"
+	"encoding/json"
 
-	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 // PublicKey represents a FROST-Ed25519 verification key.
 type PublicKey struct {
-	pk edwards25519.Point
+	pk ristretto.Element
 }
 
-// NewPublicKeyFromPoint returns a PublicKey given an edwards25519.Point.
-func NewPublicKeyFromPoint(public *edwards25519.Point) *PublicKey {
+// NewPublicKeyFromPoint returns a PublicKey given an ristretto.Element.
+func NewPublicKeyFromPoint(public *ristretto.Element) *PublicKey {
 	var pk PublicKey
 	pk.pk.Set(public)
 	return &pk
 }
 
-// Point returns a reference to the edwards25519.Point representing the public key.
-func (pk *PublicKey) Point() *edwards25519.Point {
-	return &pk.pk
+func (pk *PublicKey) Verify(message []byte, sig *Signature) bool {
+	challenge := ComputeChallenge(&sig.R, pk, message)
+
+	// Verify the full signature here too.
+	var publicNeg, RPrime ristretto.Element
+	publicNeg.Negate(&pk.pk)
+	// RPrime = [c](-A) + [s]B
+	RPrime.VarTimeDoubleScalarBaseMult(challenge, &publicNeg, &sig.S)
+	return RPrime.Equal(&sig.R) == 1
 }
 
 // Equal returns true if the public key is equal to pk0
@@ -31,24 +38,28 @@ func (pk *PublicKey) Equal(pkOther *PublicKey) bool {
 
 // ToEd25519 converts the PublicKey to an ed25519 compatible format
 func (pk *PublicKey) ToEd25519() ed25519.PublicKey {
-	return pk.pk.Bytes()
+	return pk.pk.BytesEd25519()
 }
 
-func newPublicKey(key ed25519.PublicKey) (*PublicKey, error) {
-	var pk PublicKey
-	_, err := pk.pk.SetBytes(key)
-	return &pk, err
-}
-
-func newKeyPair(key ed25519.PrivateKey) (*edwards25519.Scalar, *PublicKey) {
+func newKeyPair(key ed25519.PrivateKey) (*ristretto.Scalar, *PublicKey) {
 	var (
-		sk edwards25519.Scalar
+		sk ristretto.Scalar
 		pk PublicKey
 	)
 	digest := sha512.Sum512(key[:32])
 
-	sk.SetBytesWithClamping(digest[:32])
+	_, _ = sk.SetBytesWithClamping(digest[:32])
 	pk.pk.ScalarBaseMult(&sk)
 
 	return &sk, &pk
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (pk PublicKey) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&pk.pk)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (pk *PublicKey) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &pk.pk)
 }

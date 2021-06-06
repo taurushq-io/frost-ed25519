@@ -3,7 +3,6 @@ package eddsa
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func generateSignature() (*Signature, *PublicKey, error) {
 	}
 	sk, pk := newKeyPair(skBytes)
 	skShare := NewSecretShare(0, sk)
-	signature := skShare.Sign([]byte(sampleMessage))
+	signature := skShare.sign([]byte(sampleMessage))
 	return signature, pk, nil
 }
 
@@ -29,7 +28,7 @@ func TestSignature_Verify(t *testing.T) {
 	assert.NoError(t, err, "failed to generate signature")
 
 	// Check that signature verifies
-	require.True(t, sig.Verify([]byte(sampleMessage), pk), "failed to validate signature")
+	require.True(t, pk.Verify([]byte(sampleMessage), sig), "failed to validate signature")
 
 	// Check using ed25519.Verify
 	assert.True(t, ed25519.Verify(pk.ToEd25519(), []byte(sampleMessage), sig.ToEd25519()))

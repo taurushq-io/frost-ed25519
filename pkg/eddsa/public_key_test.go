@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/assert"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 func TestPrivateKey_ToEd25519(t *testing.T) {
@@ -16,14 +16,11 @@ func TestPrivateKey_ToEd25519(t *testing.T) {
 	sk, pk := newKeyPair(skBytes)
 	assert.NoError(t, err, "failed to create key pair")
 
-	pkOther, err := newPublicKey(pkbytes)
-	assert.NoError(t, err, "failed to create public key")
+	pkComputed := ristretto.NewIdentityElement().ScalarBaseMult(sk)
+	assert.Equal(t, 1, pk.pk.Equal(pkComputed))
 
-	pkComputed := edwards25519.NewIdentityPoint().ScalarBaseMult(sk)
-	assert.Equal(t, 1, pk.Point().Equal(pkComputed))
+	pkFromSk := ristretto.NewIdentityElement().ScalarBaseMult(sk)
+	assert.Equal(t, 1, pk.pk.Equal(pkFromSk))
 
-	assert.True(t, pkOther.Equal(pk))
-
-	pkFromSk := new(edwards25519.Point).ScalarBaseMult(sk)
-	assert.Equal(t, 1, pk.Point().Equal(pkFromSk))
+	assert.Equal(t, pk.ToEd25519(), pkbytes)
 }
