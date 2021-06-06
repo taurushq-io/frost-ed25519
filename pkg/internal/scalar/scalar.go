@@ -4,11 +4,11 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"filippo.io/edwards25519"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
-// SetScalarRandom sets s to a random edwards25519.Scalar using the default randomness source from crypto/rand
-func SetScalarRandom(s *edwards25519.Scalar) *edwards25519.Scalar {
+// SetScalarRandom sets s to a random ristretto.Scalar using the default randomness source from crypto/rand
+func SetScalarRandom(s *ristretto.Scalar) *ristretto.Scalar {
 	bytes := make([]byte, 64)
 
 	_, err := rand.Reader.Read(bytes)
@@ -20,15 +20,15 @@ func SetScalarRandom(s *edwards25519.Scalar) *edwards25519.Scalar {
 	return s
 }
 
-// NewScalarRandom generates a new edwards25519.Scalar using the default randomness source from crypto/rand
-func NewScalarRandom() *edwards25519.Scalar {
-	var s edwards25519.Scalar
+// NewScalarRandom generates a new ristretto.Scalar using the default randomness source from crypto/rand
+func NewScalarRandom() *ristretto.Scalar {
+	var s ristretto.Scalar
 	return SetScalarRandom(&s)
 }
 
 // SetScalarUInt32 set s's value to that of a uint32 x. It creates a 32 byte big-endian representation of x,
 // which is set by s.SetCanonicalBytes .
-func SetScalarUInt32(s *edwards25519.Scalar, x uint32) *edwards25519.Scalar {
+func SetScalarUInt32(s *ristretto.Scalar, x uint32) *ristretto.Scalar {
 	bytes := make([]byte, 32)
 
 	bytes[0] = byte(x)
@@ -43,10 +43,10 @@ func SetScalarUInt32(s *edwards25519.Scalar, x uint32) *edwards25519.Scalar {
 	return s
 }
 
-// NewScalarUInt32 generates a edwards25519.Scalar with the value of x.
+// NewScalarUInt32 generates a ristretto.Scalar with the value of x.
 // It constructs a 32-byte big-endian representation of x.
-func NewScalarUInt32(x uint32) *edwards25519.Scalar {
-	var s edwards25519.Scalar
+func NewScalarUInt32(x uint32) *ristretto.Scalar {
+	var s ristretto.Scalar
 
 	return SetScalarUInt32(&s, x)
 }

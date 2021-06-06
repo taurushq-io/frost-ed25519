@@ -3,15 +3,15 @@ package polynomial
 import (
 	"testing"
 
-	"filippo.io/edwards25519"
 	"github.com/stretchr/testify/require"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 func TestPolynomial_Evaluate(t *testing.T) {
 	{
-		polynomial := &Polynomial{make([]edwards25519.Scalar, 3)}
+		polynomial := &Polynomial{make([]ristretto.Scalar, 3)}
 		polynomial.coefficients[0].Set(scalar.NewScalarUInt32(1))
 		polynomial.coefficients[2].Set(scalar.NewScalarUInt32(1))
 

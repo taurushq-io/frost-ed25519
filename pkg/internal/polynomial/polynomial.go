@@ -4,19 +4,19 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 type Polynomial struct {
-	coefficients []edwards25519.Scalar
+	coefficients []ristretto.Scalar
 }
 
 // NewPolynomial generates a Polynomial f(X) = secret + a1*X + ... + at*X^t,
 // with coefficients in Z_q, and degree t.
-func NewPolynomial(degree party.Size, constant *edwards25519.Scalar) *Polynomial {
+func NewPolynomial(degree party.Size, constant *ristretto.Scalar) *Polynomial {
 	var polynomial Polynomial
-	polynomial.coefficients = make([]edwards25519.Scalar, degree+1)
+	polynomial.coefficients = make([]ristretto.Scalar, degree+1)
 
 	// SetWithoutSelf the constant term to the secret
 	polynomial.coefficients[0].Set(constant)
@@ -36,12 +36,12 @@ func NewPolynomial(degree party.Size, constant *edwards25519.Scalar) *Polynomial
 
 // Evaluate evaluates a polynomial in a given variable index
 // We use Horner's method: https://en.wikipedia.org/wiki/Horner%27s_method
-func (p *Polynomial) Evaluate(index *edwards25519.Scalar) *edwards25519.Scalar {
-	if index.Equal(edwards25519.NewScalar()) == 1 {
+func (p *Polynomial) Evaluate(index *ristretto.Scalar) *ristretto.Scalar {
+	if index.Equal(ristretto.NewScalar()) == 1 {
 		panic("attempt to leak secret")
 	}
 
-	var result edwards25519.Scalar
+	var result ristretto.Scalar
 	// reverse order
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		// b_n-1 = b_n * x + a_n-1
@@ -50,8 +50,8 @@ func (p *Polynomial) Evaluate(index *edwards25519.Scalar) *edwards25519.Scalar {
 	return &result
 }
 
-func (p *Polynomial) Constant() *edwards25519.Scalar {
-	var result edwards25519.Scalar
+func (p *Polynomial) Constant() *ristretto.Scalar {
+	var result ristretto.Scalar
 	result.Set(&p.coefficients[0])
 	return &result
 }
@@ -69,7 +69,7 @@ func (p *Polynomial) Size() int {
 
 // Reset sets all coefficients to 0
 func (p *Polynomial) Reset() {
-	zero := edwards25519.NewScalar()
+	zero := ristretto.NewScalar()
 	for i := range p.coefficients {
 		p.coefficients[i].Set(zero)
 	}

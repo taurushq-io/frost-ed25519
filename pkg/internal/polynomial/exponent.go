@@ -3,23 +3,23 @@ package polynomial
 import (
 	"errors"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 // Exponent represents a polynomial whose coefficients are points on an elliptic curve.
 type Exponent struct {
-	coefficients []*edwards25519.Point
+	coefficients []*ristretto.Element
 }
 
-// NewPolynomial generates a Polynomial f(X) = secret + a1*X + ... + at*X^t,
+// NewPolynomialExponent generates a PolynomialExponent F(X) = secret•G + a1*X•G + ... + at*X^t•G,
 // with coefficients in Z_q, and degree t.
 func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
-	var coefficients = make([]edwards25519.Point, len(polynomial.coefficients))
+	var coefficients = make([]ristretto.Element, len(polynomial.coefficients))
 	var p Exponent
 
-	p.coefficients = make([]*edwards25519.Point, len(polynomial.coefficients))
+	p.coefficients = make([]*ristretto.Element, len(polynomial.coefficients))
 	for i := range coefficients {
 		p.coefficients[i] = coefficients[i].ScalarBaseMult(&polynomial.coefficients[i])
 	}
@@ -28,26 +28,26 @@ func NewPolynomialExponent(polynomial *Polynomial) *Exponent {
 }
 
 // Evaluate uses any one of the defined evaluation algorithms
-func (p *Exponent) Evaluate(index *edwards25519.Scalar) *edwards25519.Point {
-	var result edwards25519.Point
+func (p *Exponent) Evaluate(index *ristretto.Scalar) *ristretto.Element {
+	var result ristretto.Element
 	// We chose evaluateVar since it is the fastest in CPU time, even though it uses more memory
 	return p.evaluateVar(index, &result)
 }
 
 // evaluateClassic evaluates a polynomial in a given variable index
 // We do the classic method.
-func (p *Exponent) evaluateClassic(index *edwards25519.Scalar, result *edwards25519.Point) *edwards25519.Point {
-	if index.Equal(edwards25519.NewScalar()) == 1 {
+func (p *Exponent) evaluateClassic(index *ristretto.Scalar, result *ristretto.Element) *ristretto.Element {
+	if index.Equal(ristretto.NewScalar()) == 1 {
 		panic("you should be using .Constant() instead")
 	}
 
-	var tmp edwards25519.Point
+	var tmp ristretto.Element
 
 	x := scalar.NewScalarUInt32(1)
 
-	zero := edwards25519.NewScalar()
+	zero := ristretto.NewScalar()
 
-	result.Set(edwards25519.NewIdentityPoint())
+	result.Set(ristretto.NewIdentityElement())
 	for i := 0; i < len(p.coefficients); i++ {
 		tmp.VarTimeDoubleScalarBaseMult(x, p.coefficients[i], zero)
 		result.Add(result, &tmp)
@@ -58,14 +58,14 @@ func (p *Exponent) evaluateClassic(index *edwards25519.Scalar, result *edwards25
 }
 
 // evaluateVar evaluates a polynomial in a given variable index.
-// We exploit the fact that edwards25519.Point.VarTimeMultiScalarMult is a lot faster
+// We exploit the fact that ristretto.Element.VarTimeMultiScalarMult is a lot faster
 // than other Point ops, but this requires us to have access to an array of powers of index.
-func (p *Exponent) evaluateVar(index *edwards25519.Scalar, result *edwards25519.Point) *edwards25519.Point {
-	if index.Equal(edwards25519.NewScalar()) == 1 {
+func (p *Exponent) evaluateVar(index *ristretto.Scalar, result *ristretto.Element) *ristretto.Element {
+	if index.Equal(ristretto.NewScalar()) == 1 {
 		panic("you should be using .Constant() instead")
 	}
-	powers := make([]edwards25519.Scalar, len(p.coefficients))
-	powersPointers := make([]*edwards25519.Scalar, len(p.coefficients))
+	powers := make([]ristretto.Scalar, len(p.coefficients))
+	powersPointers := make([]*ristretto.Scalar, len(p.coefficients))
 
 	for i := 0; i < len(p.coefficients); i++ {
 		switch {
@@ -84,14 +84,14 @@ func (p *Exponent) evaluateVar(index *edwards25519.Scalar, result *edwards25519.
 // evaluateHorner evaluates a polynomial in a given variable index
 // We create a list of all powers of index, and use VarTimeMultiScalarMult
 // to speed things up.
-func (p *Exponent) evaluateHorner(index *edwards25519.Scalar, result *edwards25519.Point) *edwards25519.Point {
-	if index.Equal(edwards25519.NewScalar()) == 1 {
+func (p *Exponent) evaluateHorner(index *ristretto.Scalar, result *ristretto.Element) *ristretto.Element {
+	if index.Equal(ristretto.NewScalar()) == 1 {
 		panic("you should be using .Constant() instead")
 	}
 
-	zero := edwards25519.NewScalar()
+	zero := ristretto.NewScalar()
 
-	result.Set(edwards25519.NewIdentityPoint())
+	result.Set(ristretto.NewIdentityElement())
 
 	for i := len(p.coefficients) - 1; i >= 0; i-- {
 		// B_n-1 = [x]B_n  + A_n-1
@@ -102,8 +102,8 @@ func (p *Exponent) evaluateHorner(index *edwards25519.Scalar, result *edwards255
 }
 
 // EvaluateMulti evaluates a polynomial in a many given points.
-func (p *Exponent) EvaluateMulti(indices []party.ID) map[party.ID]*edwards25519.Point {
-	evaluations := make(map[party.ID]*edwards25519.Point, len(indices))
+func (p *Exponent) EvaluateMulti(indices []party.ID) map[party.ID]*ristretto.Element {
+	evaluations := make(map[party.ID]*ristretto.Element, len(indices))
 
 	for _, id := range indices {
 		evaluations[id] = p.Evaluate(id.Scalar())
@@ -147,7 +147,7 @@ func Sum(polynomials []*Exponent) (*Exponent, error) {
 // Reset sets all coefficients to 0
 func (p *Exponent) Reset() {
 	for i := 0; i < len(p.coefficients); i++ {
-		p.coefficients[i].Set(edwards25519.NewIdentityPoint())
+		p.coefficients[i].Set(ristretto.NewIdentityElement())
 	}
 }
 
@@ -163,10 +163,6 @@ func (p *Exponent) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (p *Exponent) UnmarshalBinary(data []byte) error {
-	var eightInv edwards25519.Scalar
-	scalar.SetScalarUInt32(&eightInv, 8)
-	eightInv.Invert(&eightInv)
-	order8Test := edwards25519.NewIdentityPoint()
 	coefficientCount := party.FromBytes(data) + 1
 	remaining := data[party.ByteSize:]
 
@@ -178,21 +174,14 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 		return errors.New("wrong number of coefficients embedded")
 	}
 
-	coefficients := make([]edwards25519.Point, coefficientCount)
-	p.coefficients = make([]*edwards25519.Point, coefficientCount)
+	coefficients := make([]ristretto.Element, coefficientCount)
+	p.coefficients = make([]*ristretto.Element, coefficientCount)
 
 	var err error
 	for i := 0; i < len(p.coefficients); i++ {
-		p.coefficients[i], err = coefficients[i].SetBytes(remaining[:32])
+		p.coefficients[i], err = coefficients[i].SetCanonicalBytes(remaining[:32])
 		if err != nil {
 			return err
-		}
-
-		// test if [8^{-1} mod q]•([8]•P) == P
-		order8Test.MultByCofactor(p.coefficients[i])
-		order8Test.ScalarMult(&eightInv, order8Test)
-		if p.coefficients[i].Equal(order8Test) != 1 {
-			return errors.New("polynomial.exponent.UnmarshalBinary: point was not in prime subgroup")
 		}
 
 		remaining = remaining[32:]
@@ -214,8 +203,8 @@ func (p *Exponent) Size() int {
 
 func (p *Exponent) Copy() *Exponent {
 	var q Exponent
-	coefficients := make([]edwards25519.Point, len(p.coefficients))
-	q.coefficients = make([]*edwards25519.Point, len(p.coefficients))
+	coefficients := make([]ristretto.Element, len(p.coefficients))
+	q.coefficients = make([]*ristretto.Element, len(p.coefficients))
 	for i := 0; i < len(p.coefficients); i++ {
 		q.coefficients[i] = coefficients[i].Set(p.coefficients[i])
 	}
@@ -239,13 +228,12 @@ func (p *Exponent) Equal(other interface{}) bool {
 }
 
 // Constant returns the constant coefficient of the polynomial 'in the exponent'
-func (p *Exponent) Constant() *edwards25519.Point {
-	var result edwards25519.Point
-	result.Set(p.coefficients[0])
-	return &result
+func (p *Exponent) Constant() *ristretto.Element {
+	var result ristretto.Element
+	return result.Set(p.coefficients[0])
 }
 
-func (p *Exponent) AddConstant(c *edwards25519.Point) *Exponent {
+func (p *Exponent) AddConstant(c *ristretto.Element) *Exponent {
 	q := p.Copy()
 	q.coefficients[0].Add(q.coefficients[0], c)
 	return q

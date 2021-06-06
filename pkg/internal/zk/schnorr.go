@@ -3,8 +3,8 @@ package zk
 import (
 	"errors"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 
 	"crypto/sha512"
 
@@ -22,7 +22,7 @@ import (
 type Schnorr struct {
 	// S = H( ID || CTX || public || M )
 	// R = k + secret • s
-	S, R edwards25519.Scalar
+	S, R ristretto.Scalar
 }
 
 // challenge computes the hash H(partyID, context, public, M), where
@@ -30,19 +30,20 @@ type Schnorr struct {
 //   context: 32 byte context string,
 //   public:  [secret] B
 //   M:       [k] B
-func challenge(partyID party.ID, context []byte, public, M *edwards25519.Point) *edwards25519.Scalar {
+func challenge(partyID party.ID, context []byte, public, M *ristretto.Element) *ristretto.Scalar {
 	// S = H( ID || CTX || Public || M )
-	var S edwards25519.Scalar
+	var S ristretto.Scalar
 
-	hashBuffer := make([]byte, 0, party.ByteSize+32+32+32)
-	hashBuffer = append(hashBuffer, partyID.Bytes()...)
-	hashBuffer = append(hashBuffer, context[:32]...)
-	hashBuffer = append(hashBuffer, public.Bytes()...)
-	hashBuffer = append(hashBuffer, M.Bytes()...)
+	h := sha512.New()
+	_, _ = h.Write(partyID.Bytes())
+	_, _ = h.Write(context[:32])
+	_, _ = h.Write(public.Bytes())
+	_, _ = h.Write(M.Bytes())
 
-	digest := sha512.Sum512(hashBuffer)
-
-	return S.SetUniformBytes(digest[:])
+	buffer := make([]byte, 64)
+	// SetUniformBytes only returns an error when the length is wrong so we're okay here
+	_, _ = S.SetUniformBytes(h.Sum(buffer))
+	return &S
 }
 
 // NewSchnorrProof computes a NIZK proof of knowledge of discrete.
@@ -56,14 +57,14 @@ func challenge(partyID party.ID, context []byte, public, M *edwards25519.Point) 
 // R := k + private•S
 //
 // The proof returned is the tuple (S,R)
-func NewSchnorrProof(partyID party.ID, public *edwards25519.Point, context []byte, private *edwards25519.Scalar) *Schnorr {
+func NewSchnorrProof(partyID party.ID, public *ristretto.Element, context []byte, private *ristretto.Scalar) *Schnorr {
 	var proof Schnorr
 
 	// Compute commitment for random nonce
 	k := scalar.NewScalarRandom()
 
 	// M = [k] B
-	var M edwards25519.Point
+	var M ristretto.Element
 	M.ScalarBaseMult(k)
 
 	S := challenge(partyID, context, public, &M)
@@ -77,8 +78,8 @@ func NewSchnorrProof(partyID party.ID, public *edwards25519.Point, context []byt
 //    partyID is the uint32 ID of the prover
 //    public is the point [private]•B
 //    context is a 32 byte context (if it is set to [0 ... 0] then we may be susceptible to replay attacks)
-func (proof *Schnorr) Verify(partyID party.ID, public *edwards25519.Point, context []byte) bool {
-	var MPrime, publicNeg edwards25519.Point
+func (proof *Schnorr) Verify(partyID party.ID, public *ristretto.Element, context []byte) bool {
+	var MPrime, publicNeg ristretto.Element
 
 	publicNeg.Negate(public)
 
