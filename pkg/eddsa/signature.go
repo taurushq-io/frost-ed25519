@@ -44,7 +44,7 @@ func ComputeChallenge(R *ristretto.Element, groupKey *PublicKey, message []byte)
 }
 
 //
-// FROSTMarshaller
+// FROSTMarshaler
 //
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
@@ -56,7 +56,7 @@ func (sig *Signature) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (sig *Signature) UnmarshalBinary(data []byte) error {
 	var err error
-	if len(data) != MessageLengthSig {
+	if len(data) <= MessageLengthSig {
 		return fmt.Errorf("sig: %w", ErrInvalidMessage)
 	}
 

@@ -9,7 +9,7 @@ import (
 )
 
 // Public holds the public keys generated during a key generation protocol.
-// It also stores the associated party set, the threshold used and the full group key.
+// It also stores the associated party list, the threshold used and the full group key.
 type Public struct {
 	// PartyIDs is a party.Set that represents all parties with a share.
 	PartyIDs party.IDSlice
@@ -49,6 +49,7 @@ func NewPublic(shares map[party.ID]*ristretto.Element, threshold party.Size) (*P
 	return s, nil
 }
 
+// computeGroupKey computes the interpolation of the shares with regards to the partyIDs
 func computeGroupKey(partyIDs party.IDSlice, shares map[party.ID]*ristretto.Element) *PublicKey {
 	var tmp ristretto.Element
 

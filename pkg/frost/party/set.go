@@ -7,6 +7,7 @@ import (
 // IDSlice is an alias for []ID
 type IDSlice []ID
 
+// NewIDSlice returns an IDSlice which is the partyIDs sorted
 func NewIDSlice(partyIDs []ID) IDSlice {
 	ids := IDSlice(partyIDs).Copy()
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })

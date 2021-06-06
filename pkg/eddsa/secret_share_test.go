@@ -6,7 +6,23 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 )
 
-// TODO write marshalling test
+// sign generates an Ed25519 compatible signature for the message.
+func (sk *SecretShare) sign(message []byte) *Signature {
+	var sig Signature
+
+	// R = [r] • B
+	r := scalar.NewScalarRandom()
+	sig.R.ScalarBaseMult(r)
+
+	pk := PublicKey{pk: sk.Public}
+
+	// C = H(R, A, M)
+	c := ComputeChallenge(&sig.R, &pk, message)
+
+	// S = Secret * c + r
+	sig.S.MultiplyAdd(&sk.Secret, c, r)
+	return &sig
+}
 
 func TestSecretShare_MarshalJSON(t *testing.T) {
 	secret := scalar.NewScalarUInt32(42)

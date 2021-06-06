@@ -40,7 +40,7 @@ func TestSignatureEncode_Decode(t *testing.T) {
 	signature, _, err := generateSignature()
 	assert.NoError(t, err, "failed to generate signature")
 
-	assert.NoError(t, messages.CheckFROSTMarshaller(signature, &signatureOutput))
+	assert.NoError(t, messages.CheckFROSTMarshaler(signature, &signatureOutput))
 
 	assert.Equal(t, 1, signature.R.Equal(&signatureOutput.R))
 	assert.Equal(t, 1, signature.S.Equal(&signatureOutput.S))

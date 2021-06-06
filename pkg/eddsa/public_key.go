@@ -2,7 +2,6 @@ package eddsa
 
 import (
 	"crypto/ed25519"
-	"crypto/sha512"
 	"encoding/json"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
@@ -39,19 +38,6 @@ func (pk *PublicKey) Equal(pkOther *PublicKey) bool {
 // ToEd25519 converts the PublicKey to an ed25519 compatible format
 func (pk *PublicKey) ToEd25519() ed25519.PublicKey {
 	return pk.pk.BytesEd25519()
-}
-
-func newKeyPair(key ed25519.PrivateKey) (*ristretto.Scalar, *PublicKey) {
-	var (
-		sk ristretto.Scalar
-		pk PublicKey
-	)
-	digest := sha512.Sum512(key[:32])
-
-	_, _ = sk.SetBytesWithClamping(digest[:32])
-	pk.pk.ScalarBaseMult(&sk)
-
-	return &sk, &pk
 }
 
 // MarshalJSON implements the json.Marshaler interface.

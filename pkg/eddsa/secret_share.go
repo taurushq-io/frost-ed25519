@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
@@ -21,31 +20,14 @@ type SecretShare struct {
 	Public ristretto.Element
 }
 
-// NewSecretShare returns a SecretShare given a party.ID and ristretto.Scalar
+// NewSecretShare returns a SecretShare given a party.ID and ristretto.Scalar.
+// It additionally computes the associated public key
 func NewSecretShare(id party.ID, secret *ristretto.Scalar) *SecretShare {
 	var share SecretShare
 	share.ID = id
 	share.Secret.Set(secret)
 	share.Public.ScalarBaseMult(secret)
 	return &share
-}
-
-// sign generates an Ed25519 compatible signature for the message.
-func (sk *SecretShare) sign(message []byte) *Signature {
-	var sig Signature
-
-	// R = [r] • B
-	r := scalar.NewScalarRandom()
-	sig.R.ScalarBaseMult(r)
-
-	pk := PublicKey{pk: sk.Public}
-
-	// C = H(R, A, M)
-	c := ComputeChallenge(&sig.R, &pk, message)
-
-	// S = Secret * c + r
-	sig.S.MultiplyAdd(&sk.Secret, c, r)
-	return &sig
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
