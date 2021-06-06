@@ -2,13 +2,11 @@ package main
 
 import (
 	"crypto/ed25519"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/test/internal/communication"
 )
 
@@ -46,7 +44,7 @@ func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]com
 }
 
 func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
-	groupKey := shares.GroupKey()
+	groupKey := shares.GroupKey
 	signHandlers := make(map[party.ID]*communication.SignHandler, T+1)
 	var err error
 	for _, id := range signIDs {
@@ -63,7 +61,7 @@ func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[
 		if err != nil {
 			failures++
 		} else if s := h.Out.Signature; s != nil {
-			if !s.Verify(message, groupKey) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
+			if !groupKey.Verify(message, s) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
 				failures++
 			}
 		}
@@ -115,45 +113,6 @@ func destroyCommMap(m map[party.ID]communication.Communicator) {
 	}
 }
 
-func FROSTestMonkey(N, T party.Size) error {
-	fmt.Printf("Using Monkey Channels:\n(n, t) = (%v, %v): ", N, T)
-
-	message, keygenIDs, signIDs := Setup(N, T)
-	keygenComm := communication.NewMonkeyChannelCommunicatorMap(keygenIDs, messages.MessageTypeKeyGen1)
-	keygenCommNormal := communication.NewChannelCommunicatorMap(keygenIDs)
-
-	defer destroyCommMap(keygenComm)
-	defer destroyCommMap(keygenCommNormal)
-
-	_, _, err := DoKeygen(N, T, keygenIDs, keygenComm)
-	if err == nil {
-		return errors.New("failed to fail")
-	} else {
-		fmt.Println("good fail: ", err)
-	}
-	shares, secrets, err := DoKeygen(N, T, keygenIDs, keygenCommNormal)
-	if err != nil {
-		return err
-	}
-
-	signComm1 := communication.NewMonkeyChannelCommunicatorMap(signIDs, messages.MessageTypeSign1)
-	defer destroyCommMap(signComm1)
-
-	if err = DoSign(T, signIDs, shares, secrets, signComm1, message); err == nil {
-		return errors.New("failed to fail")
-	} else {
-		fmt.Println("good fail: ", err)
-	}
-	signComm2 := communication.NewMonkeyChannelCommunicatorMap(signIDs, messages.MessageTypeSign2)
-	defer destroyCommMap(signComm2)
-	if err = DoSign(T, signIDs, shares, secrets, signComm2, message); err == nil {
-		return errors.New("failed to fail")
-	} else {
-		fmt.Println("good fail: ", err)
-	}
-	return nil
-}
-
 func main() {
 	ns := []party.Size{5, 10, 50}
 
@@ -191,26 +150,6 @@ func main() {
 
 		start = time.Now()
 		err = FROSTestChannel(n, n-1)
-		if err != nil {
-			fmt.Printf("ERROR: %v\n", err)
-		} else {
-			fmt.Println("ok")
-		}
-		elapsed = time.Since(start)
-		fmt.Printf("%s\n", elapsed)
-
-		start = time.Now()
-		err = FROSTestMonkey(n, n/2)
-		elapsed = time.Since(start)
-		if err != nil {
-			fmt.Printf("ERROR: %v\n", err)
-		} else {
-			fmt.Println("ok")
-		}
-		fmt.Printf("%s\n", elapsed)
-
-		start = time.Now()
-		err = FROSTestMonkey(n, n-1)
 		if err != nil {
 			fmt.Printf("ERROR: %v\n", err)
 		} else {

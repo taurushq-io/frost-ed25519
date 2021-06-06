@@ -66,10 +66,7 @@ func (h *Handler) ProcessAll() {
 }
 
 func NewKeyGenHandler(comm Communicator, ID party.ID, IDs []party.ID, T party.Size) (*KeyGenHandler, error) {
-	set, err := party.NewSet(IDs)
-	if err != nil {
-		return nil, err
-	}
+	set := party.NewIDSlice(IDs)
 	s, out, err := frost.NewKeygenState(ID, set, T, comm.Timeout())
 	if err != nil {
 		return nil, err
@@ -86,10 +83,7 @@ func NewKeyGenHandler(comm Communicator, ID party.ID, IDs []party.ID, T party.Si
 }
 
 func NewSignHandler(comm Communicator, ID party.ID, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
-	set, err := party.NewSet(IDs)
-	if err != nil {
-		return nil, err
-	}
+	set := party.NewIDSlice(IDs)
 	s, out, err := frost.NewSignState(set, secret, public, message, comm.Timeout())
 	if err != nil {
 		return nil, err

@@ -52,33 +52,3 @@ func NewChannelCommunicatorMap(partyIDs []party.ID) map[party.ID]Communicator {
 	}
 	return cs
 }
-
-func NewMonkeyChannelCommunicatorMap(partyIDs []party.ID, chosentype messages.MessageType) map[party.ID]Communicator {
-	var wg sync.WaitGroup
-
-	n := len(partyIDs)
-	wg.Add(n)
-	done := make(chan struct{})
-
-	byteChannels := make(map[party.ID]chan []byte, n)
-	for _, id := range partyIDs {
-		byteChannels[id] = make(chan []byte, n)
-	}
-	go waitForFinish(&wg, done, byteChannels)
-
-	cs := make(map[party.ID]Communicator, n)
-	for _, id := range partyIDs {
-		incoming := make(chan *messages.Message, n)
-		c := &MonkeyChannel{
-			channels:   byteChannels,
-			incoming:   incoming,
-			receiver:   id,
-			wg:         &wg,
-			done:       done,
-			chosenType: chosentype,
-		}
-		go c.handleByteChan()
-		cs[id] = c
-	}
-	return cs
-}
