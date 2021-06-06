@@ -2,6 +2,7 @@ package party
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -12,10 +13,10 @@ import (
 // ByteSize is the number of bytes required to store and ID or Size
 const ByteSize = 2
 
-// MAX is the maximum integer that can represent a party.
+// _MAX is the maximum integer that can represent a party.
 // It can be used to bound the number of parties, and the maximum integer value
 // an ID can be.
-const MAX = (1 << (ByteSize * 8)) - 1
+const _MAX = (1 << (ByteSize * 8)) - 1
 
 // ID represents the identifier of a particular party.
 // A parti
@@ -23,6 +24,13 @@ type ID uint16
 
 // Size is an alias for ID that allows us to differentiate between a party's ID and the threshold for example.
 type Size = ID
+
+// Scalar returns the corresponding ristretto.Scalar
+func (p ID) Scalar() *ristretto.Scalar {
+	// We outline the function so that s is not allocated on the heap
+	var s ristretto.Scalar
+	return p.setScalar(&s)
+}
 
 // setScalar returns the corresponding ristretto.Scalar
 func (p ID) setScalar(s *ristretto.Scalar) *ristretto.Scalar {
@@ -35,13 +43,6 @@ func (p ID) setScalar(s *ristretto.Scalar) *ristretto.Scalar {
 		panic(fmt.Errorf("edwards25519: failed to set uint32 Scalar: %w", err))
 	}
 	return s
-}
-
-// Scalar returns the corresponding ristretto.Scalar
-func (p ID) Scalar() *ristretto.Scalar {
-	// We outline the function so that s is not allocated on the heap
-	var s ristretto.Scalar
-	return p.setScalar(&s)
 }
 
 // Bytes returns a []byte slice of length party.ByteSize
@@ -76,7 +77,7 @@ func RandIDn(n Size) ID {
 // RandID returns a pseudo-random value as a ID
 // from the default Source.
 func RandID() ID {
-	return ID(rand.Int31n(MAX)) + 1
+	return ID(rand.Int31n(_MAX)) + 1
 }
 
 // MarshalText implements encoding/TextMarshaler interface
