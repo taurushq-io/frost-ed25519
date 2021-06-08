@@ -32,7 +32,7 @@ func NewSecretShare(id party.ID, secret *ristretto.Scalar) *SecretShare {
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (sk *SecretShare) MarshalBinary() ([]byte, error) {
-	data := make([]byte, 0, party.ByteSize+32)
+	data := make([]byte, 0, party.IDByteSize+32)
 	data = append(data, sk.ID.Bytes()...)
 	data = append(data, sk.Secret.Bytes()...)
 	return data, nil
@@ -41,13 +41,13 @@ func (sk *SecretShare) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (sk *SecretShare) UnmarshalBinary(data []byte) error {
 	var err error
-	if len(data) != party.ByteSize+32 {
+	if len(data) != party.IDByteSize+32 {
 		return errors.New("SecretShare: data is not the right size")
 	}
 	if sk.ID, err = party.FromBytes(data); err != nil {
 		return err
 	}
-	data = data[party.ByteSize:]
+	data = data[party.IDByteSize:]
 
 	if _, err = sk.Secret.SetCanonicalBytes(data); err != nil {
 		return err
