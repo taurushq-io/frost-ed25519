@@ -15,7 +15,7 @@ var (
 )
 
 func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
-	id := msg.From()
+	id := msg.From
 	otherParty := round.Parties[id]
 
 	var publicNeg, RPrime ristretto.Element

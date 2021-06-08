@@ -16,10 +16,12 @@ type KeyGen2 struct {
 
 func NewKeyGen2(from, to party.ID, share *ristretto.Scalar) *Message {
 	return &Message{
-		messageType: MessageTypeKeyGen2,
-		from:        from,
-		to:          to,
-		KeyGen2:     &KeyGen2{Share: *share},
+		Header: Header{
+			Type: MessageTypeKeyGen2,
+			From: from,
+			To:   to,
+		},
+		KeyGen2: &KeyGen2{Share: *share},
 	}
 }
 

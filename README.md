@@ -202,9 +202,9 @@ or alternatively,
 
 If the round was successfully executed, `State.ProcessAll()` returns a slice [`[]*messages.Message`](pkg/messages/messages.go).
 It is up to the user of this library to properly route messages between participants.
-The ID's of the sender and destination party of a particular [`messages.Message`](pkg/messages/messages.go) can be found by calling `.From()` and `.To()`
+The ID's of the sender and destination party of a particular [`messages.Message`](pkg/messages/messages.go) can be found in the `From` and `To` field of the embedded [`messages.Header`](pkg/messages/header.go)
 on the [`messages.Message`](pkg/messages/messages.go) object.
-Users should first check if the message is intended for broadcast by calling `.IsBroadcast()`, since `.To()` is undefined in this case.
+Users should first check if the message is intended for broadcast by calling `.IsBroadcast()`, since the `To` field is undefined in this case.
 
 ```go
 var msg messages.Message
@@ -216,7 +216,7 @@ if err != nil {
 if msg.IsBroadcast() {
 	// send data to all parties except ourselves
 } else {
-	dest := msg.To()
+	dest := msg.To
 	// send data to party with ID dest
 }
 ```

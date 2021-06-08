@@ -17,8 +17,10 @@ type Sign1 struct {
 
 func NewSign1(from party.ID, commitmentD, commitmentE *ristretto.Element) *Message {
 	return &Message{
-		messageType: MessageTypeSign1,
-		from:        from,
+		Header: Header{
+			Type: MessageTypeSign1,
+			From: from,
+		},
 		Sign1: &Sign1{
 			Di: *commitmentD,
 			Ei: *commitmentE,

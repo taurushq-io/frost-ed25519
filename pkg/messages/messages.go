@@ -2,17 +2,15 @@ package messages
 
 import (
 	"errors"
-
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"fmt"
 )
 
 type Message struct {
-	messageType MessageType
-	from, to    party.ID
-	KeyGen1     *KeyGen1
-	KeyGen2     *KeyGen2
-	Sign1       *Sign1
-	Sign2       *Sign2
+	Header
+	KeyGen1 *KeyGen1
+	KeyGen2 *KeyGen2
+	Sign1   *Sign1
+	Sign2   *Sign2
 }
 
 var ErrInvalidMessage = errors.New("invalid message")
@@ -28,18 +26,13 @@ const (
 	MessageTypeSign2
 )
 
-// headerSize is
-//  1 for MessageType
-//  4 for Sender
-//  4 for receiver
-const headerSize = 1 + 2*party.ByteSize
-
 func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
-	existing = append(existing, byte(m.messageType))
-	existing = append(existing, m.from.Bytes()...)
-	existing = append(existing, m.to.Bytes()...)
+	existing, err = m.Header.BytesAppend(existing)
+	if err != nil {
+		return nil, fmt.Errorf("message.BytesAppend: %w", err)
+	}
 
-	switch m.messageType {
+	switch m.Type {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil {
 			return m.KeyGen1.BytesAppend(existing)
@@ -62,25 +55,26 @@ func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
 }
 
 func (m *Message) Size() int {
-	switch m.messageType {
+	var size int
+	switch m.Type {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil {
-			return headerSize + m.KeyGen1.Size()
+			size = m.KeyGen1.Size()
 		}
 	case MessageTypeKeyGen2:
 		if m.KeyGen2 != nil {
-			return headerSize + m.KeyGen2.Size()
+			size = m.KeyGen2.Size()
 		}
 	case MessageTypeSign1:
 		if m.Sign1 != nil {
-			return headerSize + m.Sign1.Size()
+			size = m.Sign1.Size()
 		}
 	case MessageTypeSign2:
 		if m.Sign2 != nil {
-			return headerSize + m.Sign2.Size()
+			size = m.Sign2.Size()
 		}
 	}
-	panic("message contains no data")
+	return m.Header.Size() + size
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
@@ -92,47 +86,40 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *Message) UnmarshalBinary(data []byte) error {
 	var err error
-	// ensure the length is long enough to hold the header
-	// 1 byte for message type + 2*party.ByteSize for from/to
-	if len(data) < 1+2*party.ByteSize {
-		return errors.New("data does not contain header")
-	}
 
-	msgType := MessageType(data[0])
-	m.messageType = msgType
-	data = data[1:]
-	if m.from, err = party.FromBytes(data); err != nil {
+	if err = m.Header.UnmarshalBinary(data); err != nil {
 		return err
 	}
-	data = data[party.ByteSize:]
+	data = data[m.Header.Size():]
 
-	if m.to, err = party.FromBytes(data); err != nil {
-		return err
-	}
-	data = data[party.ByteSize:]
-
-	switch msgType {
+	switch m.Type {
 	case MessageTypeKeyGen1:
 		var keygen1 KeyGen1
-		m.KeyGen1 = &keygen1
-		return m.KeyGen1.UnmarshalBinary(data)
+		if err = keygen1.UnmarshalBinary(data); err == nil {
+			m.KeyGen1 = &keygen1
+		}
 
 	case MessageTypeKeyGen2:
 		var keygen2 KeyGen2
-		m.KeyGen2 = &keygen2
-		return m.KeyGen2.UnmarshalBinary(data)
+		if err = keygen2.UnmarshalBinary(data); err == nil {
+			m.KeyGen2 = &keygen2
+		}
 
 	case MessageTypeSign1:
 		var sign1 Sign1
-		m.Sign1 = &sign1
-		return m.Sign1.UnmarshalBinary(data)
-
+		if err = sign1.UnmarshalBinary(data); err == nil {
+			m.Sign1 = &sign1
+		}
 	case MessageTypeSign2:
 		var sign2 Sign2
-		m.Sign2 = &sign2
-		return m.Sign2.UnmarshalBinary(data)
+		if err = sign2.UnmarshalBinary(data); err == nil {
+			m.Sign2 = &sign2
+		}
+	default:
+		return errors.New("messages.UnmarshalBinary: invalid message type")
 	}
-	return errors.New("message type not recognized")
+
+	return nil
 }
 
 func (m *Message) Equal(other interface{}) bool {
@@ -141,19 +128,11 @@ func (m *Message) Equal(other interface{}) bool {
 		return false
 	}
 
-	if m.messageType != otherMsg.messageType {
+	if !m.Header.Equal(otherMsg.Header) {
 		return false
 	}
 
-	if m.from != otherMsg.from {
-		return false
-	}
-
-	if m.to != otherMsg.to {
-		return false
-	}
-
-	switch m.messageType {
+	switch m.Type {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil && otherMsg.KeyGen1 != nil {
 			return m.KeyGen1.Equal(otherMsg.KeyGen1)
@@ -172,26 +151,4 @@ func (m *Message) Equal(other interface{}) bool {
 		}
 	}
 	return false
-}
-
-// Type returns the MessageType of the message.
-func (m *Message) Type() MessageType {
-	return m.messageType
-}
-
-// From returns the party.ID of the party who sent this message.
-func (m *Message) From() party.ID {
-	return m.from
-}
-
-// To returns the party.ID of the party the message is addressed to.
-// If the message is intended for broadcast, the ID returned is 0 (invalid),
-// therefore, you should call IsBroadcast() first.
-func (m *Message) To() party.ID {
-	return m.to
-}
-
-// IsBroadcast returns true if the message is intended to be broadcast
-func (m *Message) IsBroadcast() bool {
-	return m.to == 0
 }

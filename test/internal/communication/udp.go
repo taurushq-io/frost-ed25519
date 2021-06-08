@@ -82,7 +82,7 @@ func (c *UDP) Send(msg *messages.Message) error {
 				return err
 			}
 		}
-	} else if to := msg.To(); to != c.id {
+	} else if to := msg.To; to != c.id {
 		_, err = c.conn.WriteToUDP(b, c.peers[to])
 		return err
 	}

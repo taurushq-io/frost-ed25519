@@ -129,7 +129,10 @@ func ValidateSecrets(secrets map[party.ID]*eddsa.SecretShare, groupKey *eddsa.Pu
 			return errors.New("pk not the same")
 		}
 
-		lagrange := id.Lagrange(shares.PartyIDs)
+		lagrange, err := id.Lagrange(shares.PartyIDs)
+		if err != nil {
+			return err
+		}
 		fullSecret.MultiplyAdd(lagrange, &secret.Secret, fullSecret)
 	}
 

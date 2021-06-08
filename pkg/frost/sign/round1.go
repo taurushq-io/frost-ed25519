@@ -14,7 +14,7 @@ import (
 var hashDomainSeparation = []byte("FROST-SHA512")
 
 func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
-	id := msg.From()
+	id := msg.From
 	otherParty := round.Parties[id]
 	identity := ristretto.NewIdentityElement()
 	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
@@ -35,8 +35,8 @@ func (round *round1) computeRhos() {
 	*/
 	messageHash := sha512.Sum512(round.Message)
 
-	sizeB := int(round.PartyIDs().N() * (party.ByteSize + 32 + 32))
-	bufferHeader := len(hashDomainSeparation) + party.ByteSize + len(messageHash)
+	sizeB := int(round.PartyIDs().N() * (party.IDByteSize + 32 + 32))
+	bufferHeader := len(hashDomainSeparation) + party.IDByteSize + len(messageHash)
 	sizeBuffer := bufferHeader + sizeB
 	offsetID := len(hashDomainSeparation)
 

@@ -17,9 +17,11 @@ type Sign2 struct {
 
 func NewSign2(from party.ID, signatureShare *ristretto.Scalar) *Message {
 	return &Message{
-		messageType: MessageTypeSign2,
-		from:        from,
-		Sign2:       &Sign2{Zi: *signatureShare},
+		Header: Header{
+			Type: MessageTypeSign2,
+			From: from,
+		},
+		Sign2: &Sign2{Zi: *signatureShare},
 	}
 }
 
