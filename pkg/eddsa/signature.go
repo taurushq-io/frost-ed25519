@@ -22,7 +22,7 @@ type Signature struct {
 
 // ToEd25519 returns a signature that can be validated by ed25519.Verify.
 func (sig *Signature) ToEd25519() []byte {
-	out := make([]byte, 0, 64)
+	out := make([]byte, 0, MessageLengthSig)
 	out = append(out, sig.R.BytesEd25519()...)
 	out = append(out, sig.S.Bytes()...)
 	return out
@@ -49,14 +49,14 @@ func ComputeChallenge(R *ristretto.Element, groupKey *PublicKey, message []byte)
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (sig *Signature) MarshalBinary() ([]byte, error) {
-	out := make([]byte, 0, 64)
+	out := make([]byte, 0, MessageLengthSig)
 	return sig.BytesAppend(out)
 }
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (sig *Signature) UnmarshalBinary(data []byte) error {
 	var err error
-	if len(data) <= MessageLengthSig {
+	if len(data) < MessageLengthSig {
 		return fmt.Errorf("sig: %w", ErrInvalidMessage)
 	}
 
