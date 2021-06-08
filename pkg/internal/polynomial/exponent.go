@@ -188,7 +188,7 @@ func (p *Exponent) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	coefficientCount := degree + 1
-	remaining := data[party.ByteSize:]
+	remaining := data[party.IDByteSize:]
 
 	count := len(remaining)
 	if count%32 != 0 {
@@ -221,7 +221,7 @@ func (p *Exponent) BytesAppend(existing []byte) (data []byte, err error) {
 }
 
 func (p *Exponent) Size() int {
-	return party.ByteSize + 32*len(p.coefficients)
+	return party.IDByteSize + 32*len(p.coefficients)
 }
 
 func (p *Exponent) Equal(other interface{}) bool {

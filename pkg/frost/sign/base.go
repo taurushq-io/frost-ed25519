@@ -70,13 +70,19 @@ func NewRound(partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.P
 			return nil, nil, errors.New("id 0 is not valid")
 		}
 		originalShare := shares.Shares[id]
-		lagrange := id.Lagrange(partyIDs)
+		lagrange, err := id.Lagrange(partyIDs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("base.NewRound: %w", err)
+		}
 		s.Public.ScalarMult(lagrange, originalShare)
 		round.Parties[id] = &s
 	}
 
 	// Normalize secret share so that we can assume we are dealing with an additive sharing
-	lagrange := round.SelfID().Lagrange(partyIDs)
+	lagrange, err := round.SelfID().Lagrange(partyIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("base.NewRound: %w", err)
+	}
 	round.SecretKeyShare.Multiply(lagrange, &secret.Secret)
 
 	return round, round.Output, nil

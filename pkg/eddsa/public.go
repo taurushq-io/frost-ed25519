@@ -55,7 +55,7 @@ func computeGroupKey(partyIDs party.IDSlice, shares map[party.ID]*ristretto.Elem
 
 	groupKey := ristretto.NewIdentityElement()
 	for _, id := range partyIDs {
-		lagrange := id.Lagrange(partyIDs)
+		lagrange, _ := id.Lagrange(partyIDs)
 		tmp.ScalarMult(lagrange, shares[id])
 		groupKey.Add(groupKey, &tmp)
 	}
