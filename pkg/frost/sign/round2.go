@@ -31,10 +31,10 @@ func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 }
 
 func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
-	// S = ∑ s_i
+	// S = ∑ sᵢ
 	S := ristretto.NewScalar()
 	for _, otherParty := range round.Parties {
-		// s += s_i
+		// s += sᵢ
 		S.Add(S, &otherParty.Zi)
 	}
 

@@ -40,16 +40,16 @@ func (round *round1) computeRhos() {
 	sizeBuffer := bufferHeader + sizeB
 	offsetID := len(hashDomainSeparation)
 
-	// We compute the binding factor 𝜌_i for each party as such:
+	// We compute the binding factor 𝜌_{i} for each party as such:
 	//
-	//     𝜌_d = SHA-512 ("FROST-SHA512" || i || SHA-512(Message) || B )
+	//     𝜌_d = SHA-512 ("FROST-SHA512" ∥ i ∥ SHA-512(Message) ∥ B )
 	//
 	// For each party ID i.
 	//
-	// The list B is the concatenation of ( j || D_j || E_j ) for all signers j in sorted order.
-	//     B = (ID1 || D_1 || E_1) || (ID_2 || D_2 || E_2) || ... || (ID_N || D_N || E_N)
+	// The list B is the concatenation of ( j ∥ Dⱼ ∥ Eⱼ ) for all signers j in sorted order.
+	//     B = (ID1 ∥ D₁ ∥ E₁) ∥ (ID_2 ∥ D₂ ∥ E₂) ∥ ... ∥ (ID_N ∥ D_N ∥ E_N)
 
-	// We compute the big buffer "FROST-SHA512" || ... || SHA-512(Message) || B
+	// We compute the big buffer "FROST-SHA512" ∥ ... ∥ SHA-512(Message) ∥ B
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
 	buffer = append(buffer, hashDomainSeparation...)
@@ -68,7 +68,7 @@ func (round *round1) computeRhos() {
 		// Update the four bytes with the ID
 		copy(buffer[offsetID:], id.Bytes())
 
-		// Pi = ρ = H ("FROST-SHA512" || Message || B || ID )
+		// Pi = ρ = H ("FROST-SHA512" ∥ Message ∥ B ∥ ID )
 		digest := sha512.Sum512(buffer)
 		_, _ = round.Parties[id].Pi.SetUniformBytes(digest[:])
 	}

@@ -13,11 +13,11 @@ func (round *round0) ProcessMessage(*messages.Message) *state.Error {
 func (round *round0) GenerateMessages() ([]*messages.Message, *state.Error) {
 	selfParty := round.Parties[round.SelfID()]
 
-	// Sample d_i, D_i = [d_i] B
+	// Sample dᵢ, Dᵢ = [dᵢ] B
 	scalar.SetScalarRandom(&round.d)
 	selfParty.Di.ScalarBaseMult(&round.d)
 
-	// Sample e_i, D_i = [e_i] B
+	// Sample eᵢ, Dᵢ = [eᵢ] B
 	scalar.SetScalarRandom(&round.e)
 	selfParty.Ei.ScalarBaseMult(&round.e)
 
