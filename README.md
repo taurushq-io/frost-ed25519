@@ -6,7 +6,6 @@ A Go implementation of a [FROST](https://eprint.iacr.org/2020/852.pdf) threshold
 
 Our FROST protocol implementation is also inspired from that in the IETF Draft [Threshold Modes in Elliptic Curves ](https://www.ietf.org/id/draft-hallambaker-threshold-05.html).
 
-
 ## Ed25519
 
 Ed25519 is an instance of the EdDSA construction, defined over the Edwards 25519 elliptic curve.
@@ -16,49 +15,65 @@ and that the same verification algorithm can be used.
 Specifically, we implement the _PureEdDSA_ variant, as detailed in [RFC 8032](https://tools.ietf.org/html/rfc8032)
 (as opposed to HashEdDSA/Ed25519ph or ContextEdDSA/Ed25519ctx.).
 
-We denote `B` the base point of the Edwards 25519 elliptic curve.
+### ristretto
 
+In order to minimize the impact of the cofactor in the Edwards 25519 elliptic curve, we represent the curve points with the
+[ristretto](https://ristretto.group/) encoding.
+Our implementation is taken from Filippo Valsorda's [branch](https://github.com/gtank/ristretto255/tree/filippo/edwards25519backend)
+of George Tankersley's [ristretto255](https://github.com/gtank/ristretto255).
+Internally it uses the [edwards25519](https://github.com/FiloSottile/edwards25519) package.
+
+We add a `BytesEd25519()` method on group elements which allows us to recover an Ed25519 compatible encoding of the curve point.
+As elements are represented internally by `edwards25519.Point`, we take this point `P` and remove the cofactor by computing `P' = [8^{-1}][8]P`.
+The result is the canonical encoding of `P'`.
+
+For clarity, we distinguish the following elements:
+
+- `B` is the base point of the Edwards 25519 elliptic curve
+- `G` is the generator of the ristretto group
+
+The integer `q` is equal to `2**252 + 27742317777372353535851937790883648493` and is the prime order of the ristretto group `<G>`.
 ### Keys
 
-An Ed25519 private key is a 32 byte _seed_ `x`.
-We compute the SHA-512 hash of `x` and obtain two 32 byte strings by splitting the output in two equal halves: `s || prefix = SHA-512(x)`.
-The value `s` is encoded as a 32 byte integer, and the `prefix` is used later for deterministic signature generation.
-Finally, the public key can be computed as the 32 byte representation of the point `A = [s] • B`.
+The Ed25519 standard defines the private signing key as a 32 byte _seed_ `x`.
+Taking the SHA-512 hash of `x` yields two 32 byte strings by splitting the output in two equal halves: `SHA-512(x) = s || prefix`.
+The value `s` encodes 32 byte integer, while the `prefix` is used later for deterministic signature generation.
+The public key is the canonical representation of the elliptic curve point `A = [s mod q] • B`.
 
-In FROST-Ed25519, the parties perform a Distributed Key Generation protocol (DKG),
-in order to obtain a Shamir secret sharing of the integer `s` and the associated public key `A = [s] • B`
-(also referred to as the  _group key_).
-The parties must agree on a _threshold_ `t` which defines the maximum number of parties that can collaborate maliciously,
-while still keeping the value of `s` secret.
-This means that at least `t+1` parties are required to perform a signing with key `s`.
-We denote by `n >= t+1` the number of parties that participated in the DKG protocol.
+In FROST-Ed25519, a group of `n` parties `P1, ..., Pn` each hold a _Shamir share_ `s_i` of the secret integer `s`.
+These shares are represented as integers mod `q`.
+Given any set of at least `t+1` distinct shares, it is possible to recover the original full secret key `s mod q`. 
+The integer `t` is the _threshold_ of the scheme, and defines the maximum number of parties that could act maliciously (i.e. collaborate to recover the key).
 
-A party with ID `i` who participated in a successful execution of the DKG protocol
-should obtain at the end an integer `s_i` which defines party `i`'s _share_ of the secret key `s`.
-We represent `s_i` by a [`eddsa.SecretShare`](pkg/eddsa/secret_share.go) object that contains the ID `i` and the associated group key share `A_i = [s_i]•B`.
-This type is incompatible with the original private key description, since it is not derived from a seed.
-Fortunately, it is still possible to generate valid signatures, albeit in a non-deterministic way.
+In FROST-Ed25519, the parties obtain their shares of `s` by executing a Distributed Key Generation (DKG) protocol.
+In addition to receiving individual shares `s_i`, all parties also obtain the _group key_ `A = [s]•G`, and its associated public shares `{A_i = [s_i]•G}`.
 
-Public keys (denoted by `A` or `A_i` to emphasize the party it belongs to) are represented as [`eddsa.PublicKey`](pkg/eddsa/keys.go).
-All of these public key objects are stored in a [`eddsa.Public`](pkg/eddsa/public.go). structure which ensures consistency between the group key and its shares.
+After a successful execution of the DKG protocol, each party `Pi` obtains:
 
+- a secret share `s_i` represented as a [`eddsa.SecretShare`](pkg/eddsa/secret_share.go) struct
+- a set of all public shares `{A_i}` stored in [`eddsa.Public`](pkg/eddsa/public.go) struct
+- the group key `A` represented as a [`eddsa.PublicKey`](pkg/eddsa/public_key.go), and stored in the `GroupKey` field of [`eddsa.Public`](pkg/eddsa/public.go).
+  Calling `PublicKey.ToEd25519()` returns an `ed25519.PublicKey` compatible with the Ed25519 standard.
+  
 ### Signatures
 
-Signatures for a message `M` are defined as a pair `(R, S)` where:
+A FROST-Ed25519 signature for a message `M` is defined by a pair `(R,S)` where: 
 
-- The nonce `R` represents an elliptic curve point, whose discrete logarithm `r` is known only to the signer (`R = [r] B`).
-- `S` is a scalar derived from a private key `s` and is computed as:
+- The nonce `R` represents a ristretto group element, computed as `R = [r]•G` for some `r` mod `q`.
+- `S` is a scalar derived computed as
 
 ```
-R = [r] B
-k = SHA-512(R || A || M)
-S = (r + k * s) mod L
+R = [r]•G
+k = SHA-512(R.BytesEd25519() || A.BytesEd25519() || M)
+S = (r + k * s) mod q
 ```
 
-In the original Ed25519 scheme, the nonce `R = [r] B` is generated deterministically using the `prefix` in the key generation.
-The integer `r` is computed as `r = H( prefix || M )`.
+In the original Ed25519 scheme, the nonce `R = [r]•B` is generated deterministically using the `prefix` in the key generation,
+and the integer `r` is computed as `r = H( prefix || M )`.
 For threshold signing, it is harder to generate nonce in such a deterministic way.
 In FROST-Ed25519, the nonce pair `(r,R)` is generated as detailed in the [FROST paper](https://eprint.iacr.org/2020/852.pdf)
+
+For compatibility with Ed25519, `k` is computed by encoding `R` and `A` as their canonical representations in the edwards25519 curve (cofactor-less).
 
 Signatures are represented by the [`eddsa.Signature`](pkg/eddsa/signature.go) type.
 
@@ -67,14 +82,18 @@ Signatures are represented by the [`eddsa.Signature`](pkg/eddsa/signature.go) ty
 The verification algorithm takes a public key `A`, the signed message `M`, and its signature `(R,S)`.
 It does the following:
 
-- Recompute `k' = SHA-512(R || A || M)` 
-- Verify the equality `[8S] B == [8] R + [8k'] A`
+- Recompute `k = SHA-512(R.BytesEd25519() || A.BytesEd25519() || M) mod q` 
+- Verify the equality `R == [-k]•A + [S]•G`
+
+Manual verification is not necessary in most cases, but is possible by calling `PublicKey.Verify(message []byte, signature *eddsa.Signature)`.
+
+_Note_: the cofactor is no longer an issue here, since we are considering points in the ristretto group.
 
 ### Compatibility with `ed25519`:
 
 The goal of FROST-Ed25519 is to be compatible with the `ed25519` library included in Go.
 In particular, the [`frost.PublicKey`](pkg/eddsa/public_key.go) and [`frost.Signature`](pkg/eddsa/signature.go) types can be converted to the `ed25119.PublicKey` and `[]byte` types respectively,
-by calling the method `.ToEd25519()` on objects of these type.
+by calling `.ToEd25519()`.
 
 ### Example
 
@@ -89,21 +108,11 @@ var (
     groupSig    *eddsa.Signature        // signature produced by sign protocol for message
 )
 
-groupKey := public.GroupKey()
+groupKey := public.GroupKey
 // use the ed25519 library
 ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) // = true
 
 secretShare.ID == id    // = true
-publicShare, err := public.Share(id) // no error if id was present during keygen 
-
-// shares of the public key correspond to the public output
-secretShare.PublicKey().Equal(publicShare) // = true
-
-// Sign message with our own secret key share
-privateSig := secretShare.Sign(message)
-ed25519.Verify(publicShare.ToEd25519(), message, privateSig.ToEd25519()) // = true
-// or also
-privateSig.Verify(message, publicShare) // = true
 ```
 
 ## Protocol version implemented
@@ -128,7 +137,7 @@ Users of this library should only interact with [`State`](pkg/state/state.go) ty
 ### Basics
 
 Each party must be assigned a unique numerical [`party.ID`](pkg/frost/party/id.go) (internally represented as an `uint16`).
-Once IDs have been assigned, each party must generate an appropriate [`party.Set`](pkg/frost/party/set.go) object, which is a structure used to more easily query the participants.
+A set of `party.ID`s is stored as a [`party.IDSlice`](pkg/frost/party/set.go) which wraps a slice and ensures sorting.
 
 Optionally, a `timeout` argument can be provided, to force the protocol to abort if the time duration between two received messages is longer than `timeout`.
 If it is set to 0, then there is no limit.
@@ -149,12 +158,12 @@ Calling [`frost.NewKeygenState`](pkg/frost/frost.go) with the following argument
 ```go
 var (
     partyID     party.ID        // ID of the party initiating the key generation (`ID` type is an alias for `uint16`)
-    partySet    *party.Set      // set containing IDs all parties that will receive a secret key share, including the initiative party
+    partyIDs    party.IDSlice   // sorted slice of all party IDs 
     threshold   party.Size      // maximum number of corrupted parties allowed (`threshold`+1 parties required for signing)
     timeout     time.Duration   // maximum time allowed between two messages received. A duration of 0 indicates no timeout
 )
 
-state, output, err := frost.NewKeygenState(partyID, partySet, threshold, timeout)
+state, output, err := frost.NewKeygenState(partyID, partyIDs, threshold, timeout)
 ```
 
 Once the protocol has finished, the [`output`](pkg/frost/keygen/output.go) contains the following two fields:
@@ -169,7 +178,7 @@ Once the protocol has finished, the [`output`](pkg/frost/keygen/output.go) conta
 
 ```go
 var (
-        partySet    *party.Set          // set containing all parties that will receive a secret key share (must be of size at least `threshold`+1)
+        partyIDs    party.IDSlice       // slice of party IDs which will be performing the signing (must be of length at least `threshold`+1)
         secret      *eddsa.SecretShare  // the secret key share obtained from the keygen protocol
         public      *eddsa.Public       // contains the public information including the group key and individual public shares
         message     []byte              // message in bytes to be signed (does not need to be prehashed)
@@ -180,14 +189,10 @@ state, output, err := frost.NewSignState(partySet, secret, public, message, time
 ```
 
 Once the protocol has finished, the [`output`](pkg/frost/sign/output.go) contains a single field for the [`Signature`](pkg/eddsa/signature.go):
-The `Signature` can be by calling:
-```go
-output.Signature.Verify(message, shares.GroupKey())
-```
 
-Alternatively, it is also possible to use Go's included `ed25519` library, by converting the group key and signature to compatible types.
+The Signature can be verified using Go's included `ed25519` library, by converting the group key and signature to compatible types.
 ```go
-ed25519.Verify(shares.GroupKey().ToEd25519(), message, output.Signature.ToEd25519())
+ed25519.Verify(shares.GroupKey.ToEd25519(), message, output.Signature.ToEd25519())
 ```
 
 or alternatively,
@@ -197,9 +202,9 @@ or alternatively,
 
 If the round was successfully executed, `State.ProcessAll()` returns a slice [`[]*messages.Message`](pkg/messages/messages.go).
 It is up to the user of this library to properly route messages between participants.
-The ID's of the sender and destination party of a particular [`messages.Message`](pkg/messages/messages.go) can be found by calling `.From()` and `.To()`
+The ID's of the sender and destination party of a particular [`messages.Message`](pkg/messages/messages.go) can be found in the `From` and `To` field of the embedded [`messages.Header`](pkg/messages/header.go)
 on the [`messages.Message`](pkg/messages/messages.go) object.
-Users should first check if the message is intended for broadcast by calling `.IsBroadcast()`, since `.To()` is undefined in this case.
+Users should first check if the message is intended for broadcast by calling `.IsBroadcast()`, since the `To` field is undefined in this case.
 
 ```go
 var msg messages.Message
@@ -211,7 +216,7 @@ if err != nil {
 if msg.IsBroadcast() {
 	// send data to all parties except ourselves
 } else {
-	dest := msg.To()
+	dest := msg.To
 	// send data to party with ID dest
 }
 ```
@@ -271,7 +276,7 @@ Issues that are not critical (not exploitable, DoS, and so on) can be reported a
 ## Dependencies 
 
 Our package has a [minimal set](./go.mod) of third-party dependencies, mainly Valsorda's [edwards25519](https://filippo.io/edwards25519).
-
+We also include the single `ristretto255` file from [PR 41](https://github.com/gtank/ristretto255/pull/41)
 
 ## Intellectual property
 

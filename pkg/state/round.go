@@ -70,6 +70,6 @@ type Round interface {
 	// SelfID returns the ID of the round participant
 	SelfID() party.ID
 
-	// Set returns a set containing all parties participating in the round
-	Set() *party.Set
+	// PartyIDs returns a set containing all parties participating in the round
+	PartyIDs() party.IDSlice
 }

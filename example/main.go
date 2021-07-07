@@ -8,7 +8,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
@@ -51,9 +50,12 @@ func MessageRoutine(msgsIn, msgsOut chan *messages.Message, s *state.State) {
 func main() {
 	selfID := party.ID(1)
 	threshold := party.Size(2)
-	set, _ := party.NewSet([]party.ID{selfID, 2, 42, 8})
+	set := party.NewIDSlice([]party.ID{selfID, 2, 42, 8})
 
 	keygenState, keygenOutput, err := frost.NewKeygenState(selfID, set, threshold, 2*time.Second)
+	if err != nil {
+		panic(err)
+	}
 
 	// Handle messages in another thread
 	go MessageRoutine(messagesIn, messagesOut, keygenState)
@@ -65,17 +67,17 @@ func main() {
 	}
 	// It is now safe to access the output
 	public := keygenOutput.Public
-	groupKey := public.GroupKey()
-	publicShare, err := public.Share(selfID)
+	groupKey := public.GroupKey
 	secretShare := keygenOutput.SecretKey
 
 	message := []byte("example")
 
-	SignSingle(secretShare, publicShare, message)
-
 	// Get a smaller set of size t+1
-	signers, err := party.NewSet([]party.ID{selfID, 2, 8})
+	signers := party.NewIDSlice([]party.ID{selfID, 2, 8})
 	signState, signOutput, err := frost.NewSignState(signers, secretShare, public, message, 1*time.Second)
+	if err != nil {
+		panic(err)
+	}
 
 	// Handle messages in another thread
 	go MessageRoutine(messagesIn, messagesOut, signState)
@@ -86,16 +88,9 @@ func main() {
 		// the protocol has aborted
 	}
 
-	// Verify signatyre
+	// Verify signature
 	groupSig := signOutput.Signature
 	if !ed25519.Verify(groupKey.ToEd25519(), message, groupSig.ToEd25519()) {
 		log.Println("failed to validate single signature")
-	}
-}
-
-func SignSingle(secretShare *eddsa.SecretShare, publicShare *eddsa.PublicKey, message []byte) {
-	sig := secretShare.Sign(message)
-	if !sig.Verify(message, publicShare) {
-		log.Println("single signature verification failed")
 	}
 }

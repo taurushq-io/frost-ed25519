@@ -33,7 +33,7 @@ type State struct {
 }
 
 func NewBaseState(round Round, timeout time.Duration) (*State, error) {
-	N := round.Set().N()
+	N := round.PartyIDs().N()
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{}, round.AcceptedMessageTypes()...),
 		receivedMessages: make(map[party.ID]*messages.Message, N),
@@ -48,7 +48,7 @@ func NewBaseState(round Round, timeout time.Duration) (*State, error) {
 		s.mtx.Unlock()
 	})
 
-	for id := range round.Set().Range() {
+	for _, id := range round.PartyIDs() {
 		if id != round.SelfID() {
 			s.receivedMessages[id] = nil
 		}
@@ -78,7 +78,7 @@ func (s *State) wrapError(err error, culprit party.ID) error {
 // Note: the properties of the messages are checked in ProcessAll.
 // Therefore, the check here should be a quite fast.
 func (s *State) HandleMessage(msg *messages.Message) error {
-	senderID := msg.From()
+	senderID := msg.From
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -97,11 +97,11 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 	}
 
 	// Ignore message not addressed to us
-	if !msg.IsBroadcast() && msg.To() != s.round.SelfID() {
+	if !msg.IsBroadcast() && msg.To != s.round.SelfID() {
 		return nil
 	}
 	// Is the sender in our list of participants?
-	if !s.round.Set().Contains(senderID) {
+	if !s.round.PartyIDs().Contains(senderID) {
 		return s.wrapError(errors.New("sender is not a party"), senderID)
 	}
 
@@ -111,13 +111,13 @@ func (s *State) HandleMessage(msg *messages.Message) error {
 		return s.wrapError(errors.New("message from this party was already received"), senderID)
 	}
 
-	if !s.isAcceptedType(msg.Type()) {
+	if !s.isAcceptedType(msg.Type) {
 		return s.wrapError(errors.New("message type is not accepted for this type of round"), senderID)
 	}
 
 	s.ackMessage()
 
-	if msg.Type() == s.acceptedTypes[0] {
+	if msg.Type == s.acceptedTypes[0] {
 		s.receivedMessages[senderID] = msg
 	} else {
 		s.queue = append(s.queue, msg)
@@ -141,7 +141,7 @@ func (s *State) ProcessAll() []*messages.Message {
 	}
 
 	// Only continue if we received messages from all
-	if len(s.receivedMessages) != int(s.round.Set().N()-1) {
+	if len(s.receivedMessages) != int(s.round.PartyIDs().N()-1) {
 		return nil
 	}
 
@@ -169,8 +169,8 @@ func (s *State) ProcessAll() []*messages.Message {
 		newQueue := s.queue[:0]
 		currentType := s.acceptedTypes[0]
 		for _, msg := range s.queue {
-			if msg.Type() == currentType {
-				s.receivedMessages[msg.From()] = msg
+			if msg.Type == currentType {
+				s.receivedMessages[msg.From] = msg
 			} else {
 				newQueue = append(newQueue, msg)
 			}

@@ -50,15 +50,15 @@ func main() {
 		return
 	}
 
-	partySet := helpers.GenerateSet(party.ID(n))
+	partyIDs := helpers.GenerateSet(party.ID(n))
 
 	// structure holding parties' state and output
 	states := map[party.ID]*state.State{}
 	outputs := map[party.ID]*keygen.Output{}
 
 	// create a state for each party
-	for id := range partySet.Range() {
-		states[id], outputs[id], err = frost.NewKeygenState(id, partySet, party.Size(t), 0)
+	for _, id := range partyIDs {
+		states[id], outputs[id], err = frost.NewKeygenState(id, partyIDs, party.Size(t), 0)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -96,25 +96,25 @@ func main() {
 
 	// Get the public data
 	fmt.Println("Group Key:")
-	id0 := partySet.Sorted()[0]
+	id0 := partyIDs[0]
 	if err = states[id0].WaitForError(); err != nil {
 		fmt.Println(err)
 		return
 	}
 	public := outputs[id0].Public
 	secrets := make(map[party.ID]*eddsa.SecretShare, n)
-	groupKey := public.GroupKey()
+	groupKey := public.GroupKey
 	fmt.Printf("  %x\n\n", groupKey.ToEd25519())
 
-	for _, id := range partySet.Sorted() {
+	for _, id := range partyIDs {
 		if err := states[id].WaitForError(); err != nil {
 			fmt.Println(err)
 			return
 		}
 		shareSecret := outputs[id].SecretKey
-		sharePublic, _ := public.Share(id)
+		sharePublic := public.Shares[id]
 		secrets[id] = shareSecret
-		fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", id, shareSecret.Scalar().Bytes(), sharePublic.ToEd25519())
+		fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", id, shareSecret.Secret.Bytes(), sharePublic.Bytes())
 	}
 
 	// TODO: write JSON file, to take as input by CLI signer

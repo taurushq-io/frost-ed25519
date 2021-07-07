@@ -1,287 +1,124 @@
 package eddsa
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 // Public holds the public keys generated during a key generation protocol.
-// It also stores the associated party set, the threshold used and the full group key.
+// It also stores the associated party list, the threshold used and the full group key.
 type Public struct {
-	// PartySet is a party.Set that represents all parties with a share.
-	PartySet  *party.Set
-	threshold party.Size
-	shares    map[party.ID]*edwards25519.Point
-	groupKey  *edwards25519.Point
+	// PartyIDs is a party.Set that represents all parties with a share.
+	PartyIDs party.IDSlice
+
+	// Threshold returns the integer which defines the maximum number of parties that may be corrupted
+	Threshold party.Size
+
+	// Shares maps ID's to the threshold Shamir shares of the public GroupKey
+	Shares map[party.ID]*ristretto.Element
+
+	// GroupKey is the group's public key
+	// It is the result of interpolating the Shamir shares at 0
+	GroupKey *PublicKey
 }
 
-// NewPublic creates a Public structure given a map of public key shares as edwards25519.Point, the threshold used, and an optional group key.
-// If groupKey is nil, then it is recomputed. Otherwise it is considered correct and simply stored.
-func NewPublic(shares map[party.ID]*edwards25519.Point, threshold party.Size, groupKey *edwards25519.Point) *Public {
+// NewPublic creates a Public structure given a map of public key shares as ristretto.Element, the threshold used.
+func NewPublic(shares map[party.ID]*ristretto.Element, threshold party.Size) (*Public, error) {
 	n := len(shares)
 	IDs := make([]party.ID, 0, n)
 	for id := range shares {
 		IDs = append(IDs, id)
 	}
 
-	set, err := party.NewSet(IDs)
-	if err != nil {
-		panic(err)
-	}
+	set := party.NewIDSlice(IDs)
 
 	s := &Public{
-		PartySet:  set,
-		threshold: threshold,
-		shares:    shares,
-		groupKey:  groupKey,
+		PartyIDs:  set,
+		Threshold: threshold,
+		Shares:    shares,
+		GroupKey:  computeGroupKey(set, shares),
 	}
 
-	if groupKey == nil {
-		s.computeGroupKey()
+	if s.Threshold+1 > s.PartyIDs.N() {
+		return nil, errors.New("PublicShares: Threshold should be < N - 1")
 	}
 
-	return s
+	return s, nil
 }
 
-func (s *Public) computeGroupKey() {
-	var tmp edwards25519.Point
-	s.groupKey = edwards25519.NewIdentityPoint()
+// computeGroupKey computes the interpolation of the shares with regards to the partyIDs
+func computeGroupKey(partyIDs party.IDSlice, shares map[party.ID]*ristretto.Element) *PublicKey {
+	var tmp ristretto.Element
 
-	for id := range s.PartySet.Range() {
-		lagrange, _ := s.PartySet.Lagrange(id)
-		tmp.ScalarMult(lagrange, s.shares[id])
-		s.groupKey.Add(s.groupKey, &tmp)
+	groupKey := ristretto.NewIdentityElement()
+	for _, id := range partyIDs {
+		lagrange, _ := id.Lagrange(partyIDs)
+		tmp.ScalarMult(lagrange, shares[id])
+		groupKey.Add(groupKey, &tmp)
 	}
-}
-
-// GroupKey returns the group key of the group by interpolating all the given points.
-func (s *Public) GroupKey() *PublicKey {
-	return NewPublicKeyFromPoint(s.groupKey)
-}
-
-// share returns the PublicKey for the party at index.
-func (s *Public) share(index party.ID, result *PublicKey) (*PublicKey, error) {
-	p, ok := s.shares[index]
-	if !ok {
-		return nil, fmt.Errorf("shares does not contain partyID %d", index)
-	}
-	result.pk.Set(p)
-	return result, nil
-}
-
-// Share returns the PublicKey for the party at index.
-func (s *Public) Share(index party.ID) (*PublicKey, error) {
-	var pk PublicKey
-	return s.share(index, &pk)
-}
-
-func (s *Public) shareNormalized(partyID party.ID, partySet *party.Set, result *PublicKey) (*PublicKey, error) {
-	if partySet.N() < s.threshold+1 {
-		return nil, errors.New("partyIDs does not contain a threshold number of PartySet")
-	}
-	if !partySet.IsSubsetOf(s.PartySet) {
-		return nil, errors.New("given partyIDs is not a subset of the original partyIDs")
-	}
-
-	_, err := s.share(partyID, result)
-	if err != nil {
-		return nil, err
-	}
-
-	lagrange, err := partySet.Lagrange(partyID)
-	if err != nil {
-		return nil, err
-	}
-	result.pk.ScalarMult(lagrange, &result.pk)
-	return result, nil
-}
-
-// ShareNormalized returns the party index's public key share, but multiplied by the appropriate Lagrange factor of
-// the group determined by partyIDs.
-// If ShareNormalized is called for every party in partyIDs, then the resulting PublicKey s represent
-// an additive sharing of the group key.
-func (s *Public) ShareNormalized(partyID party.ID, partySet *party.Set) (*PublicKey, error) {
-	var result PublicKey
-	return s.shareNormalized(partyID, partySet, &result)
-}
-
-// Threshold returns the integer which defines the maximum number of parties that may be corrupted while
-// keeping the scheme secure.
-func (s *Public) Threshold() party.Size {
-	return s.threshold
-}
-
-// MarshalBinary implements the encoding.BinaryMarshaler interface.
-func (s *Public) MarshalBinary() ([]byte, error) {
-	N := s.PartySet.N()
-	size := 2*party.ByteSize + 32 + N*(party.ByteSize+32)
-	out := make([]byte, 0, size)
-	out = append(out, N.Bytes()...)
-	out = append(out, s.threshold.Bytes()...)
-	out = append(out, s.groupKey.Bytes()...)
-
-	for _, id := range s.PartySet.Sorted() {
-		out = append(out, id.Bytes()...)
-		out = append(out, s.shares[id].Bytes()...)
-	}
-	return out, nil
-}
-
-// UnmarshalBinary implements the BinaryUnmarshaler interface.
-func (s *Public) UnmarshalBinary(data []byte) error {
-	var err error
-	n := party.FromBytes(data)
-	data = data[party.ByteSize:]
-
-	if len(data) != int(party.ByteSize+32+n*(party.ByteSize+32)) {
-		return errors.New("encoded n is inconsistent with data length")
-	}
-
-	t := party.FromBytes(data)
-	data = data[party.ByteSize:]
-	if t+1 > n {
-		return errors.New("t should be < n - 1")
-	}
-
-	var groupKey edwards25519.Point
-	_, err = groupKey.SetBytes(data[:32])
-	if err != nil {
-		return err
-	}
-	data = data[32:]
-
-	partyIDs := make([]party.ID, n)
-	sharesSlice := make([]edwards25519.Point, n)
-	shares := make(map[party.ID]*edwards25519.Point, n)
-
-	for i := party.Size(0); i < n; i++ {
-		partyIDs[i] = party.FromBytes(data)
-		data = data[party.ByteSize:]
-		id := partyIDs[i]
-		shares[id], err = sharesSlice[i].SetBytes(data[:32])
-		data = data[32:]
-		if err != nil {
-			return err
-		}
-	}
-	s.threshold = t
-	s.PartySet, err = party.NewSet(partyIDs)
-	if err != nil {
-		return err
-	}
-	s.shares = shares
-
-	s.computeGroupKey()
-	if groupKey.Equal(s.groupKey) != 1 {
-		return errors.New("stored GroupKey does not correspond")
-	}
-
-	return nil
+	return NewPublicKeyFromPoint(groupKey)
 }
 
 type sharesJSON struct {
-	Threshold int               `json:"t"`
-	GroupKey  string            `json:"groupkey"`
-	Shares    map[string]string `json:"shares"`
+	Threshold int                             `json:"t"`
+	GroupKey  *PublicKey                      `json:"groupkey"`
+	Shares    map[party.ID]*ristretto.Element `json:"shares"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
 func (s *Public) MarshalJSON() ([]byte, error) {
-	sharesText := make(map[string]string, len(s.shares))
-	for _, id := range s.PartySet.Sorted() {
-		sharesText[id.String()] = hex.EncodeToString(s.shares[id].Bytes())
-	}
-
 	return json.Marshal(sharesJSON{
-		Threshold: int(s.threshold),
-		Shares:    sharesText,
-		GroupKey:  hex.EncodeToString(s.groupKey.Bytes()),
+		Threshold: int(s.Threshold),
+		Shares:    s.Shares,
+		GroupKey:  s.GroupKey,
 	})
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
 func (s *Public) UnmarshalJSON(data []byte) error {
 	var out sharesJSON
-	err := json.Unmarshal(data, &out)
+
+	if err := json.Unmarshal(data, &out); err != nil {
+		return err
+	}
+
+	newS, err := NewPublic(out.Shares, party.Size(out.Threshold))
 	if err != nil {
 		return err
 	}
-	n := party.Size(len(out.Shares))
-	t := party.Size(out.Threshold)
-	if t+1 > n {
-		return errors.New("t should be < n - 1")
+	computedGroupKey := computeGroupKey(newS.PartyIDs, out.Shares)
+	if !computedGroupKey.Equal(out.GroupKey) {
+		return errors.New("PublicShares: inconsistent group key")
 	}
 
-	partyIDs := make([]party.ID, 0, n)
-	sharesSlice := make([]edwards25519.Point, n)
-	shares := make(map[party.ID]*edwards25519.Point, n)
-	for idText, pointHex := range out.Shares {
-		id, err := party.IDFromString(idText)
-		if err != nil {
-			return err
-		}
-		pointBytes, err := hex.DecodeString(pointHex)
-		if err != nil {
-			return err
-		}
-
-		i := len(partyIDs)
-		partyIDs = append(partyIDs, id)
-		shares[id], err = sharesSlice[i].SetBytes(pointBytes)
-		if err != nil {
-			return err
-		}
-	}
-	s.shares = shares
-
-	s.threshold = t
-	s.PartySet, err = party.NewSet(partyIDs)
-	if err != nil {
-		return err
-	}
-
-	// Recompute group key to make sure it is the same
-	var groupKey edwards25519.Point
-	s.computeGroupKey()
-	groupKeyBytes, err := hex.DecodeString(out.GroupKey)
-	if err != nil {
-		return err
-	}
-	if _, err = groupKey.SetBytes(groupKeyBytes); err != nil {
-		return err
-	}
-	if groupKey.Equal(s.groupKey) != 1 {
-		return errors.New("stored GroupKey does not correspond")
-	}
+	*s = *newS
 
 	return nil
 }
 
 func (s *Public) Equal(s2 *Public) bool {
-	if len(s.shares) != len(s2.shares) {
+	if len(s.Shares) != len(s2.Shares) {
 		return false
 	}
 
-	if !s.PartySet.Equal(s2.PartySet) {
+	if !s.PartyIDs.Equal(s2.PartyIDs) {
 		return false
 	}
 
-	if s.threshold != s2.threshold {
+	if s.Threshold != s2.Threshold {
 		return false
 	}
 
-	if s.groupKey.Equal(s2.groupKey) != 1 {
+	if !s.GroupKey.Equal(s2.GroupKey) {
 		return false
 	}
 
-	for _, id := range s.PartySet.Sorted() {
-		p1 := s.shares[id]
-		p2 := s2.shares[id]
+	for _, id := range s.PartyIDs {
+		p1 := s.Shares[id]
+		p2 := s2.Shares[id]
 		if p1.Equal(p2) != 1 {
 			return false
 		}

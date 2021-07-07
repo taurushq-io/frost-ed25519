@@ -1,119 +1,85 @@
 package eddsa
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
 // SecretShare is a share of a secret key computed during the KeyGen protocol.
 type SecretShare struct {
+	// ID of the party this SecretShare belongs to
 	ID party.ID
-	sk edwards25519.Scalar
-	pk PublicKey
+
+	// Secret is the Shamir share of the group's secret key
+	Secret ristretto.Scalar
+
+	// Public is the Shamir share of the group's public key
+	Public ristretto.Element
 }
 
-// NewSecretShare returns a SecretShare given a party.ID and  edwards25519.Scalar
-func NewSecretShare(id party.ID, secret *edwards25519.Scalar) *SecretShare {
+// NewSecretShare returns a SecretShare given a party.ID and ristretto.Scalar.
+// It additionally computes the associated public key
+func NewSecretShare(id party.ID, secret *ristretto.Scalar) *SecretShare {
 	var share SecretShare
-	return newSecretShare(id, secret, &share)
-}
-
-func newSecretShare(id party.ID, secret *edwards25519.Scalar, share *SecretShare) *SecretShare {
 	share.ID = id
-	share.sk.Set(secret)
-	share.pk.pk.ScalarBaseMult(secret)
-	return share
-}
-
-// Scalar returns a reference to the edwards25519.Scalar representing the private key.
-func (sk *SecretShare) Scalar() *edwards25519.Scalar {
-	return &sk.sk
-}
-
-// PublicKey returns a reference to the edwards25519.Scalar representing the private key.
-func (sk *SecretShare) PublicKey() *PublicKey {
-	return &sk.pk
-}
-
-// Sign generates an Ed25519 compatible signature for the message.
-func (sk *SecretShare) Sign(message []byte) *Signature {
-	var sig Signature
-
-	// R = [r] • B
-	r := scalar.NewScalarRandom()
-	sig.R.ScalarBaseMult(r)
-
-	// C = H(R, A, M)
-	c := ComputeChallenge(&sig.R, &sk.pk, message)
-
-	// S = sk * c + r
-	sig.S.MultiplyAdd(&sk.sk, c, r)
-	return &sig
+	share.Secret.Set(secret)
+	share.Public.ScalarBaseMult(secret)
+	return &share
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (sk *SecretShare) MarshalBinary() ([]byte, error) {
-	data := make([]byte, 0, party.ByteSize+32)
+	data := make([]byte, 0, party.IDByteSize+32)
 	data = append(data, sk.ID.Bytes()...)
-	data = append(data, sk.sk.Bytes()...)
+	data = append(data, sk.Secret.Bytes()...)
 	return data, nil
 }
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (sk *SecretShare) UnmarshalBinary(data []byte) error {
-	if len(data) != party.ByteSize+32 {
+	var err error
+	if len(data) != party.IDByteSize+32 {
 		return errors.New("SecretShare: data is not the right size")
 	}
-	sk.ID = party.FromBytes(data)
-	data = data[party.ByteSize:]
-	_, err := sk.sk.SetCanonicalBytes(data)
-	if err != nil {
+	if sk.ID, err = party.FromBytes(data); err != nil {
 		return err
 	}
-	sk.pk.pk.ScalarBaseMult(&sk.sk)
+	data = data[party.IDByteSize:]
+
+	if _, err = sk.Secret.SetCanonicalBytes(data); err != nil {
+		return err
+	}
+	sk.Public.ScalarBaseMult(&sk.Secret)
 	return nil
 }
 
-type secretShareJSON struct {
-	ID          string `json:"id"`
-	SecretShare string `json:"secret"`
+type jsonSecretShare struct {
+	ID          int    `json:"id"`
+	SecretShare []byte `json:"secret"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
 func (sk *SecretShare) MarshalJSON() ([]byte, error) {
-	out := secretShareJSON{
-		ID:          sk.ID.String(),
-		SecretShare: hex.EncodeToString(sk.sk.Bytes()),
-	}
-	return json.Marshal(out)
+	return json.Marshal(jsonSecretShare{
+		ID:          int(sk.ID),
+		SecretShare: sk.Secret.Bytes(),
+	})
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
 func (sk *SecretShare) UnmarshalJSON(data []byte) error {
-	var (
-		out secretShareJSON
-		err error
-	)
-	if err = json.Unmarshal(data, &out); err != nil {
+	var out jsonSecretShare
+	if err := json.Unmarshal(data, &out); err != nil {
 		return err
 	}
-	if sk.ID, err = party.IDFromString(out.ID); err != nil {
+	sk.ID = party.ID(out.ID)
+	if _, err := sk.Secret.SetCanonicalBytes(out.SecretShare); err != nil {
 		return err
 	}
-	pointBytes, err := hex.DecodeString(out.SecretShare)
-	if err != nil {
-		return err
-	}
-	_, err = sk.sk.SetCanonicalBytes(pointBytes)
-	if err != nil {
-		return err
-	}
-	sk.pk.pk.ScalarBaseMult(&sk.sk)
+	sk.Public.ScalarBaseMult(&sk.Secret)
 	return nil
 }
 
@@ -121,5 +87,5 @@ func (sk *SecretShare) Equal(sk2 *SecretShare) bool {
 	if sk.ID != sk2.ID {
 		return false
 	}
-	return sk.sk.Equal(&sk2.sk) == 1
+	return sk.Secret.Equal(&sk2.Secret) == 1
 }

@@ -2,11 +2,12 @@ package sign
 
 import (
 	"errors"
+	"fmt"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -22,15 +23,15 @@ type (
 
 		// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
 		GroupKey       eddsa.PublicKey
-		SecretKeyShare edwards25519.Scalar
+		SecretKeyShare ristretto.Scalar
 
 		// e and d are the scalars committed to in the first round
-		e, d edwards25519.Scalar
+		e, d ristretto.Scalar
 
 		// C = H(R, GroupKey, Message)
-		C edwards25519.Scalar
+		C ristretto.Scalar
 		// R = ∑ Ri
-		R edwards25519.Point
+		R ristretto.Element
 
 		Output *Output
 	}
@@ -42,54 +43,55 @@ type (
 	}
 )
 
-func NewRound(partySet *party.Set, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *Output, error) {
-	if !partySet.Contains(secret.ID) {
-		return nil, nil, errors.New("owner of SecretShare is not contained in partySet")
+func NewRound(partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *Output, error) {
+	if !partyIDs.Contains(secret.ID) {
+		return nil, nil, errors.New("base.NewRound: owner of SecretShare is not contained in partyIDs")
 	}
-	if !partySet.IsSubsetOf(shares.PartySet) {
-		return nil, nil, errors.New("not all parties of partySet are contained in shares")
+	if !partyIDs.IsSubsetOf(shares.PartyIDs) {
+		return nil, nil, errors.New("base.NewRound: not all parties of partyIDs are contained in shares")
 	}
 
-	baseRound, err := state.NewBaseRound(secret.ID, partySet)
+	baseRound, err := state.NewBaseRound(secret.ID, partyIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("base.NewRound: %w", err)
 	}
 
 	round := &round0{
 		BaseRound: baseRound,
 		Message:   message,
-		Parties:   make(map[party.ID]*signer, partySet.N()),
-		GroupKey:  *shares.GroupKey(),
+		Parties:   make(map[party.ID]*signer, partyIDs.N()),
+		GroupKey:  *shares.GroupKey,
 		Output:    &Output{},
 	}
 
 	// Setup parties
-	for id := range partySet.Range() {
+	for _, id := range partyIDs {
+		var s signer
 		if id == 0 {
-			return nil, nil, errors.New("id 0 is not valid")
+			return nil, nil, errors.New("base.NewRound: id 0 is not valid")
 		}
-		shareNormalized, err := shares.ShareNormalized(id, partySet)
+		originalShare := shares.Shares[id]
+		lagrange, err := id.Lagrange(partyIDs)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("base.NewRound: %w", err)
 		}
-		round.Parties[id] = &signer{
-			Public: *shareNormalized,
-		}
+		s.Public.ScalarMult(lagrange, originalShare)
+		round.Parties[id] = &s
 	}
 
 	// Normalize secret share so that we can assume we are dealing with an additive sharing
-	lagrange, err := partySet.Lagrange(round.SelfID())
+	lagrange, err := round.SelfID().Lagrange(partyIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("base.NewRound: %w", err)
 	}
-	round.SecretKeyShare.Multiply(lagrange, secret.Scalar())
+	round.SecretKeyShare.Multiply(lagrange, &secret.Secret)
 
 	return round, round.Output, nil
 }
 
 func (round *round0) Reset() {
-	zero := edwards25519.NewScalar()
-	one := edwards25519.NewIdentityPoint()
+	zero := ristretto.NewScalar()
+	one := ristretto.NewIdentityElement()
 
 	round.Message = nil
 	round.SecretKeyShare.Set(zero)

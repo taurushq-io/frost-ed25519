@@ -26,7 +26,7 @@ func TestSign(t *testing.T) {
 	msgsOut1 := make([][]byte, 0, N)
 	msgsOut2 := make([][]byte, 0, N)
 
-	for id := range signSet.Range() {
+	for _, id := range signSet {
 		var err error
 		states[id], outputs[id], err = frost.NewSignState(signSet, secretShares[id], publicShares, MESSAGE, 0)
 		if err != nil {
@@ -34,7 +34,7 @@ func TestSign(t *testing.T) {
 		}
 	}
 
-	pk := publicShares.GroupKey()
+	pk := publicShares.GroupKey
 
 	var start time.Time
 	start = time.Now()
@@ -72,11 +72,11 @@ func TestSign(t *testing.T) {
 	}
 	// validate using classic
 	if !ed25519.Verify(pk.ToEd25519(), MESSAGE, sig.ToEd25519()) {
-		t.Error("sig failed")
+		t.Error("sig ed25519 failed")
 	}
 	// Validate using our own function
-	if !sig.Verify(MESSAGE, pk) {
-		t.Error("sig failed")
+	if !pk.Verify(MESSAGE, sig) {
+		t.Error("sig custom failed")
 	}
 	// Check all publicKeys return the same sig
 	for id, s := range states {

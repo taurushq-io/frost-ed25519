@@ -15,8 +15,10 @@ type KeyGen1 struct {
 
 func NewKeyGen1(from party.ID, proof *zk.Schnorr, commitments *polynomial.Exponent) *Message {
 	return &Message{
-		messageType: MessageTypeKeyGen1,
-		from:        from,
+		Header: Header{
+			Type: MessageTypeKeyGen1,
+			From: from,
+		},
 		KeyGen1: &KeyGen1{
 			Proof:       proof,
 			Commitments: commitments,

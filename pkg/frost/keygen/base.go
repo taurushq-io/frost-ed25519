@@ -3,10 +3,10 @@ package keygen
 import (
 	"errors"
 
-	"filippo.io/edwards25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/polynomial"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -21,7 +21,7 @@ type (
 		// Secret is first set to the zero coefficient of the polynomial we send to the other parties.
 		// Once all received shares are declared, they are summed here to produce the party's
 		// final secret key.
-		Secret edwards25519.Scalar
+		Secret ristretto.Scalar
 
 		// Polynomial used to sample shares
 		Polynomial *polynomial.Polynomial
@@ -42,8 +42,8 @@ type (
 	}
 )
 
-func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (state.Round, *Output, error) {
-	N := partySet.N()
+func NewRound(selfID party.ID, partyIDs party.IDSlice, threshold party.Size) (state.Round, *Output, error) {
+	N := partyIDs.N()
 
 	if threshold == 0 {
 		return nil, nil, errors.New("threshold must be at least 1, or a minimum of T+1=2 signers")
@@ -52,7 +52,7 @@ func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (state
 		return nil, nil, errors.New("threshold must be at most N-1, or a maximum of T+1=N signers")
 	}
 
-	baseRound, err := state.NewBaseRound(selfID, partySet)
+	baseRound, err := state.NewBaseRound(selfID, partyIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,7 +68,7 @@ func NewRound(selfID party.ID, partySet *party.Set, threshold party.Size) (state
 }
 
 func (round *round0) Reset() {
-	round.Secret.Set(edwards25519.NewScalar())
+	round.Secret.Set(ristretto.NewScalar())
 	round.Polynomial.Reset()
 	round.CommitmentsSum.Reset()
 	for _, p := range round.Commitments {

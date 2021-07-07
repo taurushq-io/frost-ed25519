@@ -9,7 +9,7 @@ import (
 )
 
 // NewPartySlice returns n party.ID s in the range [1, ..., n].
-func NewPartySlice(n party.Size) []party.ID {
+func NewPartySlice(n party.Size) party.IDSlice {
 	partyIDs := make([]party.ID, 0, n)
 	for i := party.ID(1); i <= n; i++ {
 		partyIDs = append(partyIDs, i)
@@ -17,9 +17,8 @@ func NewPartySlice(n party.Size) []party.ID {
 	return partyIDs
 }
 
-func GenerateSet(n party.Size) *party.Set {
-	set, _ := party.NewSet(NewPartySlice(n))
-	return set
+func GenerateSet(n party.Size) party.IDSlice {
+	return party.NewIDSlice(NewPartySlice(n))
 }
 
 func PartyRoutine(in [][]byte, s *state.State) ([][]byte, error) {

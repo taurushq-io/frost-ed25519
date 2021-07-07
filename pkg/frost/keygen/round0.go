@@ -8,7 +8,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round0) ProcessMessage(msg *messages.Message) *state.Error {
+func (round *round0) ProcessMessage(*messages.Message) *state.Error {
 	return nil
 }
 
@@ -20,7 +20,7 @@ func (round *round0) GenerateMessages() ([]*messages.Message, *state.Error) {
 	// of degree t.
 	round.Polynomial = polynomial.NewPolynomial(round.Threshold, &round.Secret)
 
-	// Generate all commitments [a_i,j] B for j = 0, 1, ..., t
+	// Generate all commitments [a_{i j}] B for j = 0, 1, ..., t
 	// CommitmentsSum holds the sum of all commitments, so we initialize it to our commitment
 	round.CommitmentsSum = polynomial.NewPolynomialExponent(round.Polynomial)
 

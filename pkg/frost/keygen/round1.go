@@ -10,7 +10,7 @@ import (
 func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 	// TODO we can use custom contexts to prevent replay attacks
 	ctx := make([]byte, 32)
-	from := msg.From()
+	from := msg.From
 
 	public := msg.KeyGen1.Commitments.Constant()
 	if !msg.KeyGen1.Proof.Verify(from, public, ctx) {
@@ -25,8 +25,8 @@ func (round *round1) ProcessMessage(msg *messages.Message) *state.Error {
 }
 
 func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
-	msgsOut := make([]*messages.Message, 0, round.Set().N()-1)
-	for id := range round.Set().Range() {
+	msgsOut := make([]*messages.Message, 0, len(round.PartyIDs())-1)
+	for _, id := range round.PartyIDs() {
 		if id == round.SelfID() {
 			continue
 		}
