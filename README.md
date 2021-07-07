@@ -15,10 +15,10 @@ and that the same verification algorithm can be used.
 Specifically, we implement the _PureEdDSA_ variant, as detailed in [RFC 8032](https://tools.ietf.org/html/rfc8032)
 (as opposed to HashEdDSA/Ed25519ph or ContextEdDSA/Ed25519ctx.).
 
-### ristretto
+### Ristretto
 
 In order to minimize the impact of the cofactor in the Edwards 25519 elliptic curve, we represent the curve points with the
-[ristretto](https://ristretto.group/) encoding.
+[Ristretto](https://ristretto.group/) encoding.
 Our implementation is taken from Filippo Valsorda's [branch](https://github.com/gtank/ristretto255/tree/filippo/edwards25519backend)
 of George Tankersley's [ristretto255](https://github.com/gtank/ristretto255).
 Internally it uses the [edwards25519](https://github.com/FiloSottile/edwards25519) package.
@@ -30,9 +30,10 @@ The result is the canonical encoding of `P'`.
 For clarity, we distinguish the following elements:
 
 - `B` is the base point of the Edwards 25519 elliptic curve
-- `G` is the generator of the ristretto group
+- `G` is the generator of the Ristretto group
 
-The integer `q` is equal to `2**252 + 27742317777372353535851937790883648493` and is the prime order of the ristretto group `<G>`.
+The integer `q` is equal to `2**252 + 27742317777372353535851937790883648493` and is the prime order of the Ristretto group `<G>`.
+
 ### Keys
 
 The Ed25519 standard defines the private signing key as a 32 byte _seed_ `x`.
@@ -59,7 +60,7 @@ After a successful execution of the DKG protocol, each party `Pi` obtains:
 
 A FROST-Ed25519 signature for a message `M` is defined by a pair `(R,S)` where: 
 
-- The nonce `R` represents a ristretto group element, computed as `R = [r]•G` for some `r` mod `q`.
+- The nonce `R` represents a Ristretto group element, computed as `R = [r]•G` for some `r` mod `q`.
 - `S` is a scalar derived computed as
 
 ```
@@ -87,7 +88,7 @@ It does the following:
 
 Manual verification is not necessary in most cases, but is possible by calling `PublicKey.Verify(message []byte, signature *eddsa.Signature)`.
 
-_Note_: the cofactor is no longer an issue here, since we are considering points in the ristretto group.
+_Note_: the cofactor is no longer an issue here, since we are considering points in the Ristretto group.
 
 ### Compatibility with `ed25519`:
 
