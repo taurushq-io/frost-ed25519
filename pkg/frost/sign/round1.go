@@ -42,9 +42,17 @@ func (round *round1) computeRhos() {
 
 	// We compute the binding factor 𝜌_{i} for each party as such:
 	//
+	//	   For FROST1:
+	//
 	//     𝜌_d = SHA-512 ("FROST-SHA512" ∥ i ∥ SHA-512(Message) ∥ B )
 	//
-	// For each party ID i.
+	// 	   For each party ID i.
+	//
+	//     For FROST2:
+	//
+	//	   𝜌 = SHA-512 ("FROST-SHA512" ∥ SHA-512(Message) ∥ B )
+	//
+	// 	   Once.
 	//
 	// The list B is the concatenation of ( j ∥ Dⱼ ∥ Eⱼ ) for all signers j in sorted order.
 	//     B = (ID1 ∥ D₁ ∥ E₁) ∥ (ID_2 ∥ D₂ ∥ E₂) ∥ ... ∥ (ID_N ∥ D_N ∥ E_N)
@@ -52,7 +60,10 @@ func (round *round1) computeRhos() {
 	// We compute the big buffer "FROST-SHA512" ∥ ... ∥ SHA-512(Message) ∥ B
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
-	buffer = append(buffer, hashDomainSeparation...)
+	// if version is FROST_1, then add space for party IDs
+	if round.Version == FROST_1 {
+		buffer = append(buffer, hashDomainSeparation...)
+	}
 	buffer = append(buffer, round.SelfID().Bytes()...)
 	buffer = append(buffer, messageHash[:]...)
 
@@ -62,6 +73,14 @@ func (round *round1) computeRhos() {
 		buffer = append(buffer, id.Bytes()...)
 		buffer = append(buffer, otherParty.Di.Bytes()...)
 		buffer = append(buffer, otherParty.Ei.Bytes()...)
+	}
+
+	// if version is FROST_2, then hash buffer, set P, and return
+	// don't hash for each party!
+	if round.Version == FROST_2 {
+		digest := sha512.Sum512(buffer)
+		_, _ = round.P.SetUniformBytes(digest[:])
+		return
 	}
 
 	for _, id := range round.PartyIDs() {
@@ -78,14 +97,30 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 	round.computeRhos()
 
 	round.R.Set(ristretto.NewIdentityElement())
-	for _, p := range round.Parties {
-		// TODO Find a way to do this faster since we don't need constant time
-		// Ri = D + [ρ] E
-		p.Ri.ScalarMult(&p.Pi, &p.Ei)
-		p.Ri.Add(&p.Ri, &p.Di)
+	if round.Version == FROST_1 {
+		for _, p := range round.Parties {
+			// TODO Find a way to do this faster since we don't need constant time
+			// Ri = D + [ρ] E
+			p.Ri.ScalarMult(&p.Pi, &p.Ei)
+			p.Ri.Add(&p.Ri, &p.Di)
 
-		// R += Ri
-		round.R.Add(&round.R, &p.Ri)
+			// R += Ri
+			round.R.Add(&round.R, &p.Ri)
+		}
+	} else {
+		for _, p := range round.Parties {
+			// R += Di
+			round.R.Add(&round.R, &p.Di)
+		}
+		E := ristretto.NewIdentityElement()
+		for _, p := range round.Parties {
+			// E += Ei
+			E.Add(E, &p.Ei)
+		}
+		// E = [ρ] E
+		E.ScalarMult(&round.P, E)
+		// R += E
+		round.R.Add(&round.R, E)
 	}
 
 	// c = H(R, GroupKey, M)
@@ -97,9 +132,13 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 	// Note: since we multiply the secret by the Lagrange coefficient,
 	// can ignore 𝛌=1
 	secretShare := &selfParty.Zi
-	secretShare.Multiply(&round.SecretKeyShare, &round.C)         // s • c
-	secretShare.MultiplyAdd(&round.e, &selfParty.Pi, secretShare) // (e • ρ) + s • c
-	secretShare.Add(secretShare, &round.d)                        // d + (e • ρ) + 𝛌 • s • c
+	secretShare.Multiply(&round.SecretKeyShare, &round.C) // s • c
+	if round.Version == FROST_1 {
+		secretShare.MultiplyAdd(&round.e, &selfParty.Pi, secretShare) // (e • ρ) + s • c
+	} else {
+		secretShare.MultiplyAdd(&round.e, &round.P, secretShare) // (e • ρ) + s • c
+	}
+	secretShare.Add(secretShare, &round.d) // d + (e • ρ) + 𝛌 • s • c
 
 	msg := messages.NewSign2(round.SelfID(), secretShare)
 

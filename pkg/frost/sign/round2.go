@@ -18,14 +18,14 @@ func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	id := msg.From
 	otherParty := round.Parties[id]
 
-	var publicNeg, RPrime ristretto.Element
-	publicNeg.Negate(&otherParty.Public)
+	// var publicNeg, RPrime ristretto.Element
+	// publicNeg.Negate(&otherParty.Public)
 
-	// RPrime = [c](-A) + [s]B
-	RPrime.VarTimeDoubleScalarBaseMult(&round.C, &publicNeg, &msg.Sign2.Zi)
-	if RPrime.Equal(&otherParty.Ri) != 1 {
-		return state.NewError(id, ErrValidateSigShare)
-	}
+	// // RPrime = [c](-A) + [s]B
+	// RPrime.VarTimeDoubleScalarBaseMult(&round.C, &publicNeg, &msg.Sign2.Zi)
+	// if RPrime.Equal(&otherParty.Ri) != 1 {
+	// 	return state.NewError(id, ErrValidateSigShare)
+	// }
 	otherParty.Zi.Set(&msg.Sign2.Zi)
 	return nil
 }

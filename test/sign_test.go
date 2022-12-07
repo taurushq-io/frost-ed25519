@@ -28,7 +28,7 @@ func TestSign(t *testing.T) {
 
 	for _, id := range signSet {
 		var err error
-		states[id], outputs[id], err = frost.NewSignState(signSet, secretShares[id], publicShares, MESSAGE, 0)
+		states[id], outputs[id], err = frost.NewSignState(sign.FROST_1, signSet, secretShares[id], publicShares, MESSAGE, 0)
 		if err != nil {
 			t.Error(err)
 		}

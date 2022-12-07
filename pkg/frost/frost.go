@@ -30,8 +30,8 @@ func NewKeygenState(selfID party.ID, partyIDs party.IDSlice, threshold party.Siz
 // NewSignState returns a state.State which coordinates the multiple rounds.
 // The second parameter is the output of the protocol and will be filled with the output once the protocol has finished executing.
 // It is safe to use the output when State.WaitForError() returns nil.
-func NewSignState(partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte, timeout time.Duration) (*state.State, *sign.Output, error) {
-	round, output, err := sign.NewRound(partyIDs, secret, shares, message)
+func NewSignState(version sign.ProtocolVersion, partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte, timeout time.Duration) (*state.State, *sign.Output, error) {
+	round, output, err := sign.NewRound(version, partyIDs, secret, shares, message)
 	if err != nil {
 		return nil, nil, err
 	}

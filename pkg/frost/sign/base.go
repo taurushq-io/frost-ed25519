@@ -11,9 +11,18 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
+type ProtocolVersion int
+
+const (
+	FROST_1 ProtocolVersion = iota
+	FROST_2
+)
+
 type (
 	round0 struct {
 		*state.BaseRound
+
+		Version ProtocolVersion
 
 		// Message is the message to be signed
 		Message []byte
@@ -32,6 +41,11 @@ type (
 		C ristretto.Scalar
 		// R = ∑ Ri
 		R ristretto.Element
+		// if the protocol version is FROST2
+		// P = ρ = H(Message, B)
+		// This does means there is one global shift for the nonces instead of one for each signer
+		// This allows for 1 group exponentiation instead of t
+		P ristretto.Scalar
 
 		Output *Output
 	}
@@ -43,7 +57,7 @@ type (
 	}
 )
 
-func NewRound(partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *Output, error) {
+func NewRound(version ProtocolVersion, partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *Output, error) {
 	if !partyIDs.Contains(secret.ID) {
 		return nil, nil, errors.New("base.NewRound: owner of SecretShare is not contained in partyIDs")
 	}
@@ -58,6 +72,7 @@ func NewRound(partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.P
 
 	round := &round0{
 		BaseRound: baseRound,
+		Version:   version,
 		Message:   message,
 		Parties:   make(map[party.ID]*signer, partyIDs.N()),
 		GroupKey:  *shares.GroupKey,
