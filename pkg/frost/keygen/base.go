@@ -8,11 +8,12 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
+	"github.com/taurusgroup/frost-ed25519/pkg/state/hub"
 )
 
 type (
 	round0 struct {
-		*state.BaseRound
+		*hub.BaseHubRound
 
 		// Threshold is the degree of the polynomial used for Shamir.
 		// It is the number of tolerated party corruptions.
@@ -52,16 +53,17 @@ func NewRound(selfID party.ID, partyIDs party.IDSlice, threshold party.Size) (st
 		return nil, nil, errors.New("threshold must be at most N-1, or a maximum of T+1=N signers")
 	}
 
-	baseRound, err := state.NewBaseRound(selfID, partyIDs)
+	// every node is a hub in the dkg
+	baseRound, err := hub.NewBaseHubRound(selfID, partyIDs)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	r := round0{
-		BaseRound:   baseRound,
-		Threshold:   threshold,
-		Commitments: make(map[party.ID]*polynomial.Exponent, N),
-		Output:      &Output{},
+		BaseHubRound: baseRound,
+		Threshold:    threshold,
+		Commitments:  make(map[party.ID]*polynomial.Exponent, N),
+		Output:       &Output{},
 	}
 
 	return &r, r.Output, nil

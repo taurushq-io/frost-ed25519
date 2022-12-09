@@ -1,4 +1,4 @@
-package sign
+package types
 
 import (
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
@@ -7,7 +7,7 @@ import (
 // A signer represents the state we store for one particular
 // co-signer. It can safely be reset once a signature has
 // been generated, or an abort was detected.
-type signer struct {
+type Signer struct {
 	// signer's additive share of the Public key.
 	// It is multiplied by the party's Lagrange coefficient
 	// so the we do need to do so later.
@@ -32,7 +32,7 @@ type signer struct {
 
 // Reset sets all values to default.
 // The party is no longer usable since the public key is deleted.
-func (signer *signer) Reset() {
+func (signer *Signer) Reset() {
 	zero := ristretto.NewScalar()
 	identity := ristretto.NewIdentityElement()
 

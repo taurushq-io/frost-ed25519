@@ -1,4 +1,4 @@
-package sign
+package types
 
 import "github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 

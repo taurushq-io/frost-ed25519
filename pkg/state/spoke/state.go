@@ -1,0 +1,278 @@
+package spoke
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
+)
+
+// State is a struct that manages the state of a spoke for the round based protocol.
+//
+// It handles the initial message reception, by storing them internally and feeding them to
+// the the current round when all messages have been received
+type State struct {
+	state.State
+	acceptedTypes   []messages.MessageType
+	receivedMessage *messages.Message
+	queue           []*messages.Message
+
+	timer
+
+	roundNumber int
+
+	round SpokeRound
+
+	doneChan chan struct{}
+	done     bool
+	err      *state.Error
+
+	mtx sync.Mutex
+}
+
+func NewBaseState(round SpokeRound, timeout time.Duration) (*State, error) {
+	s := &State{
+		acceptedTypes:   append([]messages.MessageType{}, round.AcceptedMessageTypes()...),
+		receivedMessage: nil,
+		queue:           make([]*messages.Message, 0, 1),
+		round:           round,
+		doneChan:        make(chan struct{}),
+	}
+
+	s.timer = newTimer(timeout, func() {
+		s.mtx.Lock()
+		s.reportError(state.NewError(0, errors.New("message timeout")))
+		s.mtx.Unlock()
+	})
+
+	return s, nil
+}
+
+func (s *State) wrapError(err error, culprit party.ID) error {
+	if culprit == 0 {
+		return fmt.Errorf("party %d, round %d: %w", s.round.SelfID(), s.roundNumber, err)
+	}
+	return fmt.Errorf("party %d, round %d, culprit %d: %w", s.round.SelfID(), culprit, s.roundNumber, err)
+}
+
+// HandleMessage should be called on an unmarshalled messages.Message appropriate for the protocol execution.
+// It performs basic checks to see whether the message can be used.
+// - Is the protocol already done
+// - Is msg is valid for this round or a future one
+// - Is msg for us
+// - Is the sender the hub in the protocol
+// - Have we already received a message from the party for this round?
+//
+// If all these checks pass, then the message is either stored for the current round,
+// or put in a queue for later rounds.
+//
+// Note: the properties of the messages are checked in ProcessAll.
+// Therefore, the check here should be a quite fast.
+func (s *State) HandleMessage(msg *messages.Message) error {
+	senderID := msg.From
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.done {
+		return s.wrapError(errors.New("protocol already finished"), senderID)
+	}
+
+	if len(s.acceptedTypes) == 0 {
+		return s.wrapError(errors.New("no more messages being accepted"), senderID)
+	}
+
+	// Ignore message not addressed to us
+	if !msg.IsBroadcast() && msg.To != s.round.SelfID() {
+		return nil
+	}
+	// Is the sender the hub?
+	if s.round.HubID() != senderID {
+		return s.wrapError(errors.New("sender is not the hub"), senderID)
+	}
+
+	// Check if we have already received a message from the hub.
+	// exists should never be false, but you never know
+	if s.receivedMessage != nil {
+		return s.wrapError(errors.New("message from the hub was already received"), senderID)
+	}
+
+	if !s.isAcceptedType(msg.Type) {
+		return s.wrapError(errors.New("message type is not accepted for this type of round"), senderID)
+	}
+
+	s.ackMessage()
+
+	if msg.Type == s.acceptedTypes[0] {
+		s.receivedMessage = msg
+	} else {
+		s.queue = append(s.queue, msg)
+	}
+
+	return nil
+}
+
+// ProcessAll checks whether all messages for this round have been received.
+// If so then all messages are fed to Round.ProcessMessage.
+// If no error was detected, then the round is processed and new messages are generated.
+// These messages are returned to the caller and should be processed.
+// If all went correctly, we take the messages for the next round out of the queue,
+// and move on to the next round.
+func (s *State) ProcessAll() []*messages.Message {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.done {
+		return nil
+	}
+
+	// Only continue if we received message
+	if s.receivedMessage == nil {
+		return nil
+	}
+
+	if err := s.round.ProcessMessage(s.receivedMessage); err != nil {
+		s.reportError(err)
+		return nil
+	}
+
+	// remove the processed messages
+	s.receivedMessage = nil
+
+	newMessages, err := s.round.GenerateMessages()
+	if err != nil {
+		s.reportError(err)
+		return nil
+	}
+
+	// remove the messages for the next round from the queue
+	s.acceptedTypes = s.acceptedTypes[1:]
+	if len(s.acceptedTypes) > 0 {
+		newQueue := s.queue[:0]
+		currentType := s.acceptedTypes[0]
+		for _, msg := range s.queue {
+			if msg.Type == currentType {
+				s.receivedMessage = msg
+			} else {
+				newQueue = append(newQueue, msg)
+			}
+		}
+		s.queue = newQueue
+	}
+
+	// We are finished and move on to the next round
+	nextRound := s.round.NextRound()
+	if nextRound == nil {
+		s.finish()
+	} else {
+		s.roundNumber++
+		s.round = nextRound.(SpokeRound)
+	}
+
+	return newMessages
+}
+
+func (s *State) isAcceptedType(msgType messages.MessageType) bool {
+	for _, otherType := range s.acceptedTypes {
+		if otherType == msgType {
+			return true
+		}
+	}
+	return false
+}
+
+//
+// Output
+//
+func (s *State) finish() {
+	if s.done {
+		return
+	}
+	s.done = true
+	s.round.Reset()
+	s.stopTimer()
+	close(s.doneChan)
+}
+
+func (s *State) reportError(err *state.Error) {
+	if s.done {
+		return
+	}
+	defer s.finish()
+
+	// We already got an error
+	// TODO chain the errors
+	if s.err == nil {
+		err.RoundNumber = s.roundNumber
+		s.err = err
+	}
+}
+
+// Done should be called like context.Done:
+//
+// select {
+//   case <-s.Done():
+//   // other cases
+//
+func (s *State) Done() <-chan struct{} {
+	return s.doneChan
+}
+
+func (s *State) Err() error {
+	if s.err != nil {
+		return s.err
+	}
+	return nil
+}
+
+// WaitForError blocks until the protocol is done.
+// This happens either when the protocol has finished correctly,
+// or if an error has been detected.
+func (s *State) WaitForError() error {
+	if !s.done {
+		<-s.doneChan
+	}
+	return s.Err()
+}
+
+// IsFinished returns true if the protocol has aborted or successfully finished.
+func (s *State) IsFinished() bool {
+	return s.done
+}
+
+//
+// Timeout
+//
+
+type timer struct {
+	t *time.Timer
+	d time.Duration
+}
+
+func newTimer(d time.Duration, f func()) timer {
+	var t *time.Timer
+	if d > 0 {
+		t = time.AfterFunc(d, f)
+	}
+	return timer{
+		t: t,
+		d: d,
+	}
+}
+
+func (t *timer) ackMessage() {
+	if t.t != nil {
+		t.t.Stop()
+		t.t.Reset(t.d)
+	}
+}
+
+func (t *timer) stopTimer() {
+	if t.t != nil {
+		t.t.Stop()
+	}
+}

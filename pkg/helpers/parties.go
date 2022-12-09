@@ -21,7 +21,7 @@ func GenerateSet(n party.Size) party.IDSlice {
 	return party.NewIDSlice(NewPartySlice(n))
 }
 
-func PartyRoutine(in [][]byte, s *state.State) ([][]byte, error) {
+func PartyRoutine(in [][]byte, s state.State) ([][]byte, error) {
 	for _, m := range in {
 		var msgTmp messages.Message
 
