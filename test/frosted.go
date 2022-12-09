@@ -61,7 +61,6 @@ func DoSign(version sign.ProtocolVersion, T party.Size, signIDs []party.ID, shar
 		err = h.State.WaitForError()
 		if err != nil {
 			failures++
-			return fmt.Errorf("%v signatures verifications failed", err)
 		} else if s := h.Out.Signature; s != nil {
 			if !groupKey.Verify(message, s) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
 				failures++
@@ -117,7 +116,7 @@ func destroyCommMap(m map[party.ID]communication.Communicator) {
 
 func main() {
 	ns := []party.Size{5, 10, 50}
-	versions := []sign.ProtocolVersion{sign.FROST_1, sign.FROST_2}
+	versions := []sign.ProtocolVersion{sign.FROST_2}
 	// what should work
 	for _, version := range versions {
 		fmt.Printf("VERSION %v\n", version)

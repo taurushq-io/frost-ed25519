@@ -60,11 +60,11 @@ func (round *round1) computeRhos() {
 	// We compute the big buffer "FROST-SHA512" ∥ ... ∥ SHA-512(Message) ∥ B
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
+	buffer = append(buffer, hashDomainSeparation...)
 	// if version is FROST_1, then add space for party IDs
 	if round.Version == FROST_1 {
-		buffer = append(buffer, hashDomainSeparation...)
+		buffer = append(buffer, round.SelfID().Bytes()...)
 	}
-	buffer = append(buffer, round.SelfID().Bytes()...)
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
@@ -109,6 +109,9 @@ func (round *round1) GenerateMessages() ([]*messages.Message, *state.Error) {
 		}
 	} else {
 		for _, p := range round.Parties {
+			// Ri = D + [ρ] E
+			p.Ri.ScalarMult(&round.P, &p.Ei)
+			p.Ri.Add(&p.Ri, &p.Di)
 			// R += Di
 			round.R.Add(&round.R, &p.Di)
 		}
