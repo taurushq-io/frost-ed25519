@@ -11,10 +11,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state/hub"
 )
 
-func NewCoordinatorRound(version types.ProtocolVersion, hubID party.ID, partyIDs party.IDSlice, shares *eddsa.Public, message []byte) (state.Round, *types.Output, error) {
-	if !partyIDs.Contains(secret.ID) {
-		return nil, nil, errors.New("base.NewRound: owner of SecretShare is not contained in partyIDs")
-	}
+func NewCoordinatorRound(hubID party.ID, partyIDs party.IDSlice, shares *eddsa.Public, message []byte) (state.Round, *types.Output, error) {
 	if !partyIDs.IsSubsetOf(shares.PartyIDs) {
 		return nil, nil, errors.New("base.NewRound: not all parties of partyIDs are contained in shares")
 	}
@@ -27,7 +24,6 @@ func NewCoordinatorRound(version types.ProtocolVersion, hubID party.ID, partyIDs
 	round := &Round0Coordinator{
 		BaseHubRound: baseHubRound,
 		FrostRound: &types.FrostRound{
-			Version:  version,
 			Message:  message,
 			Parties:  make(map[party.ID]*types.Signer, partyIDs.N()),
 			GroupKey: *shares.GroupKey,

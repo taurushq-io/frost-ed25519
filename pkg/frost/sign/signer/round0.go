@@ -1,13 +1,18 @@
 package signer
 
 import (
+	"errors"
+
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *Round0Signer) ProcessMessage(*messages.Message) *state.Error {
+func (round *Round0Signer) ProcessMessage(msg *messages.Message) *state.Error {
+	if msg.Header.From != round.HubID() {
+		return state.NewError(msg.Header.From, errors.New("Sign Request not from hub"))
+	}
 	return nil
 }
 

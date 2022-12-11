@@ -18,7 +18,7 @@ type (
 	}
 
 	Round2Coordinator struct {
-		*Round0Coordinator
+		*Round1Coordinator
 	}
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state/spoke"
 )
 
-func NewSignerRound(version types.ProtocolVersion, hubID party.ID, partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *types.Output, error) {
+func NewSignerRound(hubID party.ID, partyIDs party.IDSlice, secret *eddsa.SecretShare, shares *eddsa.Public, message []byte) (state.Round, *types.Output, error) {
 	if !partyIDs.Contains(secret.ID) {
 		return nil, nil, errors.New("base.NewRound: owner of SecretShare is not contained in partyIDs")
 	}
@@ -27,7 +27,6 @@ func NewSignerRound(version types.ProtocolVersion, hubID party.ID, partyIDs part
 	round := &Round0Signer{
 		BaseSpokeRound: baseSpokeRound,
 		FrostRound: &types.FrostRound{
-			Version:  version,
 			Message:  message,
 			Parties:  make(map[party.ID]*types.Signer, partyIDs.N()),
 			GroupKey: *shares.GroupKey,

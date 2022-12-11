@@ -19,9 +19,6 @@ type (
 	Round1Signer struct {
 		*Round0Signer
 	}
-	Round2Signer struct {
-		*Round1Signer
-	}
 )
 
 func (round *Round0Signer) Reset() {

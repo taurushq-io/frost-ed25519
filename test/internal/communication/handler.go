@@ -7,7 +7,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign/types"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
@@ -26,7 +26,7 @@ type (
 
 	SignHandler struct {
 		*Handler
-		Out *sign.Output
+		Out *types.Output
 	}
 )
 
@@ -82,7 +82,7 @@ func NewKeyGenHandler(comm Communicator, ID party.ID, IDs []party.ID, T party.Si
 	}, nil
 }
 
-func NewSignHandler(comm Communicator, version sign.ProtocolVersion, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
+func NewSignHandler(comm Communicator, version types.ProtocolVersion, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
 	set := party.NewIDSlice(IDs)
 	s, out, err := frost.NewSignState(version, set, secret, public, message, comm.Timeout())
 	if err != nil {

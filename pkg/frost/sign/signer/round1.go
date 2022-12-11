@@ -6,7 +6,6 @@ import (
 
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign/types"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
@@ -15,14 +14,17 @@ import (
 var hashDomainSeparation = []byte("FROST-SHA512")
 
 func (round *Round1Signer) ProcessMessage(msg *messages.Message) *state.Error {
-	id := msg.From
-	otherParty := round.Parties[id]
-	identity := ristretto.NewIdentityElement()
-	if msg.Sign1.Di.Equal(identity) == 1 || msg.Sign1.Ei.Equal(identity) == 1 {
-		return state.NewError(id, errors.New("commitment Ei or Di was the identity"))
+	round.Message = msg.SignRequest.Msg
+	for i := 0; i < len(msg.SignRequest.Nonces); i++ {
+		otherParty := round.Parties[msg.SignRequest.Nonces[i].PartyID]
+		identity := ristretto.NewIdentityElement()
+
+		if msg.SignRequest.Nonces[i].Di.Equal(identity) == 1 || msg.SignRequest.Nonces[i].Ei.Equal(identity) == 1 {
+			return state.NewError(msg.SignRequest.Nonces[i].PartyID, errors.New("commitment Ei or Di was the identity"))
+		}
+		otherParty.Di.Set(&msg.SignRequest.Nonces[i].Di)
+		otherParty.Ei.Set(&msg.SignRequest.Nonces[i].Ei)
 	}
-	otherParty.Di.Set(&msg.Sign1.Di)
-	otherParty.Ei.Set(&msg.Sign1.Ei)
 	return nil
 }
 
@@ -39,7 +41,6 @@ func (round *Round1Signer) computeRhos() {
 	sizeB := int(round.PartyIDs().N() * (party.IDByteSize + 32 + 32))
 	bufferHeader := len(hashDomainSeparation) + party.IDByteSize + len(messageHash)
 	sizeBuffer := bufferHeader + sizeB
-	offsetID := len(hashDomainSeparation)
 
 	// We compute the binding factor 𝜌_{i} for each party as such:
 	//
@@ -62,10 +63,6 @@ func (round *Round1Signer) computeRhos() {
 	// and remember the offset of ... . Later we will write the ID of each party at this place.
 	buffer := make([]byte, 0, sizeBuffer)
 	buffer = append(buffer, hashDomainSeparation...)
-	// if version is FROST_1, then add space for party IDs
-	if round.Version == types.FROST_1 {
-		buffer = append(buffer, round.SelfID().Bytes()...)
-	}
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
@@ -76,52 +73,30 @@ func (round *Round1Signer) computeRhos() {
 		buffer = append(buffer, otherParty.Ei.Bytes()...)
 	}
 
-	// if version is FROST_2, then hash buffer, set P, and return
+	// the version is FROST_2, so hash buffer, set P, and return
 	// don't hash for each party!
-	if round.Version == types.FROST_2 {
-		digest := sha512.Sum512(buffer)
-		_, _ = round.P.SetUniformBytes(digest[:])
-		return
-	}
-
-	for _, id := range round.PartyIDs() {
-		// Update the four bytes with the ID
-		copy(buffer[offsetID:], id.Bytes())
-
-		// Pi = ρ = H ("FROST-SHA512" ∥ Message ∥ B ∥ ID )
-		digest := sha512.Sum512(buffer)
-		_, _ = round.Parties[id].Pi.SetUniformBytes(digest[:])
-	}
+	digest := sha512.Sum512(buffer)
+	_, _ = round.P.SetUniformBytes(digest[:])
+	return
 }
 
 func (round *Round1Signer) GenerateMessages() ([]*messages.Message, *state.Error) {
 	round.computeRhos()
 
 	round.R.Set(ristretto.NewIdentityElement())
-	if round.Version == types.FROST_1 {
-		for _, p := range round.Parties {
-			// TODO Find a way to do this faster since we don't need constant time
-			// Ri = D + [ρ] E
-			p.Ri.ScalarMult(&p.Pi, &p.Ei)
-			p.Ri.Add(&p.Ri, &p.Di)
 
-			// R += Ri
-			round.R.Add(&round.R, &p.Ri)
-		}
-	} else {
-		E := ristretto.NewIdentityElement()
-		for _, p := range round.Parties {
-			// R += Di
-			round.R.Add(&round.R, &p.Di)
-			// E += Ei
-			E.Add(E, &p.Ei)
-		}
-
-		// E = [ρ] E
-		E.ScalarMult(&round.P, E)
-		// R += E
-		round.R.Add(&round.R, E)
+	E := ristretto.NewIdentityElement()
+	for _, p := range round.Parties {
+		// R += Di
+		round.R.Add(&round.R, &p.Di)
+		// E += Ei
+		E.Add(E, &p.Ei)
 	}
+
+	// E = [ρ] E
+	E.ScalarMult(&round.P, E)
+	// R += E
+	round.R.Add(&round.R, E)
 
 	// c = H(R, GroupKey, M)
 	round.C.Set(eddsa.ComputeChallenge(&round.R, &round.GroupKey, round.Message))
@@ -133,11 +108,9 @@ func (round *Round1Signer) GenerateMessages() ([]*messages.Message, *state.Error
 	// can ignore 𝛌=1
 	secretShare := &selfParty.Zi
 	secretShare.Multiply(&round.SecretKeyShare, &round.C) // s • c
-	if round.Version == types.FROST_1 {
-		secretShare.MultiplyAdd(&round.e, &selfParty.Pi, secretShare) // (e • ρ) + s • c
-	} else {
-		secretShare.MultiplyAdd(&round.e, &round.P, secretShare) // (e • ρ) + s • c
-	}
+
+	secretShare.MultiplyAdd(&round.e, &round.P, secretShare) // (e • ρ) + s • c
+
 	secretShare.Add(secretShare, &round.d) // d + (e • ρ) + 𝛌 • s • c
 
 	msg := messages.NewSign2(round.SelfID(), secretShare)
@@ -146,5 +119,5 @@ func (round *Round1Signer) GenerateMessages() ([]*messages.Message, *state.Error
 }
 
 func (round *Round1Signer) NextRound() state.Round {
-	return &Round2Signer{round}
+	return nil
 }

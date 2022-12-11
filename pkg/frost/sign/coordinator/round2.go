@@ -14,7 +14,7 @@ var (
 	ErrValidateSignature = errors.New("full signature is invalid")
 )
 
-func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
+func (round *Round2Coordinator) ProcessMessage(msg *messages.Message) *state.Error {
 	id := msg.From
 	otherParty := round.Parties[id]
 
@@ -30,7 +30,7 @@ func (round *round2) ProcessMessage(msg *messages.Message) *state.Error {
 	return nil
 }
 
-func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
+func (round *Round2Coordinator) GenerateMessages() ([]*messages.Message, *state.Error) {
 	// S = ∑ sᵢ
 	S := ristretto.NewScalar()
 	for _, otherParty := range round.Parties {
@@ -52,6 +52,6 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
 	return nil, nil
 }
 
-func (round *round2) NextRound() state.Round {
+func (round *Round2Coordinator) NextRound() state.Round {
 	return nil
 }

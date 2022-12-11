@@ -8,14 +8,7 @@ import (
 
 type ProtocolVersion int
 
-const (
-	FROST_1 ProtocolVersion = iota
-	FROST_2
-)
-
 type FrostRound struct {
-	Version ProtocolVersion
-
 	// Message is the message to be signed
 	Message []byte
 
