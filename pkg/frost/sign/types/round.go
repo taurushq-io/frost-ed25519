@@ -1,8 +1,9 @@
 package types
 
 import (
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
-	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
 type ProtocolVersion int
@@ -13,12 +14,13 @@ const (
 )
 
 type FrostRound struct {
-	*state.BaseRound
-
 	Version ProtocolVersion
 
 	// Message is the message to be signed
 	Message []byte
+
+	// Parties maps IDs to a struct containing all intermediary data for each signer.
+	Parties map[party.ID]*Signer
 
 	// C = H(R, GroupKey, Message)
 	C ristretto.Scalar
@@ -29,6 +31,9 @@ type FrostRound struct {
 	// This does means there is one global shift for the nonces instead of one for each signer
 	// This allows for 1 group exponentiation instead of t
 	P ristretto.Scalar
+
+	// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
+	GroupKey eddsa.PublicKey
 
 	Output *Output
 }

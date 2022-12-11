@@ -6,12 +6,12 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round0) ProcessMessage(*messages.Message) *state.Error {
+func (round *Round0Coordinator) ProcessMessage(*messages.Message) *state.Error {
 	return nil
 }
 
-func (round *round0) GenerateMessages() ([]*messages.Message, *state.Error) {
-	selfParty := round.Parties[round.SelfID()]
+func (round *Round0Coordinator) GenerateMessages() ([]*messages.Message, *state.Error) {
+	selfParty := round.Parties[round.FrostRound.BaseRound.SelfID()]
 
 	// Sample dᵢ, Dᵢ = [dᵢ] B
 	scalar.SetScalarRandom(&round.d)

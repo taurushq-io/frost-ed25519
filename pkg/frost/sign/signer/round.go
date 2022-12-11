@@ -4,10 +4,12 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign/types"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
+	"github.com/taurusgroup/frost-ed25519/pkg/state/spoke"
 )
 
 type (
 	Round0Signer struct {
+		*spoke.BaseSpokeRound
 		*types.FrostRound
 		SecretKeyShare ristretto.Scalar
 
@@ -18,7 +20,7 @@ type (
 		*Round0Signer
 	}
 	Round2Signer struct {
-		*Round0Signer
+		*Round1Signer
 	}
 )
 

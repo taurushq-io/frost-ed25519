@@ -25,7 +25,7 @@ type State struct {
 
 	roundNumber int
 
-	round HubRound
+	round state.Round
 
 	doneChan chan struct{}
 	done     bool
@@ -34,7 +34,7 @@ type State struct {
 	mtx sync.Mutex
 }
 
-func NewBaseState(round HubRound, timeout time.Duration) (*State, error) {
+func NewBaseState(round state.Round, timeout time.Duration) (*State, error) {
 	N := round.PartyIDs().N()
 	s := &State{
 		acceptedTypes:    append([]messages.MessageType{}, round.AcceptedMessageTypes()...),
@@ -186,7 +186,7 @@ func (s *State) ProcessAll() []*messages.Message {
 		s.finish()
 	} else {
 		s.roundNumber++
-		s.round = nextRound.(HubRound)
+		s.round = nextRound
 	}
 
 	return newMessages

@@ -1,27 +1,17 @@
 package coordinator
 
 import (
-	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign/types"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/state/hub"
 )
 
 type ProtocolVersion int
 
-const (
-	FROST_1 ProtocolVersion = iota
-	FROST_2
-)
-
 type (
 	Round0Coordinator struct {
+		*hub.BaseHubRound
 		*types.FrostRound
-		// Parties maps IDs to a struct containing all intermediary data for each signer.
-		Parties map[party.ID]*types.Signer
-
-		// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
-		GroupKey eddsa.PublicKey
 	}
 	Round1Coordinator struct {
 		*Round0Coordinator

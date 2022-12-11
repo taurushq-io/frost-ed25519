@@ -3,29 +3,28 @@ package signer
 import (
 	"github.com/taurusgroup/frost-ed25519/pkg/internal/scalar"
 	"github.com/taurusgroup/frost-ed25519/pkg/messages"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-func (round *round0) ProcessMessage(*messages.Message) *state.Error {
+func (round *Round0Signer) ProcessMessage(*messages.Message) *state.Error {
 	return nil
 }
 
 func (round *Round0Signer) GenerateMessages() ([]*messages.Message, *state.Error) {
-	selfParty := round.Parties[round.SelfID()]
-
 	// Sample dᵢ, Dᵢ = [dᵢ] B
 	scalar.SetScalarRandom(&round.d)
-	selfParty.Di.ScalarBaseMult(&round.d)
+	D := new(ristretto.Element).ScalarBaseMult(&round.d)
 
 	// Sample eᵢ, Dᵢ = [eᵢ] B
 	scalar.SetScalarRandom(&round.e)
-	selfParty.Ei.ScalarBaseMult(&round.e)
+	E := new(ristretto.Element).ScalarBaseMult(&round.e)
 
-	msg := messages.NewSign1(round.SelfID(), &selfParty.Di, &selfParty.Ei)
+	msg := messages.NewSign1(round.SelfID(), D, E)
 
 	return []*messages.Message{msg}, nil
 }
 
 func (round *Round0Signer) NextRound() state.Round {
-	return &round1Signer{round}
+	return &Round1Signer{round}
 }
