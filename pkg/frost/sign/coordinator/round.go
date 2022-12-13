@@ -10,8 +10,10 @@ type ProtocolVersion int
 
 type (
 	Round0Coordinator struct {
-		*hub.BaseHubRound
+		*hub.BaseRound
 		*types.FrostRound
+
+		Output *types.Output
 	}
 	Round1Coordinator struct {
 		*Round0Coordinator
@@ -24,7 +26,7 @@ type (
 
 func (round *Round0Coordinator) Reset() {
 	round.FrostRound.Reset()
-
+	round.Output = nil
 	for id, p := range round.Parties {
 		p.Reset()
 		delete(round.Parties, id)

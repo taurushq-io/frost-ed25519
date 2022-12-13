@@ -36,7 +36,9 @@ func NewSignRequest(from party.ID, msg []byte, nonces []*Nonce) *Message {
 }
 
 func (m *SignRequest) BytesAppend(existing []byte) ([]byte, error) {
-	binary.BigEndian.PutUint32(existing, uint32(len(m.Msg)))
+	tmp := make([]byte, 4)
+	binary.BigEndian.PutUint32(tmp, uint32(len(m.Msg)))
+	existing = append(existing, tmp...)
 	existing = append(existing, m.Msg...)
 	for i := 0; i < len(m.Nonces); i++ {
 		existing = append(existing, m.Nonces[i].PartyID.Bytes()...)
@@ -54,7 +56,6 @@ func (m *SignRequest) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (m *SignRequest) UnmarshalBinary(data []byte) error {
-
 	if len(data) < 4 {
 		return fmt.Errorf("sig request less than 4 bytes")
 	}
@@ -67,28 +68,30 @@ func (m *SignRequest) UnmarshalBinary(data []byte) error {
 
 	m.Msg = data[4 : 4+length]
 
-	if len(data)-int((length+4))%66 != 0 {
+	if (len(data)-int(length+4))%66 != 0 {
 		return fmt.Errorf("not an whole number of nonces left")
 	}
 
+	idx := 0
 	for i := int(4 + length); i < len(data); i += 66 {
-
+		m.Nonces = append(m.Nonces, &Nonce{})
 		id, err := party.FromBytes(data[i:])
 		if err != nil {
 			return fmt.Errorf("signRequest.partyID: %w", err)
 		}
 
-		m.Nonces[i].PartyID = id
+		m.Nonces[idx].PartyID = id
 
-		_, err = m.Nonces[i].Di.SetCanonicalBytes(data[:32])
+		_, err = m.Nonces[idx].Di.SetCanonicalBytes(data[i+party.IDByteSize : i+party.IDByteSize+32])
 		if err != nil {
 			return fmt.Errorf("signRequest.D: %w", err)
 		}
 
-		_, err = m.Nonces[i].Ei.SetCanonicalBytes(data[32:])
+		_, err = m.Nonces[idx].Ei.SetCanonicalBytes(data[i+party.IDByteSize+32 : i+party.IDByteSize+64])
 		if err != nil {
 			return fmt.Errorf("signRequest.E: %w", err)
 		}
+		idx++
 	}
 
 	return nil

@@ -12,4 +12,8 @@ type State interface {
 	WaitForError() error
 
 	IsFinished() bool
+
+	Done() <-chan struct{}
+
+	Err() error
 }

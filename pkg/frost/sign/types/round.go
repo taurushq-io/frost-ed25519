@@ -6,8 +6,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
 )
 
-type ProtocolVersion int
-
 type FrostRound struct {
 	// Message is the message to be signed
 	Message []byte
@@ -27,8 +25,6 @@ type FrostRound struct {
 
 	// GroupKey is the GroupKey, i.e. the public key associated to the group of signers.
 	GroupKey eddsa.PublicKey
-
-	Output *Output
 }
 
 func (round *FrostRound) Reset() {
@@ -39,6 +35,4 @@ func (round *FrostRound) Reset() {
 
 	round.C.Set(zero)
 	round.R.Set(one)
-
-	round.Output = nil
 }

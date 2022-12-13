@@ -14,7 +14,7 @@ import (
 // Handler holds the information for a certain Round by a participant.
 // It makes it easier to work with the underlying Round interface.
 type Handler struct {
-	State *state.State
+	State state.State
 	Comm  Communicator
 }
 
@@ -82,9 +82,9 @@ func NewKeyGenHandler(comm Communicator, ID party.ID, IDs []party.ID, T party.Si
 	}, nil
 }
 
-func NewSignHandler(comm Communicator, version types.ProtocolVersion, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public, message []byte) (*SignHandler, error) {
-	set := party.NewIDSlice(IDs)
-	s, out, err := frost.NewSignState(version, set, secret, public, message, comm.Timeout())
+func NewCoordinatorHandler(comm Communicator, IDs []party.ID, public *eddsa.Public, message []byte) (*SignHandler, error) {
+	set := party.NewIDSlice(IDs[:len(IDs)-1])
+	s, out, err := frost.NewCoordinatorState(IDs[len(IDs)-1], set, public, message, comm.Timeout())
 	if err != nil {
 		return nil, err
 	}
@@ -97,4 +97,17 @@ func NewSignHandler(comm Communicator, version types.ProtocolVersion, IDs []part
 		Handler: h,
 		Out:     out,
 	}, nil
+}
+
+func NewSignerHandler(comm Communicator, IDs []party.ID, secret *eddsa.SecretShare, public *eddsa.Public) (*Handler, error) {
+	set := party.NewIDSlice(IDs[:len(IDs)-1])
+	s, err := frost.NewSignerState(IDs[len(IDs)-1], set, secret, public, comm.Timeout())
+	if err != nil {
+		return nil, err
+	}
+	h := &Handler{
+		State: s,
+		Comm:  comm,
+	}
+	return h, nil
 }

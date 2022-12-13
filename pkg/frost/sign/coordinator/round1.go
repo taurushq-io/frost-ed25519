@@ -63,7 +63,7 @@ func (round *Round1Coordinator) computeRhos() {
 	buffer = append(buffer, messageHash[:]...)
 
 	// compute B
-	for _, id := range round.PartyIDs() {
+	for _, id := range round.PartyIDs()[:len(round.PartyIDs())-1] {
 		otherParty := round.Parties[id]
 		buffer = append(buffer, id.Bytes()...)
 		buffer = append(buffer, otherParty.Di.Bytes()...)

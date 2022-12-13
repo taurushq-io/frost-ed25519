@@ -10,16 +10,16 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
 	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
-	"github.com/taurusgroup/frost-ed25519/pkg/state"
+	"github.com/taurusgroup/frost-ed25519/pkg/state/hub"
 )
 
 func TestKeygen(t *testing.T) {
-	N := party.Size(50)
+	N := party.Size(10)
 	T := N / 2
 
 	partyIDs := helpers.GenerateSet(N)
 
-	states := map[party.ID]*state.State{}
+	states := map[party.ID]*hub.State{}
 	outputs := map[party.ID]*keygen.Output{}
 
 	for _, id := range partyIDs {

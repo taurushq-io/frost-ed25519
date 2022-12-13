@@ -188,7 +188,6 @@ func (s *State) ProcessAll() []*messages.Message {
 		s.roundNumber++
 		s.round = nextRound
 	}
-
 	return newMessages
 }
 

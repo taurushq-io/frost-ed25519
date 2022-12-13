@@ -8,35 +8,35 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/state"
 )
 
-type BaseSpokeRound struct {
+type BaseRound struct {
 	selfID   party.ID
 	hubID    party.ID
 	partyIDs party.IDSlice
 }
 
-func NewBaseSpokeRound(selfID party.ID, hubID party.ID, partyIDs party.IDSlice) (*BaseSpokeRound, error) {
+func NewBaseRound(selfID party.ID, hubID party.ID, partyIDs party.IDSlice) (*BaseRound, error) {
 	if !partyIDs.Contains(selfID) {
 		return nil, errors.New("PartyIDs should contain selfID")
 	}
-	return &BaseSpokeRound{
+	return &BaseRound{
 		selfID:   selfID,
 		hubID:    hubID,
 		partyIDs: partyIDs,
 	}, nil
 }
 
-func (r *BaseSpokeRound) ProcessMessage(*messages.Message) *state.Error {
+func (r *BaseRound) ProcessMessage(*messages.Message) *state.Error {
 	return nil
 }
 
-func (r BaseSpokeRound) SelfID() party.ID {
+func (r BaseRound) SelfID() party.ID {
 	return r.selfID
 }
 
-func (r BaseSpokeRound) HubID() party.ID {
+func (r BaseRound) HubID() party.ID {
 	return r.hubID
 }
 
-func (r BaseSpokeRound) PartyIDs() party.IDSlice {
+func (r BaseRound) PartyIDs() party.IDSlice {
 	return r.partyIDs
 }

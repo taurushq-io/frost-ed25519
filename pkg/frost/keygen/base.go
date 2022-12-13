@@ -13,7 +13,7 @@ import (
 
 type (
 	round0 struct {
-		*hub.BaseHubRound
+		*hub.BaseRound
 
 		// Threshold is the degree of the polynomial used for Shamir.
 		// It is the number of tolerated party corruptions.
@@ -54,16 +54,16 @@ func NewRound(selfID party.ID, partyIDs party.IDSlice, threshold party.Size) (st
 	}
 
 	// every node is a hub in the dkg
-	baseRound, err := hub.NewBaseHubRound(selfID, partyIDs)
+	baseRound, err := hub.NewBaseRound(selfID, partyIDs)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	r := round0{
-		BaseHubRound: baseRound,
-		Threshold:    threshold,
-		Commitments:  make(map[party.ID]*polynomial.Exponent, N),
-		Output:       &Output{},
+		BaseRound:   baseRound,
+		Threshold:   threshold,
+		Commitments: make(map[party.ID]*polynomial.Exponent, N),
+		Output:      &Output{},
 	}
 
 	return &r, r.Output, nil

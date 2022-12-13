@@ -7,7 +7,6 @@ import (
 
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/test/internal/communication"
 )
 
@@ -44,27 +43,37 @@ func DoKeygen(N, T party.Size, keygenIDs []party.ID, keygenComm map[party.ID]com
 	return public, secrets, nil
 }
 
-func DoSign(version sign.ProtocolVersion, T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[party.ID]*eddsa.SecretShare, signComm map[party.ID]communication.Communicator, message []byte) error {
+func DoSign(T party.Size, signIDs []party.ID, shares *eddsa.Public, secrets map[party.ID]*eddsa.SecretShare, commMap map[party.ID]communication.Communicator, message []byte) error {
 	groupKey := shares.GroupKey
-	signHandlers := make(map[party.ID]*communication.SignHandler, T+1)
+	signHandlers := make(map[party.ID]*communication.Handler, T+1)
 	var err error
 	for _, id := range signIDs {
-		signHandlers[id], err = communication.NewSignHandler(signComm[id], version, signIDs, secrets[id], shares, message)
+		signHandlers[id], err = communication.NewSignerHandler(commMap[id], signIDs, secrets[id], shares)
 		if err != nil {
 			return err
 		}
 	}
 
+	coorHandler, err := communication.NewCoordinatorHandler(commMap[signIDs[len(signIDs)-1]], signIDs, shares, message)
+	if err != nil {
+		return err
+	}
+
 	failures := 0
+
+	err = coorHandler.State.WaitForError()
+	if err != nil {
+		failures++
+	} else if s := coorHandler.Out.Signature; s != nil {
+		if !groupKey.Verify(message, s) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
+			failures++
+		}
+	}
 
 	for _, h := range signHandlers {
 		err = h.State.WaitForError()
 		if err != nil {
 			failures++
-		} else if s := h.Out.Signature; s != nil {
-			if !groupKey.Verify(message, s) || !ed25519.Verify(groupKey.ToEd25519(), message, s.ToEd25519()) {
-				failures++
-			}
 		}
 	}
 
@@ -74,7 +83,7 @@ func DoSign(version sign.ProtocolVersion, T party.Size, signIDs []party.ID, shar
 	return nil
 }
 
-func FROSTestUDP(version sign.ProtocolVersion, N, T party.Size) error {
+func FROSTestUDP(N, T party.Size) error {
 	fmt.Printf("Using UDP:\n(n, t) = (%v, %v): ", N, T)
 
 	message, keygenIDs, signIDs := Setup(N, T)
@@ -88,10 +97,10 @@ func FROSTestUDP(version sign.ProtocolVersion, N, T party.Size) error {
 	signComm := communication.NewUDPCommunicatorMap(signIDs)
 	defer destroyCommMap(signComm)
 
-	return DoSign(version, T, signIDs, shares, secrets, signComm, message)
+	return DoSign(T, signIDs, shares, secrets, signComm, message)
 }
 
-func FROSTestChannel(version sign.ProtocolVersion, N, T party.Size) error {
+func FROSTestChannel(N, T party.Size) error {
 	fmt.Printf("Using Channels:\n(n, t) = (%v, %v): ", N, T)
 
 	message, keygenIDs, signIDs := Setup(N, T)
@@ -105,7 +114,7 @@ func FROSTestChannel(version sign.ProtocolVersion, N, T party.Size) error {
 	signComm := communication.NewChannelCommunicatorMap(signIDs)
 	defer destroyCommMap(signComm)
 
-	return DoSign(version, T, signIDs, shares, secrets, signComm, message)
+	return DoSign(T, signIDs, shares, secrets, signComm, message)
 }
 
 func destroyCommMap(m map[party.ID]communication.Communicator) {
@@ -116,71 +125,67 @@ func destroyCommMap(m map[party.ID]communication.Communicator) {
 
 func main() {
 	ns := []party.Size{5, 10, 50}
-	versions := []sign.ProtocolVersion{sign.FROST_2}
 	// what should work
-	for _, version := range versions {
-		fmt.Printf("VERSION %v\n", version)
-		for _, n := range ns {
-			fmt.Printf("signers: %v\n", n)
-			start := time.Now()
-			err := FROSTestUDP(version, n, n/2)
-			elapsed := time.Since(start)
-			if err != nil {
-				fmt.Printf("ERROR: %v\n", err)
-			} else {
-				fmt.Println("ok")
-			}
-			fmt.Printf("%s\n", elapsed)
-
-			start = time.Now()
-			err = FROSTestUDP(version, n, n-1)
-			if err != nil {
-				fmt.Printf("ERROR: %v\n", err)
-			} else {
-				fmt.Println("ok")
-			}
-			elapsed = time.Since(start)
-			fmt.Printf("%s\n", elapsed)
-
-			start = time.Now()
-			err = FROSTestChannel(version, n, n/2)
-			elapsed = time.Since(start)
-			if err != nil {
-				fmt.Printf("ERROR: %v\n", err)
-			} else {
-				fmt.Println("ok")
-			}
-			fmt.Printf("%s\n", elapsed)
-
-			start = time.Now()
-			err = FROSTestChannel(version, n, n-1)
-			if err != nil {
-				fmt.Printf("ERROR: %v\n", err)
-			} else {
-				fmt.Println("ok")
-			}
-			elapsed = time.Since(start)
-			fmt.Printf("%s\n", elapsed)
+	for _, n := range ns {
+		fmt.Printf("signers: %v\n", n)
+		start := time.Now()
+		err := FROSTestUDP(n, n/2)
+		elapsed := time.Since(start)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
 		}
+		fmt.Printf("%s\n", elapsed)
 
-		// what should NOT work, but should not panic
-		// for _, n := range ns {
-		// 	if FROSTestUDP(version, n, n) == nil {
-		// 		fmt.Println("ERROR: failed to fail")
-		// 	} else {
-		// 		fmt.Println("ok (failed)")
-		// 	}
-		// 	if FROSTestUDP(version, n, 0) == nil {
-		// 		fmt.Println("ERROR: failed to fail")
-		// 	} else {
-		// 		fmt.Println("ok (failed)")
-		// 	}
-		// 	if FROSTestUDP(version, n, n*10) == nil {
-		// 		fmt.Println("ERROR: failed to fail")
-		// 	} else {
-		// 		fmt.Println("ok (failed)")
-		// 	}
-		// }
+		start = time.Now()
+		err = FROSTestUDP(n, n-1)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		elapsed = time.Since(start)
+		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestChannel(n, n/2)
+		elapsed = time.Since(start)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		fmt.Printf("%s\n", elapsed)
+
+		start = time.Now()
+		err = FROSTestChannel(n, n-1)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+		elapsed = time.Since(start)
+		fmt.Printf("%s\n", elapsed)
 	}
+
+	// what should NOT work, but should not panic
+	// for _, n := range ns {
+	// 	if FROSTestUDP(version, n, n) == nil {
+	// 		fmt.Println("ERROR: failed to fail")
+	// 	} else {
+	// 		fmt.Println("ok (failed)")
+	// 	}
+	// 	if FROSTestUDP(version, n, 0) == nil {
+	// 		fmt.Println("ERROR: failed to fail")
+	// 	} else {
+	// 		fmt.Println("ok (failed)")
+	// 	}
+	// 	if FROSTestUDP(version, n, n*10) == nil {
+	// 		fmt.Println("ERROR: failed to fail")
+	// 	} else {
+	// 		fmt.Println("ok (failed)")
+	// 	}
+	// }
 
 }

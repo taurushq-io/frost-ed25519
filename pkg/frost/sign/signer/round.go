@@ -9,7 +9,7 @@ import (
 
 type (
 	Round0Signer struct {
-		*spoke.BaseSpokeRound
+		*spoke.BaseRound
 		*types.FrostRound
 		SecretKeyShare ristretto.Scalar
 
@@ -34,8 +34,7 @@ func (round *Round0Signer) Reset() {
 
 func (round *Round0Signer) AcceptedMessageTypes() []messages.MessageType {
 	return []messages.MessageType{
-		messages.MessageTypeNone,
-		messages.MessageTypeSign1,
-		messages.MessageTypeSign2,
+		messages.MessageTypePreSignRequest,
+		messages.MessageTypeSignRequest,
 	}
 }

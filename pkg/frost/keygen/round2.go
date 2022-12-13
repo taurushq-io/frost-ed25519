@@ -34,7 +34,7 @@ func (round *round2) GenerateMessages() ([]*messages.Message, *state.Error) {
 		shares[id] = round.CommitmentsSum.Evaluate(id.Scalar())
 	}
 	round.Output.Public = &eddsa.Public{
-		PartyIDs:  round.BaseHubRound.PartyIDs().Copy(),
+		PartyIDs:  round.BaseRound.PartyIDs().Copy(),
 		Threshold: round.Threshold,
 		Shares:    shares,
 		GroupKey:  eddsa.NewPublicKeyFromPoint(round.CommitmentsSum.Constant()),

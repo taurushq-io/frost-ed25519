@@ -11,8 +11,11 @@ type PreSignRequest struct {
 func NewPreSignRequest(from party.ID) *Message {
 	return &Message{
 		Header: Header{
-			Type: MessageTypeSign1,
+			Type: MessageTypePreSignRequest,
 			From: from,
+		},
+		PreSignRequest: &PreSignRequest{
+			x: true,
 		},
 	}
 }

@@ -35,7 +35,6 @@ func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("message.BytesAppend: %w", err)
 	}
-
 	switch m.Type {
 	case MessageTypeKeyGen1:
 		if m.KeyGen1 != nil {
@@ -48,6 +47,10 @@ func (m *Message) BytesAppend(existing []byte) (data []byte, err error) {
 	case MessageTypePreSignRequest:
 		if m.PreSignRequest != nil {
 			return m.PreSignRequest.BytesAppend(existing)
+		}
+	case MessageTypeSignRequest:
+		if m.SignRequest != nil {
+			return m.SignRequest.BytesAppend(existing)
 		}
 	case MessageTypeSign1:
 		if m.Sign1 != nil {
@@ -120,6 +123,11 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 		var preSignRequest PreSignRequest
 		if err = preSignRequest.UnmarshalBinary(data); err == nil {
 			m.PreSignRequest = &preSignRequest
+		}
+	case MessageTypeSignRequest:
+		var signRequest SignRequest
+		if err = signRequest.UnmarshalBinary(data); err == nil {
+			m.SignRequest = &signRequest
 		}
 	case MessageTypeSign1:
 		var sign1 Sign1

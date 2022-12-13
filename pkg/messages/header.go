@@ -44,9 +44,8 @@ func (h *Header) UnmarshalBinary(data []byte) error {
 	if to, err = party.FromBytes(data[1+party.IDByteSize:]); err != nil {
 		return fmt.Errorf("Header.UnmarshalBinary: from: %w", err)
 	}
-
 	switch msgType {
-	case MessageTypeKeyGen1, MessageTypeSign1, MessageTypeSign2:
+	case MessageTypeKeyGen1, MessageTypeSign1, MessageTypeSign2, MessageTypePreSignRequest, MessageTypeSignRequest:
 		if to != 0 {
 			return errors.New("Header.UnmarshalBinary: .To field must be 0 to indicate broadcast")
 		}
@@ -69,7 +68,7 @@ func (h *Header) UnmarshalBinary(data []byte) error {
 
 func (h *Header) BytesAppend(existing []byte) (data []byte, err error) {
 	switch h.Type {
-	case MessageTypeKeyGen1, MessageTypeSign1, MessageTypeSign2:
+	case MessageTypeKeyGen1, MessageTypeSign1, MessageTypeSign2, MessageTypePreSignRequest, MessageTypeSignRequest:
 		if h.To != 0 {
 			return nil, errors.New("Header.BytesAppend: .To field must be 0 to indicate broadcast")
 		}

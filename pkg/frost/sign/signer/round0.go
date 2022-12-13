@@ -26,7 +26,6 @@ func (round *Round0Signer) GenerateMessages() ([]*messages.Message, *state.Error
 	E := new(ristretto.Element).ScalarBaseMult(&round.e)
 
 	msg := messages.NewSign1(round.SelfID(), D, E)
-
 	return []*messages.Message{msg}, nil
 }
 
