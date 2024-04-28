@@ -19,6 +19,22 @@ import (
 
 const maxN = 100
 
+type Secret struct {
+	ID     int    `json:"id"`
+	Secret string `json:"secret"`
+}
+
+type Shares struct {
+	T        int               `json:"t"`
+	GroupKey string            `json:"groupkey"`
+	Shares   map[string]string `json:"shares"`
+}
+
+type CombinedOutput struct {
+	Secrets map[string]Secret `json:"Secrets"`
+	Shares  Shares            `json:"Shares"`
+}
+
 func usage() {
 	cmd := filepath.Base(os.Args[0])
 	fmt.Printf("usage: %v t n\nwhere 0 < t < n < %v\n", cmd, maxN)
@@ -316,6 +332,7 @@ func keygenDemoV2(t int, n int) {
 		Shares  *eddsa.Public
 	}
 
+	var slices [][]byte
 	for _, id := range partyIDs {
 
 		// 创建一个新的 map 用于存储过滤后的 secretShare
@@ -354,9 +371,14 @@ func keygenDemoV2(t int, n int) {
 
 		_ = ioutil.WriteFile(filename, jsonData, 0644)
 
-		fmt.Printf("Success: output written to %v\n", filename)
+		fmt.Printf("Success: output written to %v %v\n", filename, jsonData)
+
+		slices = append(slices, jsonData)
 
 	}
+
+	fmt.Println("生成分片：-----------------------")
+	fmt.Println(slices)
 
 	//kgOutput := KeyGenOutput{
 	//	Secrets: secrets,
@@ -377,7 +399,52 @@ func keygenDemoV2(t int, n int) {
 	//fmt.Printf("Success: output written to %v\n", filename)
 }
 
-func verifyKeysV2(filename string, msg string) {
+// 读取 json 文件合并
+func mergeJson(filename string, n int) ([]byte, error) {
+	combinedOutput := CombinedOutput{
+		Secrets: make(map[string]Secret),
+		Shares:  Shares{Shares: make(map[string]string)},
+	}
+
+	for i := 1; i <= n; i++ {
+		filei := fmt.Sprintf("%v_%d.json", filename, i)
+		data, err := ioutil.ReadFile(filei)
+		if err != nil {
+			return nil, err
+		}
+
+		var output CombinedOutput
+		err = json.Unmarshal(data, &output)
+		if err != nil {
+			return nil, err
+		}
+
+		// Merge the secrets from each file
+		for key, secret := range output.Secrets {
+			combinedOutput.Secrets[key] = secret
+		}
+
+		// Merge the shares from each file
+		for key, value := range output.Shares.Shares {
+			combinedOutput.Shares.Shares[key] = value
+		}
+
+		// Update other fields if needed
+		if combinedOutput.Shares.T == 0 {
+			combinedOutput.Shares.T = output.Shares.T
+			combinedOutput.Shares.GroupKey = output.Shares.GroupKey
+		}
+	}
+
+	combinedJSON, err := json.MarshalIndent(combinedOutput, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+
+	return combinedJSON, nil
+}
+
+func verifyKeysV2(filename string, msg string, rn int) {
 
 	message := []byte(msg)
 
@@ -388,14 +455,22 @@ func verifyKeysV2(filename string, msg string) {
 		Shares  *eddsa.Public
 	}
 
+	mjson, err := mergeJson(filename, rn)
+
+	fmt.Println("msg: ", len(message))
+	fmt.Println("merged: ", string(mjson))
+	fmt.Println("error: ", err)
+
 	var kgOutput KeyGenOutput
 
-	var jsonData []byte
-	jsonData, err = ioutil.ReadFile(filename)
+	var jsonData []byte = mjson
+	//jsonData, err = ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	fmt.Println("json: --- ", string(mjson), err)
 
 	err = json.Unmarshal(jsonData, &kgOutput)
 	if err != nil {
@@ -425,7 +500,6 @@ func verifyKeysV2(filename string, msg string) {
 	msgsOut2 := make([][]byte, 0, n)
 
 	for _, id := range partyIDs {
-
 		states[id], outputs[id], err = frost.NewSignState(partyIDs, secretShares[id], publicShares, message, 0)
 		if err != nil {
 			fmt.Println()
@@ -478,6 +552,7 @@ func verifyKeysV2(filename string, msg string) {
 	}
 
 	fmt.Printf("Success: signature is\nr: %x\ns: %x\n", sig.R.Bytes(), sig.S.Bytes())
+
 }
 
 func main() {
@@ -485,5 +560,7 @@ func main() {
 
 	//verifyKeys("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111")
 	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111")
-	keygenDemoV2(2, 3)
+	//keygenDemoV2(2, 3)
+
+	verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/keygenout", "message222", 3)
 }
