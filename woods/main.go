@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const maxN = 100
@@ -833,15 +835,176 @@ func verifyKeysV3(slices [][]byte, msg string) {
 
 }
 
+func VerifyKeysV4(n int) {
+
+	N := party.Size(n)
+	T := N - 1
+
+	//入参
+	sharesJson := `
+	{
+			"t": 2,
+			"groupkey": "fK+pxejfoZOClWjBhooCFyxgM4lNzhM53a0fAzTzuhg=",
+			"shares": {
+			"1": "2sZH71/TLsoCvSi7zgGiPTl163IDTtx9ZQFa7SIgmlM=",
+			"2": "GIWwGwhNoSxrW1H06q2IvMaW9huPpkctlAdrdqPaizE=",
+			"3": "2OxhRtZ1SGM3QxYfxc/PYU2pGIXdhtXmZScOuGU+CiE="
+		}
+	}
+	`
+
+	secretJson1 := `{
+		"id": 1,
+		"secret": "6OFN//k0riGrEgXpZXPHo+Wqhq2Bv3874crktgbvqQE="
+	}
+	`
+
+	secretJson2 := `{
+		"id": 2,
+		"secret": "q7bnenQx5eNK2Pn/EpfJzqvDK9ENbV8WZo2PwdJm0QY="
+	}
+	`
+
+	secretJson3 := `{
+		"id": 3,
+		"secret": "aDeElB1TghLHKeCCI3uv1OG31g4Hqz4qmVxk7l/ljgs="
+	}
+	`
+
+	MESSAGE := []byte("test111222")
+	var err error
+	var publicShares eddsa.Public
+	var secret1 eddsa.SecretShare
+	var secret2 eddsa.SecretShare
+	var secret3 eddsa.SecretShare
+	secretShares := make(map[party.ID]*eddsa.SecretShare)
+	partyIDs := helpers.GenerateSet(N)
+
+	err = json.Unmarshal([]byte(sharesJson), &publicShares)
+	if err != nil {
+		fmt.Printf("json fail: %x", err)
+		return
+	}
+
+	err = json.Unmarshal([]byte(secretJson1), &secret1)
+	err = json.Unmarshal([]byte(secretJson2), &secret2)
+	err = json.Unmarshal([]byte(secretJson3), &secret3)
+	if err != nil {
+		fmt.Printf("json fail: %x", err)
+		return
+	}
+	secretShares[party.ID(1)] = &secret1
+	secretShares[party.ID(2)] = &secret2
+	secretShares[party.ID(3)] = &secret3
+
+	fmt.Printf("-------T: %d\n %x\n", T, partyIDs)
+
+	states := map[party.ID]*state.State{}
+	outputs := map[party.ID]*sign.Output{}
+
+	msgsOut1 := make([][]byte, 0, N)
+	msgsOut2 := make([][]byte, 0, N)
+
+	for _, id := range partyIDs {
+		var err error
+		states[id], outputs[id], err = frost.NewSignState(partyIDs, secretShares[id], &publicShares, MESSAGE, 0)
+		if err != nil {
+			fmt.Printf("generate state err: %v\n", err)
+		}
+	}
+
+	//生成签名
+
+	var start time.Time
+	start = time.Now()
+	for _, s := range states {
+		msgs1, err := helpers.PartyRoutine(nil, s)
+		if err != nil {
+			fmt.Printf("routine1 fail: %v", err)
+		}
+		msgsOut1 = append(msgsOut1, msgs1...)
+	}
+	fmt.Println("finish round 0", time.Since(start))
+
+	start = time.Now()
+	for _, s := range states {
+		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
+		if err != nil {
+			fmt.Printf("routine2 fail: %v", err)
+		}
+		msgsOut2 = append(msgsOut2, msgs2...)
+	}
+	fmt.Println("finish round 1", time.Since(start))
+
+	start = time.Now()
+	for _, s := range states {
+		_, err := helpers.PartyRoutine(msgsOut2, s)
+		if err != nil {
+			fmt.Printf("routine3 fail: %v", err)
+		}
+	}
+	fmt.Println("finish round 2", time.Since(start))
+
+	sig := outputs[1].Signature
+	sig2 := outputs[1].Signature
+	sig3 := outputs[1].Signature
+	if sig == nil {
+		fmt.Printf("生成签名为空")
+		return
+	}
+	fmt.Printf("生成签名: [R:%x,S:%x]\n", sig.R.Bytes(), sig.S.Bytes())
+	fmt.Printf("生成签名: [R:%x,S:%x]\n", sig2.R.Bytes(), sig2.S.Bytes())
+	fmt.Printf("生成签名: [R:%x,S:%x]\n", sig3.R.Bytes(), sig3.S.Bytes())
+
+	//验证签名
+	pk := publicShares.GroupKey
+	// validate using classic
+	if !ed25519.Verify(pk.ToEd25519(), MESSAGE, sig.ToEd25519()) {
+		fmt.Printf("验证签名失败")
+		return
+	}
+	// Validate using our own function
+	if !pk.Verify(MESSAGE, sig) {
+		fmt.Printf("验证签名失败")
+		return
+	}
+	// Check all publicKeys return the same sig
+	for id, s := range states {
+		if err := s.WaitForError(); err != nil {
+			fmt.Printf("wait state fail")
+			return
+		}
+
+		comparedSig := outputs[id].Signature
+		sigBytes, err := sig.MarshalBinary()
+		if err != nil {
+			fmt.Printf("sigbytes fail")
+			return
+		}
+
+		comparedSigBytes, err := comparedSig.MarshalBinary()
+		if err != nil {
+			fmt.Printf("sigbytes fail")
+			return
+		}
+		if !bytes.Equal(sigBytes, comparedSigBytes) {
+			fmt.Printf("签名不一致")
+			return
+		}
+	}
+	fmt.Printf("验证签名成功")
+}
+
 func main() {
 	//keygenDemo(2, 3)
 
 	//verifyKeys("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111")
-	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111")
+	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111", 3)
 	//keygenDemoV2(2, 3)
 
 	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/keygenout", "message222", 3)
 
-	slices := keygenDemoV3(2, 3)
-	verifyKeysV3(slices, "message222")
+	//slices := keygenDemoV3(2, 3)
+	//verifyKeysV3(slices, "message222")
+	VerifyKeysV4(3)
 }
