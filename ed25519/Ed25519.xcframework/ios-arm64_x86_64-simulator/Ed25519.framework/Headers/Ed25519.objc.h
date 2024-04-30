@@ -49,8 +49,10 @@
 
 @end
 
+FOUNDATION_EXPORT NSString* _Nonnull Ed25519Signature(NSString* _Nullable keys, NSString* _Nullable msg);
+
 FOUNDATION_EXPORT NSString* _Nonnull Ed25519SliceKeygen(long t, long n);
 
-FOUNDATION_EXPORT NSString* _Nonnull Ed25519VerifyKeys(NSString* _Nullable keys, NSString* _Nullable msg);
+FOUNDATION_EXPORT BOOL Ed25519VerifySignature(NSString* _Nullable sigvalue, NSString* _Nullable groupKey, NSString* _Nullable msg);
 
 #endif

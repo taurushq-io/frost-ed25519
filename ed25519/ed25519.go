@@ -1,5 +1,6 @@
-// package ed25519
-package main
+package ed25519
+
+//package main
 
 import (
 	"encoding/base64"
