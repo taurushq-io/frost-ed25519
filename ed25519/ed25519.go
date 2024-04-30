@@ -1,4 +1,5 @@
-package ed25519
+// package ed25519
+package main
 
 import (
 	"encoding/base64"
@@ -233,7 +234,7 @@ func mergeJson(slices [][]byte) ([]byte, error) {
 	return combinedJSON, nil
 }
 
-func VerifyKeys(keys string, msg string) string {
+func Signature(keys string, msg string) string {
 
 	var err error
 	slices, err := decode2Bytes(keys)
@@ -351,7 +352,54 @@ func VerifyKeys(keys string, msg string) string {
 	}
 
 	fmt.Printf("Success: signature is\nr: %x\ns: %x\n", sig.R.Bytes(), sig.S.Bytes())
-	return fmt.Sprintf("%x,%x", sig.R.Bytes(), sig.S.Bytes())
+	sigValue, err := sig.MarshalBinary()
+	sigb64 := base64.StdEncoding.EncodeToString(sigValue)
+	fmt.Printf("Success: signature is\n%x\n", sigb64)
+
+	pkjson, err := pk.MarshalJSON()
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	fmt.Printf("pk: %s\n", string(pkjson))
+
+	return sigb64
+
+}
+
+func VerifySignature(sigvalue string, groupKey string, msg string) bool {
+
+	var pk eddsa.PublicKey
+	MESSAGE := []byte(msg)
+
+	pkJson := `"` + groupKey + `"`
+
+	var err error
+	err = pk.UnmarshalJSON([]byte(pkJson))
+	//err = json.Unmarshal([]byte(groupKey), &pk)
+	if err != nil {
+		fmt.Printf("pk unmarshal err: %v\n", err)
+		return false
+	}
+
+	sigData, err := base64.StdEncoding.DecodeString(sigvalue)
+	var sig eddsa.Signature
+	err = sig.UnmarshalBinary(sigData)
+	if err != nil {
+		fmt.Printf("sig unmarshal err: %v\n", err)
+		return false
+	}
+	// validate using classic
+	if !ed25519.Verify(pk.ToEd25519(), MESSAGE, sig.ToEd25519()) {
+		fmt.Printf("验证签名失败")
+		return false
+	}
+	// Validate using our own function
+	if !pk.Verify(MESSAGE, &sig) {
+		fmt.Printf("验证签名失败")
+		return false
+	}
+	return true
 }
 
 func main() {
@@ -363,7 +411,14 @@ func main() {
 
 	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/keygenout", "message222", 3)
 
-	slices := SliceKeygen(2, 3)
-	sigs := VerifyKeys(slices, "message222")
-	fmt.Println("验证结果", sigs)
+	//slices := SliceKeygen(2, 3)
+	//sigs := Signature(slices, "message222")
+	//fmt.Println("验证结果", sigs)
+
+	msg := "message1101"
+	//keys := SliceKeygen(2, 3)
+	//sig := Signature(keys, msg)
+	//fmt.Printf("sig: %v", sig)
+	verify := VerifySignature("5jihuw8y68V/lI/jJXEd6ZkrLwhx/67Hfq/Fg3mUgVLK+CtdCN32nDNdv7O8u2AHmFJaRH8a2UNIXfg/23e7DQ==", "KKLGpGsXr5M/bpSXPRL+xkhknvXToPoRBxkjVmSqbhw=", msg)
+	fmt.Printf("验证结果: %v\n", verify)
 }

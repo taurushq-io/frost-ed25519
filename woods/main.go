@@ -956,10 +956,32 @@ func VerifyKeysV4(n int) {
 	fmt.Printf("生成签名: [R:%x,S:%x]\n", sig2.R.Bytes(), sig2.S.Bytes())
 	fmt.Printf("生成签名: [R:%x,S:%x]\n", sig3.R.Bytes(), sig3.S.Bytes())
 
+	//签名还原
+	sigValue, err := sig.MarshalBinary()
+
+	fmt.Println(sigValue)
+	var rsig eddsa.Signature
+	err = rsig.UnmarshalBinary(sigValue)
+
+	if err != nil {
+		fmt.Printf("unmarshal signature err: %v\n", err)
+		return
+	}
+
+	if sig.Equal(rsig) {
+		fmt.Printf("签名对比一致...")
+	}
+
+	//sigValue, err := json.Marshal(sig)
+	//sigJson := string(sigValue)
+	//var rsig eddsa.Signature
+	//err = json.Unmarshal([]byte(sigJson), &rsig)
+	fmt.Printf("签名还原： [R:%x,S:%x]\n", rsig.R.Bytes(), rsig.S.Bytes())
+
 	//验证签名
 	pk := publicShares.GroupKey
 	// validate using classic
-	if !ed25519.Verify(pk.ToEd25519(), MESSAGE, sig.ToEd25519()) {
+	if !ed25519.Verify(pk.ToEd25519(), MESSAGE, rsig.ToEd25519()) {
 		fmt.Printf("验证签名失败")
 		return
 	}
