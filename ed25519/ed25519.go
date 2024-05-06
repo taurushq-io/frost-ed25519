@@ -1,6 +1,6 @@
-package ed25519
+//package ed25519
 
-//package main
+package main
 
 import (
 	"encoding/base64"
@@ -10,6 +10,7 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
+	"io/ioutil"
 	"strings"
 )
 
@@ -403,6 +404,43 @@ func VerifySignature(sigvalue string, groupKey string, msg string) bool {
 	return true
 }
 
+func unitTestVerifySignature(filename string) {
+	jsonData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Printf("read file error: %v", err)
+		return
+	}
+	// 定义结构体
+	type Data struct {
+		Keys      string `json:"keys"`
+		GroupKey  string `json:"groupKey"`
+		Msg       string `json:"msg"`
+		Signature string `json:"signature"`
+		Verify    bool   `json:"verify"`
+	}
+	// 解析 JSON
+	var data []Data
+	err = json.Unmarshal([]byte(jsonData), &data)
+	if err != nil {
+		fmt.Println("json parse Error:", err)
+		return
+	}
+
+	for i, item := range data {
+		//keys := item['keys'];
+		groupKey := item.GroupKey
+		msg := item.Msg
+		signature := item.Signature
+
+		verify := VerifySignature(signature, groupKey, msg)
+		fmt.Println(i, verify)
+		if verify != true {
+			break
+		}
+
+	}
+}
+
 func main() {
 	//keygenDemo(2, 3)
 
@@ -412,11 +450,12 @@ func main() {
 	//sigs := Signature(slices, "message222")
 	//fmt.Println("验证结果", sigs)
 
-	msg := "msg112233*&"
+	//msg := "msg112233*&"
 	//keys := SliceKeygen(2, 3)
 	//sig := Signature(keys, msg)
 	//fmt.Printf("sig: %v", sig)
 	//verify := VerifySignature(sig, "KKLGpGsXr5M/bpSXPRL+xkhknvXToPoRBxkjVmSqbhw=", msg)
-	verify := VerifySignature("ykaq3H4FhNhBhd/nNSkmgqbCheM5GqrOwJQFjYtT3gGclH9Y3evccSI8GzrmdUYKznrD9us4o0ii5ox6WYImAg==", "yguV5c5g9Ghn5FN4vGUy1A2hwxapiaNE7Qp5jvyWghs=", msg)
-	fmt.Printf("验证结果: %v\n", verify)
+	//verify := VerifySignature("ykaq3H4FhNhBhd/nNSkmgqbCheM5GqrOwJQFjYtT3gGclH9Y3evccSI8GzrmdUYKznrD9us4o0ii5ox6WYImAg==", "yguV5c5g9Ghn5FN4vGUy1A2hwxapiaNE7Qp5jvyWghs=", msg)
+	//fmt.Printf("验证结果: %v\n", verify)
+	unitTestVerifySignature("./ed25519_demo.txt")
 }
