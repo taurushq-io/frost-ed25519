@@ -1,0 +1,8 @@
+framework module "Ed25519" {
+	header "ref.h"
+    header "Ed25519.objc.h"
+    header "Universe.objc.h"
+    header "Ed25519.h"
+
+    export *
+}

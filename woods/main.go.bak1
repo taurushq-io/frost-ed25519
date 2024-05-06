@@ -1,0 +1,297 @@
+package main
+
+import (
+	"crypto/ed25519"
+	"encoding/json"
+	"fmt"
+	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
+	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+)
+
+const maxN = 100
+
+func usage() {
+	cmd := filepath.Base(os.Args[0])
+	fmt.Printf("usage: %v t n\nwhere 0 < t < n < %v\n", cmd, maxN)
+}
+
+func keygenDemo(t int, n int, clientFilename string, serverFilename string) {
+	var err error
+	if (n > maxN) || (t >= n) {
+		usage()
+		return
+	}
+
+	partyIDs := helpers.GenerateSet(party.ID(n))
+
+	// structure holding parties' state and output
+	states := map[party.ID]*state.State{}
+	outputs := map[party.ID]*keygen.Output{}
+
+	// create a state for each party
+	for _, id := range partyIDs {
+		states[id], outputs[id], err = frost.NewKeygenState(id, partyIDs, party.Size(t), 0)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	msgsOut1 := make([][]byte, 0, n)
+	msgsOut2 := make([][]byte, 0, n*(n-1)/2)
+
+	for _, s := range states {
+		msgs1, err := helpers.PartyRoutine(nil, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		msgsOut1 = append(msgsOut1, msgs1...)
+	}
+
+	for _, s := range states {
+		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		msgsOut2 = append(msgsOut2, msgs2...)
+	}
+
+	for _, s := range states {
+		_, err := helpers.PartyRoutine(msgsOut2, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	// Get the public data
+	fmt.Println("Group Key:")
+	id0 := partyIDs[0]
+	if err = states[id0].WaitForError(); err != nil {
+		fmt.Println(err)
+		return
+	}
+	public := outputs[id0].Public
+	secrets := make(map[party.ID]*eddsa.SecretShare, n)
+	groupKey := public.GroupKey
+	fmt.Printf("  %x\n\n", groupKey.ToEd25519())
+
+	for _, id := range partyIDs {
+		if err := states[id].WaitForError(); err != nil {
+			fmt.Println(err)
+			return
+		}
+		shareSecret := outputs[id].SecretKey
+		sharePublic := public.Shares[id]
+		secrets[id] = shareSecret
+		fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", id, shareSecret.Secret.Bytes(), sharePublic.Bytes())
+	}
+
+	// Write JSON files, one for client and one for server
+	writeJSONToFile(clientFilename, secrets, public)
+	writeJSONToFile(serverFilename, secrets, public)
+
+	fmt.Printf("Success: output written to %v and %v\n", clientFilename, serverFilename)
+}
+
+func writeJSONToFile(filename string, secrets map[party.ID]*eddsa.SecretShare, public *eddsa.Public) {
+	type KeyGenOutput struct {
+		Secrets map[party.ID]*eddsa.SecretShare `json:"Secrets"`
+		Shares  *eddsa.Public                   `json:"Shares"`
+	}
+
+	kgOutput := KeyGenOutput{
+		Secrets: secrets,
+		Shares:  public,
+	}
+
+	jsonData, err := json.MarshalIndent(kgOutput, "", " ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = ioutil.WriteFile(filename, jsonData, 0644)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func verifyKeys(clientFilename string, serverFilename string, msg string) {
+	message := []byte(msg)
+
+	var err error
+
+	type KeyGenOutput struct {
+		Secrets map[party.ID]*eddsa.SecretShare
+		Shares  *eddsa.Public
+	}
+
+	var clientOutput KeyGenOutput
+	var serverOutput KeyGenOutput
+
+	// Verify client keys
+	jsonData, err := ioutil.ReadFile(clientFilename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = json.Unmarshal(jsonData, &clientOutput)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Verify server keys
+	jsonData, err = ioutil.ReadFile(serverFilename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = json.Unmarshal(jsonData, &serverOutput)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// get n and t from the keygen output
+	var n party.Size
+	var t party.Size
+
+	n = clientOutput.Shares.PartyIDs.N()
+	t = clientOutput.Shares.Threshold
+
+	fmt.Printf("(t, n) = (%v, %v)\n", t, n)
+
+	partyIDs := helpers.GenerateSet(n)
+
+	clientSecretShares := clientOutput.Secrets
+	clientPublicShares := clientOutput.Shares
+
+	serverSecretShares := serverOutput.Secrets
+	serverPublicShares := serverOutput.Shares
+
+	// structure holding parties' state and output
+	states := map[party.ID]*state.State{}
+	clientOutputs := map[party.ID]*sign.Output{}
+	serverOutputs := map[party.ID]*sign.Output{}
+
+	msgsOut1 := make([][]byte, 0, n)
+	msgsOut2 := make([][]byte, 0, n)
+
+	// Generate client signatures
+	for _, id := range partyIDs {
+		states[id], clientOutputs[id], err = frost.NewSignState(partyIDs, clientSecretShares[id], clientPublicShares, message, 0)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	// Generate server signatures
+	for _, id := range partyIDs {
+		_, serverOutputs[id], err = frost.NewSignState(partyIDs, serverSecretShares[id], serverPublicShares, message, 0)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	// Verify client signatures
+	pk := clientPublicShares.GroupKey
+
+	for _, s := range states {
+		msgs1, err := helpers.PartyRoutine(nil, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		msgsOut1 = append(msgsOut1, msgs1...)
+	}
+
+	for _, s := range states {
+		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		msgsOut2 = append(msgsOut2, msgs2...)
+	}
+
+	for _, s := range states {
+		_, err := helpers.PartyRoutine(msgsOut2, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	// Verify server signatures
+	for _, s := range states {
+		_, err := helpers.PartyRoutine(msgsOut2, s)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	// Verify client signatures
+	id0 := partyIDs[0]
+	clientSig := clientOutputs[id0].Signature
+	if clientSig == nil {
+		fmt.Println("null signature")
+		return
+	}
+
+	if !ed25519.Verify(pk.ToEd25519(), message, clientSig.ToEd25519()) {
+		fmt.Println("client signature verification failed (ed25519)")
+		return
+	}
+
+	if !pk.Verify(message, clientSig) {
+		fmt.Println("client signature verification failed")
+		return
+	}
+
+	// Verify server signatures
+	serverSig := serverOutputs[id0].Signature
+	if serverSig == nil {
+		fmt.Println("null signature")
+		return
+	}
+
+	if !ed25519.Verify(pk.ToEd25519(), message, serverSig.ToEd25519()) {
+		fmt.Println("server signature verification failed (ed25519)")
+		return
+	}
+
+	if !pk.Verify(message, serverSig) {
+		fmt.Println("server signature verification failed")
+		return
+	}
+
+	fmt.Printf("Success: client signature is\nr: %x\ns: %x\n", clientSig.R.Bytes(), clientSig.S.Bytes())
+	fmt.Printf("Success: server signature is\nr: %x\ns: %x\n", serverSig.R.Bytes(), serverSig.S.Bytes())
+}
+
+func main() {
+	clientFilename := "./client_keys.json"
+	serverFilename := "./server_keys.json"
+	keygenDemo(2, 3, clientFilename, serverFilename)
+
+	//msg := "message_test111"
+	//verifyKeys(clientFilename, serverFilename, msg)
+}

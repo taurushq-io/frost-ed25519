@@ -70,6 +70,7 @@ func TestSign(t *testing.T) {
 	if sig == nil {
 		return
 	}
+
 	// validate using classic
 	if !ed25519.Verify(pk.ToEd25519(), MESSAGE, sig.ToEd25519()) {
 		t.Error("sig ed25519 failed")
