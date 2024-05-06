@@ -416,10 +416,11 @@ func main() {
 	//sigs := Signature(slices, "message222")
 	//fmt.Println("验证结果", sigs)
 
-	msg := "message1101"
+	msg := "msg112233*&"
 	//keys := SliceKeygen(2, 3)
 	//sig := Signature(keys, msg)
 	//fmt.Printf("sig: %v", sig)
-	verify := VerifySignature("5jihuw8y68V/lI/jJXEd6ZkrLwhx/67Hfq/Fg3mUgVLK+CtdCN32nDNdv7O8u2AHmFJaRH8a2UNIXfg/23e7DQ==", "KKLGpGsXr5M/bpSXPRL+xkhknvXToPoRBxkjVmSqbhw=", msg)
+	//verify := VerifySignature(sig, "KKLGpGsXr5M/bpSXPRL+xkhknvXToPoRBxkjVmSqbhw=", msg)
+	verify := VerifySignature("ykaq3H4FhNhBhd/nNSkmgqbCheM5GqrOwJQFjYtT3gGclH9Y3evccSI8GzrmdUYKznrD9us4o0ii5ox6WYImAg==", "yguV5c5g9Ghn5FN4vGUy1A2hwxapiaNE7Qp5jvyWghs=", msg)
 	fmt.Printf("验证结果: %v\n", verify)
 }
