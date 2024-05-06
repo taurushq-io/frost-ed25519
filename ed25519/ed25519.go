@@ -406,11 +406,7 @@ func VerifySignature(sigvalue string, groupKey string, msg string) bool {
 func main() {
 	//keygenDemo(2, 3)
 
-	//verifyKeys("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111")
-	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/woods/keygenout3.json", "message_test111")
 	//keygenDemoV2(2, 3)
-
-	//verifyKeysV2("/Users/wuxi/code/mine/frost-ed25519/keygenout", "message222", 3)
 
 	//slices := SliceKeygen(2, 3)
 	//sigs := Signature(slices, "message222")
