@@ -450,12 +450,12 @@ func main() {
 	//sigs := Signature(slices, "message222")
 	//fmt.Println("验证结果", sigs)
 
-	//msg := "msg112233*&"
-	//keys := SliceKeygen(2, 3)
-	//sig := Signature(keys, msg)
-	//fmt.Printf("sig: %v", sig)
-	//verify := VerifySignature(sig, "KKLGpGsXr5M/bpSXPRL+xkhknvXToPoRBxkjVmSqbhw=", msg)
-	//verify := VerifySignature("ykaq3H4FhNhBhd/nNSkmgqbCheM5GqrOwJQFjYtT3gGclH9Y3evccSI8GzrmdUYKznrD9us4o0ii5ox6WYImAg==", "yguV5c5g9Ghn5FN4vGUy1A2hwxapiaNE7Qp5jvyWghs=", msg)
-	//fmt.Printf("验证结果: %v\n", verify)
-	unitTestVerifySignature("./ed25519_demo.txt")
+	msg := "msg112233*&"
+	keys := SliceKeygen(1, 2)
+	sig := Signature(keys, msg)
+	fmt.Printf("sig: %v", sig)
+	//verify := VerifySignature(sig, "lFmgvmJr1wQkdnbVZr410gaOHCZbO42xQxVY1DvZnmE=", msg)
+	verify := VerifySignature("ymsyPoIMbP8Vmnc3KZcLB/N0qTg/zjVi/D04WuNVmknxpAsXeaW0P9vLdZcbRsTiUM6T7M3Bg2fCVUqD0wu2Cg==", "lFmgvmJr1wQkdnbVZr410gaOHCZbO42xQxVY1DvZnmE=", msg)
+	fmt.Printf("验证结果: %v\n", verify)
+	//unitTestVerifySignature("./ed25519_demo.txt")
 }
