@@ -14,8 +14,6 @@ import (
 	"strings"
 )
 
-//package main
-
 import (
 	"crypto/ed25519"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
@@ -40,6 +38,11 @@ type Shares struct {
 type CombinedOutput struct {
 	Secrets map[string]Secret `json:"Secrets"`
 	Shares  Shares            `json:"Shares"`
+}
+
+type FKeyGenOutput struct {
+	Secrets map[party.ID]*eddsa.SecretShare
+	Shares  *eddsa.Public
 }
 
 // encode2String takes a slice of byte slices, encodes each to a base64 string,
@@ -252,18 +255,13 @@ func Signature(keys string, msg string) string {
 		return ""
 	}
 
-	type KeyGenOutput struct {
-		Secrets map[party.ID]*eddsa.SecretShare
-		Shares  *eddsa.Public
-	}
-
 	mjson, err := mergeJson(slices)
 
 	fmt.Println("msg: ", len(message))
 	fmt.Println("merged: ", string(mjson))
 	fmt.Println("error: ", err)
 
-	var kgOutput KeyGenOutput
+	var kgOutput FKeyGenOutput
 
 	var jsonData []byte = mjson
 	//jsonData, err = ioutil.ReadFile(filename)
@@ -446,16 +444,40 @@ func main() {
 
 	//keygenDemoV2(2, 3)
 
-	//slices := SliceKeygen(2, 3)
+	//slices := SliceKeygen(1, 2)
 	//sigs := Signature(slices, "message222")
 	//fmt.Println("验证结果", sigs)
 
 	msg := "msg112233*&"
 	keys := SliceKeygen(1, 2)
-	sig := Signature(keys, msg)
-	fmt.Printf("sig: %v", sig)
+	fmt.Printf("keys: %v\n", keys)
+	sig1 := Signature(keys, msg)
+	fmt.Printf("[sig1: %v\n]", sig1)
+
+	//keysList := strings.Split(keys, ",")
+	//key1 := strings.Join(keysList, ",")
+	//key2 := strings.Join(keysList[:2], ",")
+	//sig2 := Signature(keysList[1], msg)
+	//sig3 := Signature(key1, msg)
+	//sig4 := Signature(key2, msg)
+	//fmt.Printf("[sig1: %v\n, sig2: %v\n, sig3: %v\n, sig4: %v\n]", sig1, sig2, sig3, sig4)
+
+	//验签
+	//verify1 := VerifySignature("7lRgQEXJEojpyfBmccb0mC8BzNxKYgI0hlgFqQ+xaGf58ch2acpYByT1wqrqP2FlXWmGG+Clv6r5MH3PwnZOBQ==", "3uwHRj188SR7aMQy1LPV0OiigWaZbNp3piwsOWAN7nw=", msg)
+	//verify2 := VerifySignature("QqrcpHytkdvxITKoZf3y+TjFUXnPSyYh1nSBOpKhEQBu22mIgyyVKO/sy4yM1HUKW7yq2Noro7al+m5rAzTbBw==", "3uwHRj188SR7aMQy1LPV0OiigWaZbNp3piwsOWAN7nw=", msg)
+	//fmt.Printf("验证结果: [%v, %v]", verify1, verify2)
+
 	//verify := VerifySignature(sig, "lFmgvmJr1wQkdnbVZr410gaOHCZbO42xQxVY1DvZnmE=", msg)
-	verify := VerifySignature("ymsyPoIMbP8Vmnc3KZcLB/N0qTg/zjVi/D04WuNVmknxpAsXeaW0P9vLdZcbRsTiUM6T7M3Bg2fCVUqD0wu2Cg==", "lFmgvmJr1wQkdnbVZr410gaOHCZbO42xQxVY1DvZnmE=", msg)
-	fmt.Printf("验证结果: %v\n", verify)
 	//unitTestVerifySignature("./ed25519_demo.txt")
+
+	//fromAddress := "4xJ3bqT3zsAqBngPoCwtYhJiZ6Ax9riBCdTHKjUUZ5gr"
+	//toAddress := "2vvzNTow58DMDZhxyp5SNTxfGXAdHehXY8nyFuRHFy4W"
+	//keys := "ewogIlNlY3JldHMiOiB7CiAgIjEiOiB7CiAgICJpZCI6IDEsCiAgICJzZWNyZXQiOiAid1lLMHNqQUVmcmNlWU1yaUh1NmNtUnkzQzFrY1ZHMTIrR1pXVGg5STd3WT0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJhTTB4K1A3d1Z0aDVLTTlmczZXTGppa1dZblpRcDhtQ0pZb1V6elcvTlVvPSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAieWxib2haaTV5N3NkblRyanBLYnlxeXNFd3JPRnZ6UUFCTTdJKzRkZlRqMD0iCiAgfQogfQp9,ewogIlNlY3JldHMiOiB7CiAgIjIiOiB7CiAgICJpZCI6IDIsCiAgICJzZWNyZXQiOiAiL0gyVmM4QS9jVS9pREd5OEduenhkcDE2aS90NlVmYzdXUTV3L2VPdHZnVT0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJhTTB4K1A3d1Z0aDVLTTlmczZXTGppa1dZblpRcDhtQ0pZb1V6elcvTlVvPSIsCiAgInNoYXJlcyI6IHsKICAgIjIiOiAiYk1zWDM3Wks5OWtYdFYyMmZ4MkZ3ZjYzMUlpMkY5eUY5K3FKKzA5MVZBaz0iCiAgfQogfQp9"
+	//groupKey := "aM0x+P7wVth5KM9fs6WLjikWYnZQp8mCJYoUzzW/NUo="
+	//message := buildSolanaTransactionMsg(fromAddress, toAddress, 333)
+	//sig := solanaTransactionTest(keys, message)
+	//fmt.Printf("sig: %s\n", sig)
+	//verify := VerifySignature(sig, groupKey, message)
+	//fmt.Printf("verify: %v\n", verify)
+
 }
