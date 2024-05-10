@@ -539,6 +539,7 @@ func solanaGetBalance(pubkey string) {
 			Commitment: sdkRpc.CommitmentProcessed,
 		},
 	)
+
 	if err != nil {
 		fmt.Printf("failed to get balance with cfg, err: %v", err)
 	}
