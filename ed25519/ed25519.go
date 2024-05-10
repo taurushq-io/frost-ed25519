@@ -189,6 +189,9 @@ func SliceKeygen(t int, n int) string {
 
 		slices = append(slices, jsonData)
 
+		gk := kgOutput.Shares.GroupKey.ToEd25519()
+		fmt.Printf("groupkey____: %v\n", base64.StdEncoding.EncodeToString(gk))
+
 	}
 
 	fmt.Println("生成分片：-----------------------")
