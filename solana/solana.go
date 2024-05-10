@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/blocto/solana-go-sdk/client"
 	"github.com/blocto/solana-go-sdk/types"
 	"github.com/davecgh/go-spew/spew"
 	confirm "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
@@ -15,6 +16,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
+	//"github.com/blocto/solana-go-sdk/rpc"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
@@ -489,138 +491,65 @@ func buildSolanaTransactionMsgV1(from string, to string, amount uint64, keys str
 
 }
 
-// 基于 types
-//func buildSolanaTransactionMsgV2(from string, to string, amount uint64, keys string, toEd25519 bool) {
-//	// Create a new RPC client:
-//	rpcClient := rpc.New(rpc.DevNet_RPC)
-//
-//	fromB, err := base64.StdEncoding.DecodeString(from)
-//	toB, err := base64.StdEncoding.DecodeString(to)
-//	accountFrom := solana.PublicKeyFromBytes(fromB)
-//	accountTo := solana.PublicKeyFromBytes(toB)
-//	if err != nil {
-//		panic(err)
-//		return
-//	}
-//
-//	recent, err := rpcClient.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
-//	if err != nil {
-//		panic(err)
-//	}
-//
-//
-//
-//	ins := system.NewTransferInstruction(
-//		amount,
-//		accountFrom,
-//		accountTo,
-//	).Build()
-//
-//
-//
-//	cp := common.PublicKeyFromBytes(ins.ProgramID().Bytes())
-//
-//	message := types.NewMessage(types.NewMessageParam{
-//		FeePayer:        common.PublicKeyFromBytes(fromB),
-//		RecentBlockhash: recent.Value.Blockhash.String(),
-//		Instructions: []types.Instruction{
-//			cp,
-//			ins.Accounts(),
-//			ins.Data(),
-//		},
-//	})
-//
-//	//instructions := system.NewTransferInstruction(
-//	//		amount, // 金额，单位是lamports
-//	//		accountFrom, // 发送方账户
-//	//		accountTo, // 接收方账户
-//	//	).Build()
-//
-//	//instructions := types.Instruction{
-//	//	instructions.ProgramID(),
-//	//	instructions.Accounts(),
-//	//	instructions.Data(),
-//	//
-//	//}
-//
-//
-//		tx, err := types.NewTransaction(types.NewTransactionParam{
-//		Message:
-//	})
-//
-//	tx, err := solana.NewTransaction(
-//		[]solana.Instruction{
-//			system.NewTransferInstruction(
-//				amount,
-//				accountFrom,
-//				accountTo,
-//			).Build(),
-//		},
-//		recent.Value.Blockhash,
-//		solana.TransactionPayer(accountFrom),
-//	)
-//	if err != nil {
-//		panic(err)
-//	}
-//
-//	//tx.Message.SetVersion(solana.MessageVersionV0)
-//
-//	// 指定头部信息
-//	//tx.Message.Header = solana.MessageHeader{
-//	//	NumRequiredSignatures:       1, // 设置需要的签名数量
-//	//	NumReadonlySignedAccounts:   0, // 设置只读已签名账户数量
-//	//	NumReadonlyUnsignedAccounts: 0, // 设置只读未签名账户数量
-//	//}
-//
-//	//tx.Message.SetVersion(solana.MessageVersionV0)
-//
-//	messageBytes, err := tx.Message.MarshalBinary()
-//	messageJson, err := tx.Message.MarshalJSON()
-//	messageb64 := base64.StdEncoding.EncodeToString(messageBytes)
-//
-//	message642, err := tx.ToBase64()
-//
-//	if err != nil {
-//		log.Fatalf("serialize message error, err: %v", err)
-//	}
-//
-//	fmt.Printf("Serialized Message for Signature: %x\n, %v\n", messageBytes, string(messageJson)) //msg := "交易信息"
-//
-//	fmt.Printf("messageb64: [%v\n, %v\n]", messageb64, message642)
-//
-//	//return string(messageBytes)
-//
-//	//mbb, _ := tx.Message.MarshalLegacy()
-//
-//	sig := solanaTransactionSignature(keys, string(messageBytes), toEd25519)
-//
-//	// 将签名解码为字节片
-//	signature := solana.SignatureFromBytes([]byte(sig))
-//	if err != nil {
-//		log.Fatalf("Failed to decode signature: %v", err)
-//	}
-//
-//	// 将签名追加到交易的签名字段中
-//	tx.Signatures = append(tx.Signatures, signature)
-//
-//	wsClient, err := ws.Connect(context.Background(), rpc.DevNet_WS)
-//	if err != nil {
-//		panic(err)
-//	}
-//	fsig, err := confirm.SendAndConfirmTransaction(
-//		context.Background(),
-//		rpcClient,
-//		wsClient,
-//		tx,
-//	)
-//	if err != nil {
-//		fmt.Printf("Failed to send confirmation: %v", err)
-//	}
-//	spew.Dump(sig)
-//
-//	fmt.Println(fsig)
-//
-//}
+func solanaFaucet(pubkey string, amount uint64) {
+	c := client.NewClient(rpc.DevNet_RPC)
+
+	accountB, _ := base64.StdEncoding.DecodeString(pubkey)
+	account := solana.PublicKeyFromBytes(accountB)
+
+	// request for 1 SOL airdrop using RequestAirdrop()
+	txhash, err := c.RequestAirdrop(
+		context.TODO(),   // request context
+		account.String(), // wallet address requesting airdrop
+		amount,           // amount of SOL in lamport
+	)
+	// check for errors
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("txhash: %s\n", txhash)
+
+}
+
+func solanaGetBalance(pubkey string) {
+
+	c := client.NewClient(rpc.DevNet_RPC)
+
+	accountB, _ := base64.StdEncoding.DecodeString(pubkey)
+	account := solana.PublicKeyFromBytes(accountB)
+	// get balance
+	balance, err := c.GetBalance(
+		context.TODO(),
+		account.String(),
+	)
+	if err != nil {
+		fmt.Printf("failed to get balance, err: %v", err)
+	}
+	fmt.Printf("balance: %v\n", balance)
+
+	// get balance with sepcific commitment
+	balance, err = c.GetBalanceWithConfig(
+		context.TODO(),
+		account.String(),
+		client.GetBalanceConfig{
+			Commitment: rpc.CommitmentProcessed,
+		},
+	)
+	if err != nil {
+		fmt.Printf("failed to get balance with cfg, err: %v", err)
+	}
+	fmt.Printf("balance: %v\n", balance)
+
+	// for advanced usage. fetch full rpc response
+	res, err := c.RpcClient.GetBalance(
+		context.TODO(),
+		account.String(),
+	)
+	if err != nil {
+		fmt.Printf("failed to get balance via rpc client, err: %v", err)
+	}
+	fmt.Printf("response: %+v\n", res)
+}
 
 func solTransTestv2() {
 
@@ -637,7 +566,10 @@ func solTransTestv2() {
 
 	from3 := "GzIZ/Uxza5+dMwqIiUBK5JbfBfKoHZxYXSfgXgKgVfo="
 	to3 := "g890V/MLnTTTsKXF2Abd8xvSLzaXtrO4H4RvzhxK7iU="
-	buildSolanaTransactionMsgV1(from3, to3, 333, keys, true)
+
+	fmt.Printf("%v,%v,%v", keys, from3, to3)
+	solanaFaucet(from3, 2^9)
+	//buildSolanaTransactionMsgV1(from3, to3, 333000, keys, true)
 	//
 	//from4 := "xK3aTO1KBWarLY5QlxEPUxGlgyyQY7oPR4aQJM8C/Co="
 	//to4 := "QtXA0VMuarDYLFz7JlrcUqfVKRgxI2iXzicN9jqqixA="
