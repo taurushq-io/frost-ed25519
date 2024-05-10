@@ -46,8 +46,9 @@ type FKeyGenOutput struct {
 }
 
 type MPCStateOutput struct {
-	State  *state.State
-	Output *sign.Output
+	State    *state.State
+	Output   *sign.Output
+	GroupKey *eddsa.PublicKey
 }
 
 // encode2String takes a slice of byte slices, encodes each to a base64 string,
@@ -532,55 +533,8 @@ func Key2KGPOutput(partyId string, key string) (FKeyGenOutput, error) {
 	return kgp, nil
 }
 
-// 分布式签名 第一阶段：产出 output
+// / 分布式签名 第一阶段：产出 output
 func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStateOutput, error) {
-
-	//// MPC 签名
-	//slices, err := decode2Bytes(key)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return nil, err
-	//}
-	//
-
-	//
-	//if slices == nil {
-	//	fmt.Println("verify failed slices is nil")
-	//	return nil, fmt.Errorf("verify failed slices is nil")
-	//}
-	//
-	//mjson, err := mergeJson(slices)
-	//
-	//fmt.Println("msg: ", len(message))
-	//fmt.Println("merged: ", string(mjson))
-	//fmt.Println("error: ", err)
-	//
-	//var kgOutput CombinedOutput
-	//
-	//var jsonData []byte = mjson
-	////jsonData, err = ioutil.ReadFile(filename)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return nil, err
-	//}
-	//
-	//fmt.Println("json: --- ", string(mjson), err)
-	//
-	//err = json.Unmarshal(jsonData, &kgOutput)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return nil, err
-	//}
-	//
-	//// get n and t from the keygen output
-	//var n party.Size
-	//var t party.Size
-	//
-	//n = party.Size(len(kgOutput.Shares.Shares) + 1)
-	//t = party.Size(len(kgOutput.Shares.Shares))
-	//
-	//fmt.Printf("(t, n) = (%v, %v)\n", t, n)
-	//
 
 	allPartyIDs := helpers.GenerateSet(party.Size(n))
 	var partyIDs []party.ID
@@ -593,74 +547,6 @@ func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStat
 		return nil, fmt.Errorf("party id %s not found", partyId)
 	}
 	partyID := partyIDs[0]
-	//
-	//secretStr := kgOutput.Secrets[partId].Secret
-	//publicStr := kgOutput.Shares.Shares[partId]
-	//secretB, err := base64.StdEncoding.DecodeString(secretStr)
-	//publicB, err := base64.StdEncoding.DecodeString(publicStr)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return nil, err
-	//}
-	//
-	//var secret ristretto.Scalar
-	//var public ristretto.Element
-	//
-	//_, err = secret.SetCanonicalBytes(secretB)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return nil, err
-	//}
-	//_, err = public.SetCanonicalBytes(publicB)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return nil, err
-	//}
-	//
-	//secretShare := eddsa.SecretShare{
-	//	ID:     partyID,
-	//	Secret: secret,
-	//	Public: public,
-	//}
-	//
-	//secretShares := map[party.ID]*eddsa.SecretShare{
-	//	partyID: &secretShare,
-	//}
-	//
-	//shares := map[party.ID]*ristretto.Element{
-	//	partyID: &public,
-	//}
-	//
-	//partySlice := party.IDSlice{
-	//	partyID,
-	//}
-	//
-	//groupKeyStr := kgOutput.Shares.GroupKey
-	//var groupKey eddsa.PublicKey
-	//pkJson := `"` + groupKeyStr + `"`
-	//err = groupKey.UnmarshalJSON([]byte(pkJson))
-	////err = json.Unmarshal([]byte(groupKey), &pk)
-	//if err != nil {
-	//	fmt.Printf("groupkey unmarshal err: %v\n", err)
-	//	return nil, err
-	//}
-	//
-	//publicShares := eddsa.Public{
-	//	partySlice,
-	//	party.Size(1),
-	//	shares,
-	//	&groupKey,
-	//}
-	//
-	////Secrets map[party.ID]*eddsa.SecretShare
-	////Shares  *eddsa.Public
-	//
-	//// structure holding parties' state and output
-	//states := map[party.ID]*state.State{}
-	//outputs := map[party.ID]*sign.Output{}
-	//
-	////msgsOut1 := make([][]byte, 0, n)
-	////msgsOut2 := make([][]byte, 0, n)
 
 	//var kgp FKeyGenOutput
 	kgp, err := Key2KGPOutput(partyId, key)
@@ -683,73 +569,68 @@ func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStat
 	}
 
 	out := MPCStateOutput{
-		State:  states[partyID],
-		Output: outputs[partyID],
+		State:    states[partyID],
+		Output:   outputs[partyID],
+		GroupKey: kgp.Shares.GroupKey,
 	}
 	return &out, nil
 }
 
-// 分布式签名 第二阶段： 产出最终签名
-//func MPCFinishSign(partId string, stateOut MPCStateOutput, groupKey string, msg string) (string, error) {
-//	pk := publicShares.GroupKey
-//
-//	for _, s := range states {
-//		msgs1, err := helpers.PartyRoutine(nil, s)
-//		if err != nil {
-//			fmt.Println(err)
-//			return ""
-//		}
-//		msgsOut1 = append(msgsOut1, msgs1...)
-//	}
-//
-//	for _, s := range states {
-//		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
-//		if err != nil {
-//			fmt.Println(err)
-//			return ""
-//		}
-//		msgsOut2 = append(msgsOut2, msgs2...)
-//	}
-//
-//	for _, s := range states {
-//		_, err := helpers.PartyRoutine(msgsOut2, s)
-//		if err != nil {
-//			fmt.Println(err)
-//			return ""
-//		}
-//	}
-//
-//	id0 := partyIDs[0]
-//	sig := outputs[id0].Signature
-//	if sig == nil {
-//		fmt.Println("null signature")
-//		return ""
-//	}
-//
-//	if !ed25519.Verify(pk.ToEd25519(), message, sig.ToEd25519()) {
-//		fmt.Println("signature verification failed (ed25519)")
-//		return ""
-//	}
-//
-//	if !pk.Verify(message, sig) {
-//		fmt.Println("signature verification failed")
-//		return ""
-//	}
-//
-//	fmt.Printf("Success: signature is\nr: %x\ns: %x\n", sig.R.Bytes(), sig.S.Bytes())
-//	sigValue, err := sig.MarshalBinary()
-//	sigb64 := base64.StdEncoding.EncodeToString(sigValue)
-//	fmt.Printf("Success: signature is\n%x\n", sigb64)
-//
-//	pkjson, err := pk.MarshalJSON()
-//	if err != nil {
-//		fmt.Println(err)
-//		return ""
-//	}
-//	fmt.Printf("pk: %s\n", string(pkjson))
-//
-//	return sigb64
-//}
+// / 分布式签名 第二阶段： 产出最终签名
+func MPCFinishSign(n int, groupKey eddsa.PublicKey, states map[party.ID]*state.State, outputs map[party.ID]*sign.Output, messageStr string) (string, error) {
+
+	msgsOut1 := make([][]byte, 0, n)
+	msgsOut2 := make([][]byte, 0, n)
+
+	for _, s := range states {
+		msgs1, err := helpers.PartyRoutine(nil, s)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		msgsOut1 = append(msgsOut1, msgs1...)
+	}
+
+	for _, s := range states {
+		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		msgsOut2 = append(msgsOut2, msgs2...)
+	}
+
+	for _, s := range states {
+		_, err := helpers.PartyRoutine(msgsOut2, s)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+	}
+
+	partyIDs := helpers.NewPartySlice(party.Size(n))
+	id0 := partyIDs[0]
+	sig := outputs[id0].Signature
+	if sig == nil {
+		fmt.Println("null signature")
+		return "", fmt.Errorf("signature is nil")
+	}
+
+	message := []byte(messageStr)
+
+	if !ed25519.Verify(groupKey.ToEd25519(), message, sig.ToEd25519()) {
+		fmt.Println("signature verification failed (ed25519)")
+		return "", fmt.Errorf("signature verification failed")
+	}
+
+	if !groupKey.Verify(message, sig) {
+		fmt.Println("signature verification failed")
+		return "", fmt.Errorf("signature verification failed")
+	}
+
+	sigb64 := base64.StdEncoding.EncodeToString(sig.ToEd25519())
+	return sigb64, nil
+}
 
 // 分片合成中心化签名
 func mpcSignature(keys string, messageStr string) string {
