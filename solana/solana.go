@@ -8,14 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/blocto/solana-go-sdk/client"
+	sdkRpc "github.com/blocto/solana-go-sdk/rpc"
 	"github.com/blocto/solana-go-sdk/types"
 	"github.com/davecgh/go-spew/spew"
-	confirm "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
-	"github.com/gagliardetto/solana-go/rpc/ws"
-	//"github.com/blocto/solana-go-sdk/types"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
+	confirm "github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction"
+	"github.com/gagliardetto/solana-go/rpc/ws"
 	//"github.com/blocto/solana-go-sdk/rpc"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
@@ -497,6 +497,8 @@ func solanaFaucet(pubkey string, amount uint64) {
 	accountB, _ := base64.StdEncoding.DecodeString(pubkey)
 	account := solana.PublicKeyFromBytes(accountB)
 
+	fmt.Printf("solana address: %v\n", account.String())
+
 	// request for 1 SOL airdrop using RequestAirdrop()
 	txhash, err := c.RequestAirdrop(
 		context.TODO(),   // request context
@@ -517,6 +519,8 @@ func solanaGetBalance(pubkey string) {
 
 	accountB, _ := base64.StdEncoding.DecodeString(pubkey)
 	account := solana.PublicKeyFromBytes(accountB)
+
+	fmt.Printf("solana address: %v\n", account.String())
 	// get balance
 	balance, err := c.GetBalance(
 		context.TODO(),
@@ -532,7 +536,7 @@ func solanaGetBalance(pubkey string) {
 		context.TODO(),
 		account.String(),
 		client.GetBalanceConfig{
-			Commitment: rpc.CommitmentProcessed,
+			Commitment: sdkRpc.CommitmentProcessed,
 		},
 	)
 	if err != nil {
@@ -548,7 +552,7 @@ func solanaGetBalance(pubkey string) {
 	if err != nil {
 		fmt.Printf("failed to get balance via rpc client, err: %v", err)
 	}
-	fmt.Printf("response: %+v\n", res)
+	fmt.Printf("response: %+v\n", res.Result.Value)
 }
 
 func solTransTestv2() {
@@ -567,9 +571,12 @@ func solTransTestv2() {
 	from3 := "GzIZ/Uxza5+dMwqIiUBK5JbfBfKoHZxYXSfgXgKgVfo="
 	to3 := "g890V/MLnTTTsKXF2Abd8xvSLzaXtrO4H4RvzhxK7iU="
 
-	fmt.Printf("%v,%v,%v", keys, from3, to3)
-	solanaFaucet(from3, 2^9)
-	//buildSolanaTransactionMsgV1(from3, to3, 333000, keys, true)
+	fmt.Printf("%v,%v,%v\n\n", keys, from3, to3)
+	//solanaFaucet(from3, 1^9)
+	//solanaFaucet(to3, 1^9)
+	solanaGetBalance(from3)
+	solanaGetBalance(to3)
+	//buildSolanaTransactionMsgV1(from3, to3, 1, keys, true)
 	//
 	//from4 := "xK3aTO1KBWarLY5QlxEPUxGlgyyQY7oPR4aQJM8C/Co="
 	//to4 := "QtXA0VMuarDYLFz7JlrcUqfVKRgxI2iXzicN9jqqixA="
