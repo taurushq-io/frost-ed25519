@@ -820,64 +820,10 @@ func SliceKeyGenPubdata(n int, index int, outState KeyGenOutState) (string, erro
 	secrets[partyID] = shareSecret
 	fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", partyID, shareSecret.Secret.Bytes(), sharePublic.Bytes())
 
-	//for _, id := range partyIDs {
-	//	if err := states[id].WaitForError(); err != nil {
-	//		fmt.Println(err)
-	//		return ""
-	//	}
-	//	shareSecret := outputs[id].SecretKey
-	//	sharePublic := public.Shares[id]
-	//	secrets[id] = shareSecret
-	//	fmt.Printf("Party %d:\n  secret: %x\n  public: %x\n", id, shareSecret.Secret.Bytes(), sharePublic.Bytes())
-	//}
-
-	// TODO: write JSON file, to take as input by CLI signer
 	type KeyGenOutput struct {
 		Secrets map[party.ID]*eddsa.SecretShare
 		Shares  *eddsa.Public
 	}
-
-	//var slices [][]byte
-	//for _, id := range partyIDs {
-	//
-	//	// 创建一个新的 map 用于存储过滤后的 secretShare
-	//	filteredSecrets := make(map[party.ID]*eddsa.SecretShare)
-	//
-	//	// 遍历原始的 secrets map
-	//	for nid, secret := range secrets {
-	//		// 如果ID不等于'2'，则将其添加到新的 map 中
-	//		if nid == id {
-	//			filteredSecrets[id] = secret
-	//		}
-	//	}
-	//
-	//	filteredShares := make(map[party.ID]*ristretto.Element)
-	//	filteredShares[id] = public.Shares[id]
-	//
-	//	filteredPubs := &eddsa.Public{
-	//		partyIDs,
-	//		party.Size(t),
-	//		filteredShares,
-	//		public.GroupKey,
-	//	}
-	//
-	//	kgOutput := KeyGenOutput{
-	//		Secrets: filteredSecrets,
-	//		Shares:  filteredPubs,
-	//	}
-	//	var jsonData []byte
-	//	jsonData, err = json.MarshalIndent(kgOutput, "", " ")
-	//	if err != nil {
-	//		fmt.Println(err)
-	//		return ""
-	//	}
-	//
-	//	slices = append(slices, jsonData)
-	//
-	//	gk := kgOutput.Shares.GroupKey.ToEd25519()
-	//	fmt.Printf("groupkey____: %v\n", base64.StdEncoding.EncodeToString(gk))
-	//
-	//}
 
 	partyIDs := helpers.GenerateSet(party.ID(n))
 	filteredPubs := &eddsa.Public{
