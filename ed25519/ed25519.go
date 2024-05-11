@@ -45,12 +45,19 @@ type FKeyGenOutput struct {
 	Shares  *eddsa.Public
 }
 
-type MPCStateOutput struct {
+type MPCStateOutput1 struct {
 	PartID   party.ID
-	State    *state.State
-	Output   *sign.Output
+	MsgOut1  [][]byte
+	MsgOut2  [][]byte
 	GroupKey *eddsa.PublicKey
 }
+
+//type MPCStateOutput struct {
+//	PartID   party.ID
+//	State    *state.State
+//	Output   *sign.Output
+//	GroupKey *eddsa.PublicKey
+//}
 
 // encode2String takes a slice of byte slices, encodes each to a base64 string,
 // and joins them into a single comma-separated string.
@@ -564,15 +571,27 @@ func MPCPartSign(n int, partyId string, key string, messageStr string) (string, 
 
 	message := []byte(messageStr)
 	states[partyID], outputs[partyID], err = frost.NewSignState(partyIDs, secretShares[partyID], publicShares, message, 0)
+
+	msgsOut1 := make([][]byte, 0, n)
+	msgsOut2 := make([][]byte, 0, n)
+	msgs1, err := helpers.PartyRoutine(nil, states[partyID])
 	if err != nil {
-		fmt.Println()
+		fmt.Println(err)
 		return "", err
 	}
+	msgsOut1 = append(msgsOut1, msgs1...)
 
-	out := MPCStateOutput{
+	msgs2, err := helpers.PartyRoutine(msgsOut1, states[partyID])
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	msgsOut2 = append(msgsOut2, msgs2...)
+
+	out := MPCStateOutput1{
 		PartID:   partyID,
-		State:    states[partyID],
-		Output:   outputs[partyID],
+		MsgOut1:  msgs1,
+		MsgOut2:  msgs2,
 		GroupKey: kgp.Shares.GroupKey,
 	}
 	//序列化输出
@@ -583,6 +602,146 @@ func MPCPartSign(n int, partyId string, key string, messageStr string) (string, 
 	}
 
 	return base64.StdEncoding.EncodeToString(outBytes), nil
+
+	//outbytes2, err := helpers.PartyRoutine(msgsOut2, states[partyID])
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return "", err
+	//}
+	//
+	//fmt.Printf("out1: %v\n", outbytes2)
+	//
+	//fmt.Printf("state: %v\n", states[partyID])
+	//if err != nil {
+	//	fmt.Println()
+	//	return "", err
+	//}
+	//
+	//out := MPCStateOutput{
+	//	PartID:   partyID,
+	//	State:    states[partyID],
+	//	Output:   outputs[partyID],
+	//	GroupKey: kgp.Shares.GroupKey,
+	//}
+	////序列化输出
+	//outBytes, err := json.Marshal(&out)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return "", err
+	//}
+	//
+	//return base64.StdEncoding.EncodeToString(outBytes), nil
+}
+
+func MPCPartSignV2(n int, keys []string, messageStr string) (string, error) {
+
+	partyIDs := helpers.GenerateSet(party.Size(n))
+
+	partyID1 := partyIDs[0]
+	partyID2 := partyIDs[1]
+
+	//var kgp FKeyGenOutput
+	kgp1, err := Key2KGPOutput("1", keys[0])
+	kgp2, err := Key2KGPOutput("2", keys[1])
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	secretShares1 := kgp1.Secrets
+	publicShares1 := kgp1.Shares
+
+	secretShares2 := kgp2.Secrets
+	publicShares2 := kgp2.Shares
+
+	ps := map[party.ID]*ristretto.Element{
+		partyID1: publicShares1.Shares[partyID1],
+		partyID2: publicShares2.Shares[partyID2],
+	}
+
+	publicShares := eddsa.Public{
+		partyIDs,
+		party.Size(2),
+		ps,
+		publicShares1.GroupKey,
+	}
+
+	message := []byte(messageStr)
+	state1, output1, err := frost.NewSignState(partyIDs, secretShares1[partyID1], &publicShares, message, 0)
+
+	state2, output2, err := frost.NewSignState(partyIDs, secretShares2[partyID2], &publicShares, message, 0)
+
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	msgsOut1 := make([][]byte, 0, n)
+	msgsOut2 := make([][]byte, 0, n)
+	msgs1, err := helpers.PartyRoutine(nil, state1)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	msgsOut1 = append(msgsOut1, msgs1...)
+
+	msgs11, err := helpers.PartyRoutine(nil, state2)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	msgsOut1 = append(msgsOut1, msgs11...)
+
+	msgs2, err := helpers.PartyRoutine(msgsOut1, state1)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	msgsOut2 = append(msgsOut2, msgs2...)
+
+	msgs22, err := helpers.PartyRoutine(msgsOut1, state2)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	msgsOut2 = append(msgsOut2, msgs22...)
+
+	msg3, err := helpers.PartyRoutine(msgsOut2, state1)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	msg33, err := helpers.PartyRoutine(msgsOut2, state2)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	sig1 := output1.Signature
+	sig2 := output2.Signature
+
+	fmt.Println(msg3, msg33)
+	fmt.Printf("sig1: %v\n", sig1.ToEd25519())
+	fmt.Printf("sig2: %v\n", sig2.ToEd25519())
+
+	ver1 := sig1.Equal(sig2)
+	fmt.Println("验证结果1", ver1)
+	if ed25519.Verify(publicShares.GroupKey.ToEd25519(), message, sig1.ToEd25519()) {
+		fmt.Println("签名结果1验证成功")
+	}
+	if ed25519.Verify(publicShares.GroupKey.ToEd25519(), message, sig2.ToEd25519()) {
+		fmt.Println("签名结果2验证成功")
+	}
+
+	if publicShares.GroupKey.Verify(message, sig1) {
+		fmt.Println("签名结果3验证成功")
+	}
+
+	if publicShares.GroupKey.Verify(message, sig2) {
+		fmt.Println("签名结果4验证成功")
+	}
+
+	return "", nil
 }
 
 // MPCFinalSign 分布式签名 第二阶段： 产出最终签名
@@ -601,39 +760,46 @@ func MPCFinalSign(n int, outputs map[string]string, messageStr string) (string, 
 			fmt.Println(err)
 			return "", err
 		}
-		var output MPCStateOutput
+		var output MPCStateOutput1
 		err = json.Unmarshal(outBytes, &output)
 		if err != nil {
 			fmt.Println(err)
 			return "", err
 		}
+		msgsOut1 = append(msgsOut1, output.MsgOut1...)
+		msgsOut2 = append(msgsOut2, output.MsgOut2...)
 
-		groupKey = output.GroupKey
-		state := output.State
-		id := output.PartID
-		out := output.Output
+		//groupKey = output.GroupKey
+		//state := output.State
+		//id := output.PartID
+		//out := output.Output
 
-		states[id] = state
-		outs[id] = out
+		//states[id] = state
+		//outs[id] = out
 	}
 
-	for _, s := range states {
-		msgs1, err := helpers.PartyRoutine(nil, s)
-		if err != nil {
-			fmt.Println(err)
-			return "", err
-		}
-		msgsOut1 = append(msgsOut1, msgs1...)
-	}
+	fmt.Println(msgsOut1, msgsOut2, groupKey, states, outs)
 
-	for _, s := range states {
-		msgs2, err := helpers.PartyRoutine(msgsOut1, s)
-		if err != nil {
-			fmt.Println(err)
-			return "", err
-		}
-		msgsOut2 = append(msgsOut2, msgs2...)
-	}
+	//return "", nil
+
+	//for _, s := range states {
+	//	msgs1, err := helpers.PartyRoutine(nil, s)
+	//	if err != nil {
+	//		fmt.Println(err)
+	//		return "", err
+	//	}
+	//	msgsOut1 = append(msgsOut1, msgs1...)
+	//}
+	//
+	//for _, s := range states {
+	//	msgs2, err := helpers.PartyRoutine(msgsOut1, s)
+	//	if err != nil {
+	//		fmt.Println(err)
+	//		return "", err
+	//	}
+	//	msgsOut2 = append(msgsOut2, msgs2...)
+	//}
+	//
 
 	for _, s := range states {
 		_, err := helpers.PartyRoutine(msgsOut2, s)
@@ -843,6 +1009,33 @@ func unitTestVerifySignature(filename string) {
 	}
 }
 
+func mpcSigtest() {
+	message := "test010101UUU"
+	keys := []string{"ewogIlNlY3JldHMiOiB7CiAgIjEiOiB7CiAgICJpZCI6IDEsCiAgICJzZWNyZXQiOiAicThZQXdmd1g1QWxrOGx1Vm5wdHk2L2djQzRZYVc1bVpvQTRSdU4ybVZBMD0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAiR1AxUzJ3Wmx6NGlpamhhUVBFV2hxMWhUNVF3U1RXeExVWHozN0ZFU1FnYz0iCiAgfQogfQp9", "ewogIlNlY3JldHMiOiB7CiAgIjIiOiB7CiAgICJpZCI6IDIsCiAgICJzZWNyZXQiOiAicEc0Vk00cTg2SVFFQ1FJS09uMG5mQzBIQXhIL0lCV1hkeGsrZXBNUHJnVT0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjIiOiAiWEdiYlF5Nlh1SjNvdU1XL2tjZmFZT3lRYUNyWVNPYUdNaHRhNDBjSlZ5bz0iCiAgfQogfQp9"}
+
+	s, e := MPCPartSignV2(2, keys, message)
+	fmt.Println(s, e)
+
+	//out1, err := MPCPartSign(2, "1", keys[0], message)
+	//out2, err := MPCPartSign(2, "2", keys[1], message)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//fmt.Println("step1\n\n", out1, out2)
+	//
+	//outputs := map[string]string{
+	//	"1": out1,
+	//	"2": out2,
+	//}
+	//sig, err := MPCFinalSign(2, outputs, message)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//fmt.Println("step2\n\n", sig)
+}
+
 func main() {
 	//keygenDemo(2, 3)
 
@@ -884,26 +1077,6 @@ func main() {
 	//verify := VerifySignature(sig, groupKey, message)
 	//fmt.Printf("verify: %v\n", verify)
 
-	message := "test010101UUU"
-	keys := []string{"ewogIlNlY3JldHMiOiB7CiAgIjEiOiB7CiAgICJpZCI6IDEsCiAgICJzZWNyZXQiOiAicThZQXdmd1g1QWxrOGx1Vm5wdHk2L2djQzRZYVc1bVpvQTRSdU4ybVZBMD0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAiR1AxUzJ3Wmx6NGlpamhhUVBFV2hxMWhUNVF3U1RXeExVWHozN0ZFU1FnYz0iCiAgfQogfQp9", "ewogIlNlY3JldHMiOiB7CiAgIjIiOiB7CiAgICJpZCI6IDIsCiAgICJzZWNyZXQiOiAicEc0Vk00cTg2SVFFQ1FJS09uMG5mQzBIQXhIL0lCV1hkeGsrZXBNUHJnVT0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjIiOiAiWEdiYlF5Nlh1SjNvdU1XL2tjZmFZT3lRYUNyWVNPYUdNaHRhNDBjSlZ5bz0iCiAgfQogfQp9"}
-
-	out1, err := MPCPartSign(2, "1", keys[0], message)
-	out2, err := MPCPartSign(2, "2", keys[1], message)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("step1\n\n", out1, out2)
-
-	outputs := map[string]string{
-		"1": out1,
-		"2": out2,
-	}
-	sig, err := MPCFinalSign(2, outputs, message)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("step2\n\n", sig)
+	mpcSigtest()
 
 }
