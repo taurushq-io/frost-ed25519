@@ -46,6 +46,7 @@ type FKeyGenOutput struct {
 }
 
 type MPCStateOutput struct {
+	PartID   party.ID
 	State    *state.State
 	Output   *sign.Output
 	GroupKey *eddsa.PublicKey
@@ -411,7 +412,7 @@ func VerifySignature(sigvalue string, groupKey string, msg string) bool {
 	return true
 }
 
-// / 还原分片为 kgp
+// Key2KGPOutput 还原分片为 kgp
 func Key2KGPOutput(partyId string, key string) (FKeyGenOutput, error) {
 	// MPC 签名
 	slices, err := decode2Bytes(key)
@@ -533,8 +534,8 @@ func Key2KGPOutput(partyId string, key string) (FKeyGenOutput, error) {
 	return kgp, nil
 }
 
-// / 分布式签名 第一阶段：产出 output
-func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStateOutput, error) {
+// MPCPartSign 分布式签名 第一阶段：产出 output
+func MPCPartSign(n int, partyId string, key string, messageStr string) (string, error) {
 
 	allPartyIDs := helpers.GenerateSet(party.Size(n))
 	var partyIDs []party.ID
@@ -544,7 +545,7 @@ func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStat
 		}
 	}
 	if len(partyIDs) == 0 {
-		return nil, fmt.Errorf("party id %s not found", partyId)
+		return "", fmt.Errorf("party id %s not found", partyId)
 	}
 	partyID := partyIDs[0]
 
@@ -552,7 +553,7 @@ func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStat
 	kgp, err := Key2KGPOutput(partyId, key)
 	if err != nil {
 		fmt.Println(err)
-		return nil, err
+		return "", err
 	}
 
 	states := map[party.ID]*state.State{}
@@ -565,22 +566,56 @@ func MPCInitSign(n int, partyId string, key string, messageStr string) (*MPCStat
 	states[partyID], outputs[partyID], err = frost.NewSignState(partyIDs, secretShares[partyID], publicShares, message, 0)
 	if err != nil {
 		fmt.Println()
-		return nil, err
+		return "", err
 	}
 
 	out := MPCStateOutput{
+		PartID:   partyID,
 		State:    states[partyID],
 		Output:   outputs[partyID],
 		GroupKey: kgp.Shares.GroupKey,
 	}
-	return &out, nil
+	//序列化输出
+	outBytes, err := json.Marshal(&out)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(outBytes), nil
 }
 
-// / 分布式签名 第二阶段： 产出最终签名
-func MPCFinishSign(n int, groupKey eddsa.PublicKey, states map[party.ID]*state.State, outputs map[party.ID]*sign.Output, messageStr string) (string, error) {
+// MPCFinalSign 分布式签名 第二阶段： 产出最终签名
+func MPCFinalSign(n int, outputs map[string]string, messageStr string) (string, error) {
 
 	msgsOut1 := make([][]byte, 0, n)
 	msgsOut2 := make([][]byte, 0, n)
+	var groupKey *eddsa.PublicKey
+
+	states := map[party.ID]*state.State{}
+	outs := map[party.ID]*sign.Output{}
+
+	for _, outStr := range outputs {
+		outBytes, err := base64.StdEncoding.DecodeString(outStr)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		var output MPCStateOutput
+		err = json.Unmarshal(outBytes, &output)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+
+		groupKey = output.GroupKey
+		state := output.State
+		id := output.PartID
+		out := output.Output
+
+		states[id] = state
+		outs[id] = out
+	}
 
 	for _, s := range states {
 		msgs1, err := helpers.PartyRoutine(nil, s)
@@ -610,7 +645,7 @@ func MPCFinishSign(n int, groupKey eddsa.PublicKey, states map[party.ID]*state.S
 
 	partyIDs := helpers.NewPartySlice(party.Size(n))
 	id0 := partyIDs[0]
-	sig := outputs[id0].Signature
+	sig := outs[id0].Signature
 	if sig == nil {
 		fmt.Println("null signature")
 		return "", fmt.Errorf("signature is nil")
@@ -850,12 +885,25 @@ func main() {
 	//fmt.Printf("verify: %v\n", verify)
 
 	message := "test010101UUU"
+	keys := []string{"ewogIlNlY3JldHMiOiB7CiAgIjEiOiB7CiAgICJpZCI6IDEsCiAgICJzZWNyZXQiOiAicThZQXdmd1g1QWxrOGx1Vm5wdHk2L2djQzRZYVc1bVpvQTRSdU4ybVZBMD0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAiR1AxUzJ3Wmx6NGlpamhhUVBFV2hxMWhUNVF3U1RXeExVWHozN0ZFU1FnYz0iCiAgfQogfQp9", "ewogIlNlY3JldHMiOiB7CiAgIjIiOiB7CiAgICJpZCI6IDIsCiAgICJzZWNyZXQiOiAicEc0Vk00cTg2SVFFQ1FJS09uMG5mQzBIQXhIL0lCV1hkeGsrZXBNUHJnVT0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjIiOiAiWEdiYlF5Nlh1SjNvdU1XL2tjZmFZT3lRYUNyWVNPYUdNaHRhNDBjSlZ5bz0iCiAgfQogfQp9"}
 
-	out, err := MPCInitSign(2, "1", "ewogIlNlY3JldHMiOiB7CiAgIjEiOiB7CiAgICJpZCI6IDEsCiAgICJzZWNyZXQiOiAicThZQXdmd1g1QWxrOGx1Vm5wdHk2L2djQzRZYVc1bVpvQTRSdU4ybVZBMD0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJ4SzNhVE8xS0JXYXJMWTVRbHhFUFV4R2xneXlRWTdvUFI0YVFKTThDL0NvPSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAiR1AxUzJ3Wmx6NGlpamhhUVBFV2hxMWhUNVF3U1RXeExVWHozN0ZFU1FnYz0iCiAgfQogfQp9", message)
+	out1, err := MPCPartSign(2, "1", keys[0], message)
+	out2, err := MPCPartSign(2, "2", keys[1], message)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("out: ", out)
+	fmt.Println("step1\n\n", out1, out2)
+
+	outputs := map[string]string{
+		"1": out1,
+		"2": out2,
+	}
+	sig, err := MPCFinalSign(2, outputs, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("step2\n\n", sig)
 
 }
