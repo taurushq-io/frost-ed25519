@@ -53,6 +53,15 @@ type KeyGenOutState struct {
 	Message2 [][]byte
 }
 
+type MPCSignatureOutState struct {
+	partyID  party.ID
+	State    *state.State
+	Output   *sign.Output
+	GroupKey *eddsa.PublicKey
+	Message1 [][]byte
+	Message2 [][]byte
+}
+
 // encode2String takes a slice of byte slices, encodes each to a base64 string,
 // and joins them into a single comma-separated string.
 func encode2String(data [][]byte) string {
@@ -853,6 +862,130 @@ func SliceKeyGenPubdata(n int, index int, outState KeyGenOutState) (string, erro
 
 }
 
+// MPCPartSignRound0 MPC 签名第一阶段 生成 state & output
+func MPCPartSignRound0(n int, index int, partyId string, key string, message string) (MPCSignatureOutState, error) {
+
+	partyIDs := helpers.GenerateSet(party.Size(n))
+
+	partyID := partyIDs[index]
+
+	jsonData, err := base64.StdEncoding.DecodeString(key)
+	if err != nil {
+		fmt.Println(err)
+		return MPCSignatureOutState{}, err
+	}
+
+	var kgp FKeyGenOutput
+	err = json.Unmarshal(jsonData, &kgp)
+	if err != nil {
+		fmt.Println(err)
+		return MPCSignatureOutState{}, err
+	}
+
+	secretShares := kgp.Secrets
+	pshares := kgp.Shares
+
+	ps := map[party.ID]*ristretto.Element{}
+	for _, pid := range partyIDs {
+		ps[pid] = pshares.Shares[pid]
+	}
+
+	publicShares := eddsa.Public{
+		partyIDs,
+		party.Size(1),
+		ps,
+		pshares.GroupKey,
+	}
+
+	messageB := []byte(message)
+	state, output, err := frost.NewSignState(partyIDs, secretShares[partyID], &publicShares, messageB, 0)
+
+	if err != nil {
+		fmt.Println(err)
+		return MPCSignatureOutState{}, err
+	}
+
+	msgsOut1 := make([][]byte, 0, n)
+	msgsOut2 := make([][]byte, 0, n)
+	result := MPCSignatureOutState{
+		partyID:  partyID,
+		State:    state,
+		Output:   output,
+		GroupKey: publicShares.GroupKey,
+		Message1: msgsOut1,
+		Message2: msgsOut2,
+	}
+
+	msgs, err := helpers.PartyRoutine(nil, state)
+	result.Message1 = msgs
+	if err != nil {
+		fmt.Println(err)
+		return result, err
+	}
+
+	return result, nil
+}
+
+func MPCPartSignRound1(n int, index int, partyId string, inputState MPCSignatureOutState, yMessage string, message string) (MPCSignatureOutState, error) {
+
+	state := inputState.State
+
+	if len(yMessage) == 0 {
+		return inputState, fmt.Errorf("remoteMessage is empty")
+	}
+
+	yMsg := KeygenString2Msg(yMessage)
+
+	if index == 0 {
+		inputState.Message1 = append(inputState.Message1, yMsg...)
+	} else {
+		inputState.Message1 = append(yMsg, inputState.Message1...)
+	}
+
+	msgs, err := helpers.PartyRoutine(inputState.Message1, state)
+	if err != nil {
+		fmt.Println(err)
+		return inputState, err
+	}
+
+	inputState.Message2 = msgs
+	return inputState, nil
+}
+
+func MPCPartSignRound2(n int, index int, partyId string, inputState MPCSignatureOutState, yMessage string, message string) (string, error) {
+
+	estate := inputState.State
+
+	if len(yMessage) == 0 {
+		return "", fmt.Errorf("remoteMessage is empty")
+	}
+
+	yMsg := KeygenString2Msg(yMessage)
+
+	if index == 0 {
+		inputState.Message2 = append(inputState.Message2, yMsg...)
+	} else {
+		inputState.Message2 = append(yMsg, inputState.Message2...)
+	}
+
+	_, err := helpers.PartyRoutine(inputState.Message2, estate)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	sig := inputState.Output.Signature
+
+	fmt.Printf("sig: %v\n", sig.ToEd25519())
+
+	if ed25519.Verify(inputState.GroupKey.ToEd25519(), []byte(message), sig.ToEd25519()) {
+		fmt.Println("签名结果验证成功")
+	}
+
+	sigResult := base64.StdEncoding.EncodeToString(sig.ToEd25519())
+	return sigResult, nil
+}
+
 // dpkTest 分布式分片生成
 func dpkTest() {
 	// client round0
@@ -919,6 +1052,77 @@ func dpkTest() {
 
 }
 
+// sigtest 分布式签名测试
+func sigtest() {
+
+	clientSlice := "ewogIlNlY3JldHMiOiB7CiAgIjEiOiB7CiAgICJpZCI6IDEsCiAgICJzZWNyZXQiOiAiTERSL0xUZGNtUk9oSzZaOTFZbHc4NHpIbFlYTERKZ1hiUDFXd2c1R29RMD0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJTS0VwaFlFOVdGL0dGUDJRcy8yVWt3TGRFK0VVdjZKRDMyUW5iUTV0aFE0PSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAiNk9xNklGOVZHK2RkUUJQY3A2M2M5cWROZGZQTklkMnlRT1l4dUdleGNCTT0iLAogICAiMiI6ICJVb09UNWViYjJRN0w2UEViT1B0MTJtRTNJeE9FVVU4SkpNNkFkTWRPOFJNPSIKICB9CiB9Cn0="
+	serverSlice := "ewogIlNlY3JldHMiOiB7CiAgIjIiOiB7CiAgICJpZCI6IDIsCiAgICJzZWNyZXQiOiAibmc3TTY2OWpabWx5QjF4L05VbUJMRGtNdGkyd2FENFhrRS93WkhSMkJBWT0iCiAgfQogfSwKICJTaGFyZXMiOiB7CiAgInQiOiAxLAogICJncm91cGtleSI6ICJTS0VwaFlFOVdGL0dGUDJRcy8yVWt3TGRFK0VVdjZKRDMyUW5iUTV0aFE0PSIsCiAgInNoYXJlcyI6IHsKICAgIjEiOiAiNk9xNklGOVZHK2RkUUJQY3A2M2M5cWROZGZQTklkMnlRT1l4dUdleGNCTT0iLAogICAiMiI6ICJVb09UNWViYjJRN0w2UEViT1B0MTJtRTNJeE9FVVU4SkpNNkFkTWRPOFJNPSIKICB9CiB9Cn0="
+
+	message := "MessageUXUY_*()&(*^&*(^*^"
+
+	//client round0
+	cstate, err := MPCPartSignRound0(2, 0, "1", clientSlice, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	//server round0
+	sstate, err := MPCPartSignRound0(2, 1, "2", serverSlice, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	//client round1
+	smsg1 := KeygenMsg2String(sstate.Message1)
+	cstate, err = MPCPartSignRound1(2, 0, "1", cstate, smsg1, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	//server round1
+	cmsg1 := KeygenMsg2String(cstate.Message1)
+	sstate, err = MPCPartSignRound1(2, 1, "2", sstate, cmsg1, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	//client round2
+	smsg2 := KeygenMsg2String(sstate.Message2)
+	sig1, err := MPCPartSignRound2(2, 0, "1", cstate, smsg2, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	//server round1
+	cmsg2 := KeygenMsg2String(cstate.Message2)
+	sig2, err := MPCPartSignRound2(2, 1, "2", sstate, cmsg2, message)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("sig1: ", sig1)
+	fmt.Println("sig2: ", sig2)
+
+	sigE1, err := base64.StdEncoding.DecodeString(sig1)
+	sigE2, err := base64.StdEncoding.DecodeString(sig2)
+
+	cgk := cstate.GroupKey
+	sgk := cstate.GroupKey
+
+	verify1 := ed25519.Verify(cgk.ToEd25519(), []byte(message), sigE1)
+	verify2 := ed25519.Verify(sgk.ToEd25519(), []byte(message), sigE2)
+
+	fmt.Println("verify1: ", verify1)
+	fmt.Println("verify2: ", verify2)
+
+}
+
 func main() {
 	//keygenDemo(2, 3)
 
@@ -962,5 +1166,7 @@ func main() {
 
 	//mpcSigtest()
 
-	dpkTest()
+	//dpkTest()
+
+	sigtest()
 }
