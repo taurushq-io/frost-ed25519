@@ -10,7 +10,6 @@ import (
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
-	"io/ioutil"
 	"strings"
 )
 
@@ -62,6 +61,7 @@ type MPCSignatureOutState struct {
 	Message2 [][]byte
 }
 
+/*
 // encode2String takes a slice of byte slices, encodes each to a base64 string,
 // and joins them into a single comma-separated string.
 func encode2String(data [][]byte) string {
@@ -700,6 +700,7 @@ func mpcSigtest() {
 	fmt.Println(s, e)
 
 }
+*/
 
 func KeygenMsg2String(kMsg [][]byte) string {
 	var result []string
@@ -785,7 +786,7 @@ func SliceKeyGenRound1(index int, outState KeyGenOutState, yMessage string) (Key
 }
 
 // SliceKeyGenRound2 生成密钥分片 round2
-func SliceKeyGenRound2(n int, partId string, index int, outState KeyGenOutState, yMessage string) (KeyGenOutState, error) {
+func SliceKeyGenRound2(index int, outState KeyGenOutState, yMessage string) (KeyGenOutState, error) {
 
 	if len(yMessage) == 0 {
 		return KeyGenOutState{}, fmt.Errorf("remoteMessage is empty")
@@ -809,7 +810,7 @@ func SliceKeyGenRound2(n int, partId string, index int, outState KeyGenOutState,
 }
 
 // SliceKeyGenPubdata 生成 pubdata 合成分片
-func SliceKeyGenPubdata(n int, index int, outState KeyGenOutState) (string, error) {
+func SliceKeyGenPubdata(n int, outState KeyGenOutState) (string, error) {
 
 	// Get the public data
 	estate := outState.State
@@ -863,7 +864,7 @@ func SliceKeyGenPubdata(n int, index int, outState KeyGenOutState) (string, erro
 }
 
 // MPCPartSignRound0 MPC 签名第一阶段 生成 state & output
-func MPCPartSignRound0(n int, index int, partyId string, key string, message string) (MPCSignatureOutState, error) {
+func MPCPartSignRound0(n int, index int, key string, message string) (MPCSignatureOutState, error) {
 
 	partyIDs := helpers.GenerateSet(party.Size(n))
 
@@ -926,7 +927,7 @@ func MPCPartSignRound0(n int, index int, partyId string, key string, message str
 	return result, nil
 }
 
-func MPCPartSignRound1(n int, index int, partyId string, inputState MPCSignatureOutState, yMessage string, message string) (MPCSignatureOutState, error) {
+func MPCPartSignRound1(index int, inputState MPCSignatureOutState, yMessage string) (MPCSignatureOutState, error) {
 
 	estate := inputState.State
 
@@ -952,7 +953,7 @@ func MPCPartSignRound1(n int, index int, partyId string, inputState MPCSignature
 	return inputState, nil
 }
 
-func MPCPartSignRound2(n int, index int, partyId string, inputState MPCSignatureOutState, yMessage string, message string) (string, error) {
+func MPCPartSignRound2(index int, inputState MPCSignatureOutState, yMessage string, message string) (string, error) {
 
 	estate := inputState.State
 
@@ -984,6 +985,17 @@ func MPCPartSignRound2(n int, index int, partyId string, inputState MPCSignature
 
 	sigResult := base64.StdEncoding.EncodeToString(sig.ToEd25519())
 	return sigResult, nil
+}
+
+func VerifySignature(groupKey *eddsa.PublicKey, message string, signature string) bool {
+
+	sig, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	verify := ed25519.Verify(groupKey.ToEd25519(), []byte(message), sig)
+	return verify
 }
 
 // dpkTest 分布式分片生成
@@ -1020,7 +1032,7 @@ func dpkTest() {
 
 	// client round2
 	smsg1 = KeygenMsg2String(sstate.Message2)
-	cstate, err = SliceKeyGenRound2(2, "1", 0, cstate, smsg1)
+	cstate, err = SliceKeyGenRound2(0, cstate, smsg1)
 	if err != nil {
 		fmt.Println("kg5...", err)
 		return
@@ -1028,14 +1040,14 @@ func dpkTest() {
 
 	// server round2
 	cmsg1 = KeygenMsg2String(cstate.Message2)
-	sstate, err = SliceKeyGenRound2(2, "2", 1, sstate, cmsg1)
+	sstate, err = SliceKeyGenRound2(1, sstate, cmsg1)
 	if err != nil {
 		fmt.Println("kg6...", err)
 		return
 	}
 
 	// client gen slice
-	cslice, err := SliceKeyGenPubdata(2, 0, cstate)
+	cslice, err := SliceKeyGenPubdata(2, cstate)
 	if err != nil {
 		fmt.Println("kg7...", err)
 		return
@@ -1043,7 +1055,7 @@ func dpkTest() {
 	fmt.Println("client slice: ", cslice)
 
 	// client gen slice
-	sslice, err := SliceKeyGenPubdata(2, 1, sstate)
+	sslice, err := SliceKeyGenPubdata(2, sstate)
 	if err != nil {
 		fmt.Println("kg8...", err)
 		return
@@ -1061,14 +1073,14 @@ func sigtest() {
 	message := "MessageUXUY_*()&(*^&*(^*^"
 
 	//client round0
-	cstate, err := MPCPartSignRound0(2, 0, "1", clientSlice, message)
+	cstate, err := MPCPartSignRound0(2, 0, clientSlice, message)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	//server round0
-	sstate, err := MPCPartSignRound0(2, 1, "2", serverSlice, message)
+	sstate, err := MPCPartSignRound0(2, 1, serverSlice, message)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -1076,7 +1088,7 @@ func sigtest() {
 
 	//client round1
 	smsg1 := KeygenMsg2String(sstate.Message1)
-	cstate, err = MPCPartSignRound1(2, 0, "1", cstate, smsg1, message)
+	cstate, err = MPCPartSignRound1(0, cstate, smsg1)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -1084,7 +1096,7 @@ func sigtest() {
 
 	//server round1
 	cmsg1 := KeygenMsg2String(cstate.Message1)
-	sstate, err = MPCPartSignRound1(2, 1, "2", sstate, cmsg1, message)
+	sstate, err = MPCPartSignRound1(1, sstate, cmsg1)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -1092,7 +1104,7 @@ func sigtest() {
 
 	//client round2
 	smsg2 := KeygenMsg2String(sstate.Message2)
-	sig1, err := MPCPartSignRound2(2, 0, "1", cstate, smsg2, message)
+	sig1, err := MPCPartSignRound2(0, cstate, smsg2, message)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -1100,7 +1112,7 @@ func sigtest() {
 
 	//server round1
 	cmsg2 := KeygenMsg2String(cstate.Message2)
-	sig2, err := MPCPartSignRound2(2, 1, "2", sstate, cmsg2, message)
+	sig2, err := MPCPartSignRound2(1, sstate, cmsg2, message)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -1109,14 +1121,17 @@ func sigtest() {
 	fmt.Println("sig1: ", sig1)
 	fmt.Println("sig2: ", sig2)
 
-	sigE1, err := base64.StdEncoding.DecodeString(sig1)
-	sigE2, err := base64.StdEncoding.DecodeString(sig2)
+	//sigE1, err := base64.StdEncoding.DecodeString(sig1)
+	//sigE2, err := base64.StdEncoding.DecodeString(sig2)
 
 	cgk := cstate.GroupKey
 	sgk := cstate.GroupKey
 
-	verify1 := ed25519.Verify(cgk.ToEd25519(), []byte(message), sigE1)
-	verify2 := ed25519.Verify(sgk.ToEd25519(), []byte(message), sigE2)
+	//verify1 := ed25519.Verify(cgk.ToEd25519(), []byte(message), sigE1)
+	//verify2 := ed25519.Verify(sgk.ToEd25519(), []byte(message), sigE2)
+
+	verify1 := VerifySignature(cgk, message, sig1)
+	verify2 := VerifySignature(sgk, message, sig2)
 
 	fmt.Println("verify1: ", verify1)
 	fmt.Println("verify2: ", verify2)
