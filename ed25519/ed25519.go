@@ -898,7 +898,7 @@ func MPCPartSignRound0(n int, index int, partyId string, key string, message str
 	}
 
 	messageB := []byte(message)
-	state, output, err := frost.NewSignState(partyIDs, secretShares[partyID], &publicShares, messageB, 0)
+	estate, output, err := frost.NewSignState(partyIDs, secretShares[partyID], &publicShares, messageB, 0)
 
 	if err != nil {
 		fmt.Println(err)
@@ -909,14 +909,14 @@ func MPCPartSignRound0(n int, index int, partyId string, key string, message str
 	msgsOut2 := make([][]byte, 0, n)
 	result := MPCSignatureOutState{
 		partyID:  partyID,
-		State:    state,
+		State:    estate,
 		Output:   output,
 		GroupKey: publicShares.GroupKey,
 		Message1: msgsOut1,
 		Message2: msgsOut2,
 	}
 
-	msgs, err := helpers.PartyRoutine(nil, state)
+	msgs, err := helpers.PartyRoutine(nil, estate)
 	result.Message1 = msgs
 	if err != nil {
 		fmt.Println(err)
@@ -928,7 +928,7 @@ func MPCPartSignRound0(n int, index int, partyId string, key string, message str
 
 func MPCPartSignRound1(n int, index int, partyId string, inputState MPCSignatureOutState, yMessage string, message string) (MPCSignatureOutState, error) {
 
-	state := inputState.State
+	estate := inputState.State
 
 	if len(yMessage) == 0 {
 		return inputState, fmt.Errorf("remoteMessage is empty")
@@ -942,7 +942,7 @@ func MPCPartSignRound1(n int, index int, partyId string, inputState MPCSignature
 		inputState.Message1 = append(yMsg, inputState.Message1...)
 	}
 
-	msgs, err := helpers.PartyRoutine(inputState.Message1, state)
+	msgs, err := helpers.PartyRoutine(inputState.Message1, estate)
 	if err != nil {
 		fmt.Println(err)
 		return inputState, err
