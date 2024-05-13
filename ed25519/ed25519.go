@@ -1,65 +1,40 @@
-//package ed25519
+package ed25519
 
-package main
+//package main
 
 import (
+	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/taurusgroup/frost-ed25519/pkg/eddsa"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
 	"github.com/taurusgroup/frost-ed25519/pkg/frost/party"
+	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
 	"github.com/taurusgroup/frost-ed25519/pkg/helpers"
+	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
+	"github.com/taurusgroup/frost-ed25519/pkg/state"
 	"strings"
 )
 
-import (
-	"crypto/ed25519"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/keygen"
-	"github.com/taurusgroup/frost-ed25519/pkg/frost/sign"
-	"github.com/taurusgroup/frost-ed25519/pkg/ristretto"
-	"github.com/taurusgroup/frost-ed25519/pkg/state"
-)
+//const maxN = 100
+//
+//type Secret struct {
+//	ID     int    `json:"id"`
+//	Secret string `json:"secret"`
+//}
+//
+//type Shares struct {
+//	T        int               `json:"t"`
+//	GroupKey string            `json:"groupkey"`
+//	Shares   map[string]string `json:"shares"`
+//}
 
-const maxN = 100
-
-type Secret struct {
-	ID     int    `json:"id"`
-	Secret string `json:"secret"`
-}
-
-type Shares struct {
-	T        int               `json:"t"`
-	GroupKey string            `json:"groupkey"`
-	Shares   map[string]string `json:"shares"`
-}
-
-type CombinedOutput struct {
-	Secrets map[string]Secret `json:"Secrets"`
-	Shares  Shares            `json:"Shares"`
-}
-
-type FKeyGenOutput struct {
-	Secrets map[party.ID]*eddsa.SecretShare
-	Shares  *eddsa.Public
-}
-
-type KeyGenOutState struct {
-	partyID  party.ID
-	State    *state.State
-	Output   *keygen.Output
-	Message1 [][]byte
-	Message2 [][]byte
-}
-
-type MPCSignatureOutState struct {
-	partyID  party.ID
-	State    *state.State
-	Output   *sign.Output
-	GroupKey *eddsa.PublicKey
-	Message1 [][]byte
-	Message2 [][]byte
-}
+//type CombinedOutput struct {
+//	Secrets map[string]Secret `json:"Secrets"`
+//	Shares  Shares            `json:"Shares"`
+//}
 
 /*
 // encode2String takes a slice of byte slices, encodes each to a base64 string,
@@ -702,6 +677,28 @@ func mpcSigtest() {
 }
 */
 
+type FKeyGenOutput struct {
+	Secrets map[party.ID]*eddsa.SecretShare
+	Shares  *eddsa.Public
+}
+
+type KeyGenOutState struct {
+	partyID  party.ID
+	State    *state.State
+	Output   *keygen.Output
+	Message1 [][]byte
+	Message2 [][]byte
+}
+
+type MPCSignatureOutState struct {
+	partyID  party.ID
+	State    *state.State
+	Output   *sign.Output
+	GroupKey *eddsa.PublicKey
+	Message1 [][]byte
+	Message2 [][]byte
+}
+
 func KeygenMsg2String(kMsg [][]byte) string {
 	var result []string
 	for _, msg := range kMsg {
@@ -809,8 +806,8 @@ func SliceKeyGenRound2(index int, outState KeyGenOutState, yMessage string) (Key
 	return outState, nil
 }
 
-// SliceKeyGenPubdata 生成 pubdata 合成分片
-func SliceKeyGenPubdata(n int, outState KeyGenOutState) (string, error) {
+// DKGSlice 生成最终密钥分片分片
+func DKGSlice(n int, outState KeyGenOutState) (string, error) {
 
 	// Get the public data
 	estate := outState.State
@@ -1007,6 +1004,18 @@ func dpkTest() {
 		return
 	}
 
+	//编码解码测试
+	s1, err := json.Marshal(cstate)
+	if err != nil {
+		fmt.Println("kg2...", err)
+	}
+	var s11 KeyGenOutState
+	err = json.Unmarshal(s1, &s11)
+	if err != nil {
+		fmt.Println("kg3...", err)
+	}
+	fmt.Println(s11)
+
 	// server round0
 	sstate, err := SliceKeyGenRound0(2, "2", 1)
 	if err != nil {
@@ -1047,7 +1056,7 @@ func dpkTest() {
 	}
 
 	// client gen slice
-	cslice, err := SliceKeyGenPubdata(2, cstate)
+	cslice, err := DKGSlice(2, cstate)
 	if err != nil {
 		fmt.Println("kg7...", err)
 		return
@@ -1055,7 +1064,7 @@ func dpkTest() {
 	fmt.Println("client slice: ", cslice)
 
 	// client gen slice
-	sslice, err := SliceKeyGenPubdata(2, sstate)
+	sslice, err := DKGSlice(2, sstate)
 	if err != nil {
 		fmt.Println("kg8...", err)
 		return
@@ -1181,7 +1190,7 @@ func main() {
 
 	//mpcSigtest()
 
-	//dpkTest()
+	dpkTest()
 
-	sigtest()
+	//sigtest()
 }

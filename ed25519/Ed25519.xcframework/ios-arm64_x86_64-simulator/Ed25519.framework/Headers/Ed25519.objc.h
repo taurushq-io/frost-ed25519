@@ -11,48 +11,102 @@
 #include "Universe.objc.h"
 
 
-@class Ed25519CombinedOutput;
-@class Ed25519Secret;
-@class Ed25519Shares;
+@class Ed25519FKeyGenOutput;
+@class Ed25519KeyGenOutState;
+@class Ed25519KeyGenOutState2;
+@class Ed25519MPCSignatureOutState;
 
-@interface Ed25519CombinedOutput : NSObject <goSeqRefInterface> {
+@interface Ed25519FKeyGenOutput : NSObject <goSeqRefInterface> {
 }
 @property(strong, readonly) _Nonnull id _ref;
 
 - (nonnull instancetype)initWithRef:(_Nonnull id)ref;
 - (nonnull instancetype)init;
-// skipped field CombinedOutput.Secrets with unsupported type: map[string]github.com/taurusgroup/frost-ed25519/ed25519.Secret
+// skipped field FKeyGenOutput.Secrets with unsupported type: map[github.com/taurusgroup/frost-ed25519/pkg/frost/party.ID]*github.com/taurusgroup/frost-ed25519/pkg/eddsa.SecretShare
 
-// skipped field CombinedOutput.Shares with unsupported type: github.com/taurusgroup/frost-ed25519/ed25519.Shares
+// skipped field FKeyGenOutput.Shares with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/eddsa.Public
 
 @end
 
-@interface Ed25519Secret : NSObject <goSeqRefInterface> {
+@interface Ed25519KeyGenOutState : NSObject <goSeqRefInterface> {
 }
 @property(strong, readonly) _Nonnull id _ref;
 
 - (nonnull instancetype)initWithRef:(_Nonnull id)ref;
 - (nonnull instancetype)init;
-@property (nonatomic) long id_;
-@property (nonatomic) NSString* _Nonnull secret;
+// skipped field KeyGenOutState.State with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/state.State
+
+// skipped field KeyGenOutState.Output with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/frost/keygen.Output
+
+// skipped field KeyGenOutState.Message1 with unsupported type: [][]byte
+
+// skipped field KeyGenOutState.Message2 with unsupported type: [][]byte
+
 @end
 
-@interface Ed25519Shares : NSObject <goSeqRefInterface> {
+@interface Ed25519KeyGenOutState2 : NSObject <goSeqRefInterface> {
 }
 @property(strong, readonly) _Nonnull id _ref;
 
 - (nonnull instancetype)initWithRef:(_Nonnull id)ref;
 - (nonnull instancetype)init;
-@property (nonatomic) long t;
-@property (nonatomic) NSString* _Nonnull groupKey;
-// skipped field Shares.Shares with unsupported type: map[string]string
+// skipped field KeyGenOutState2.State with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/state.State
+
+// skipped field KeyGenOutState2.Output with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/frost/keygen.Output
+
+@property (nonatomic) NSString* _Nonnull message1;
+@property (nonatomic) NSString* _Nonnull message2;
+@end
+
+@interface Ed25519MPCSignatureOutState : NSObject <goSeqRefInterface> {
+}
+@property(strong, readonly) _Nonnull id _ref;
+
+- (nonnull instancetype)initWithRef:(_Nonnull id)ref;
+- (nonnull instancetype)init;
+// skipped field MPCSignatureOutState.State with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/state.State
+
+// skipped field MPCSignatureOutState.Output with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/frost/sign.Output
+
+// skipped field MPCSignatureOutState.GroupKey with unsupported type: *github.com/taurusgroup/frost-ed25519/pkg/eddsa.PublicKey
+
+// skipped field MPCSignatureOutState.Message1 with unsupported type: [][]byte
+
+// skipped field MPCSignatureOutState.Message2 with unsupported type: [][]byte
 
 @end
 
-FOUNDATION_EXPORT NSString* _Nonnull Ed25519Signature(NSString* _Nullable keys, NSString* _Nullable msg);
+// skipped function DKGSlice with unsupported parameter or return types
 
-FOUNDATION_EXPORT NSString* _Nonnull Ed25519SliceKeygen(long t, long n);
 
-FOUNDATION_EXPORT BOOL Ed25519VerifySignature(NSString* _Nullable sigvalue, NSString* _Nullable groupKey, NSString* _Nullable msg);
+// skipped function KeyGenDemoV2 with unsupported parameter or return types
+
+
+// skipped function KeygenMsg2String with unsupported parameter or return types
+
+
+// skipped function KeygenString2Msg with unsupported parameter or return types
+
+
+// skipped function MPCPartSignRound0 with unsupported parameter or return types
+
+
+// skipped function MPCPartSignRound1 with unsupported parameter or return types
+
+
+// skipped function MPCPartSignRound2 with unsupported parameter or return types
+
+
+// skipped function SliceKeyGenRound0 with unsupported parameter or return types
+
+
+// skipped function SliceKeyGenRound1 with unsupported parameter or return types
+
+
+// skipped function SliceKeyGenRound2 with unsupported parameter or return types
+
+
+// skipped function VerifySignature with unsupported parameter or return types
+
 
 #endif
