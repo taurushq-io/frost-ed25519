@@ -4,7 +4,7 @@
 
 A Go implementation of a [FROST](https://eprint.iacr.org/2020/852.pdf) threshold signature protocol for the Ed25519 signature scheme.
 
-Our FROST protocol implementation is also inspired from that in the IETF Draft [Threshold Modes in Elliptic Curves ](https://www.ietf.org/id/draft-hallambaker-threshold-05.html).
+Our FROST protocol implementation is also inspired from that in the IETF Draft [Threshold Modes in Elliptic Curves ](https://www.ietf.org/archive/id/draft-hallambaker-threshold-09.html).
 
 ## Ed25519
 
