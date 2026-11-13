@@ -83,9 +83,9 @@ func challenge(partyID party.ID, context []byte, public, M *ristretto.Element) *
 	_, _ = h.Write(public.Bytes())
 	_, _ = h.Write(M.Bytes())
 
-	buffer := make([]byte, 64)
+	var buffer [sha512.Size]byte
 	// SetUniformBytes only returns an error when the length is wrong so we're okay here
-	_, _ = S.SetUniformBytes(h.Sum(buffer))
+	_, _ = S.SetUniformBytes(h.Sum(buffer[:0]))
 	return &S
 }
 

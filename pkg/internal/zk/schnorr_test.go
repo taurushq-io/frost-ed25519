@@ -18,4 +18,9 @@ func TestSchnorrProof(t *testing.T) {
 	publicComputed := ristretto.NewIdentityElement().ScalarBaseMult(private)
 	require.True(t, publicComputed.Equal(public) == 1)
 	require.True(t, proof.Verify(partyID, public, ctx[:]))
+	require.False(t, proof.Verify(partyID+1, public, ctx[:]))
+	ctx[0] = 1
+	require.False(t, proof.Verify(partyID, public, ctx[:]))
+	ctx[0] = 0
+	require.False(t, proof.Verify(partyID, ristretto.NewIdentityElement().Negate(public), ctx[:]))
 }
